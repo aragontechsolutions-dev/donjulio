@@ -10,6 +10,12 @@ import { CmsModule } from "./cms/cms.module";
 import { OrdersModule } from "./orders/orders.module";
 import { PaymentsModule } from "./integrations/payments/payments.module";
 import { BillingModule } from "./integrations/billing/billing.module";
+import { InventoryModule } from "./inventory/inventory.module";
+import { RecipesModule } from "./recipes/recipes.module";
+import { ProductionModule } from "./production/production.module";
+import { MermasModule } from "./mermas/mermas.module";
+import { CashModule } from "./cash/cash.module";
+import { ReportsModule } from "./reports/reports.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -23,6 +29,12 @@ import { HealthController } from "./health.controller";
     OrdersModule,
     PaymentsModule,
     BillingModule,
+    InventoryModule,
+    RecipesModule,
+    ProductionModule,
+    MermasModule,
+    CashModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

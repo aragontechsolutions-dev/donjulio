@@ -4,6 +4,12 @@ import { useAuth } from "../lib/auth";
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: "📊", end: true },
   { to: "/admin/pedidos", label: "Pedidos", icon: "🧾" },
+  { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳" },
+  { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },
+  { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦" },
+  { to: "/admin/mermas", label: "Mermas", icon: "🗑️" },
+  { to: "/admin/caja", label: "Caja", icon: "💵" },
+  { to: "/admin/reportes", label: "Reportes", icon: "📈" },
   { to: "/admin/productos", label: "Productos", icon: "🥖" },
   { to: "/admin/promociones", label: "Promociones", icon: "🏷️" },
   { to: "/admin/cms", label: "Contenido web", icon: "✏️" },

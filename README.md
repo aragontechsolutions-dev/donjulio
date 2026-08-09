@@ -101,6 +101,22 @@ pnpm dev
 - Integraciones de pago (Mercado Pago) y facturación (Surtec/FEU) detrás de
   interfaces intercambiables por configuración.
 
+**Back-office avanzado (Etapa 3)**
+- **Inventario**: insumos, proveedores, movimientos de stock, lotes, y alertas
+  de punto de reorden y vencimientos.
+- **Recetas y costeo recursivo**: BOM multinivel con sub-recetas; costo por
+  receta (material + merma + mano de obra + overhead), costo unitario y
+  **food cost %** con semáforo; detección de ciclos.
+- **Producción**: órdenes que explotan el BOM y **descuentan stock** de insumos
+  (incluidos los de las sub-recetas), con verificación de faltantes y generación
+  de lote de producto terminado.
+- **Mermas**: registro por producto/insumo/lote con motivo y costo; descuenta
+  stock cuando es insumo.
+- **Caja / arqueo por turno**: apertura con fondo, movimientos, cierre con
+  efectivo esperado, diferencia y conciliación por medio de pago.
+- **Reportes/KPIs**: ventas, ticket promedio, ventas por categoría/canal,
+  productos más vendidos, food cost promedio y merma total.
+
 ## Activar integraciones reales
 
 Todo funciona con *mocks* por defecto. Para conectar servicios reales, editá

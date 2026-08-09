@@ -140,9 +140,12 @@ con CAE → transiciones de estado validadas.
 - **Etapa 2 — Pagos y facturación reales**: completar `MercadoPagoProvider`
   (SDK oficial, Checkout Bricks) y `SurtecBillingProvider`; certificado digital y
   alta como emisor electrónico ante DGI.
-- **Etapa 3 — Back-office avanzado**: stock/insumos, órdenes de producción que
-  descuentan stock, costeo (food cost %, prime cost), mermas, arqueo de caja y
-  KPIs; salón/mesas, KDS por estación y modificadores.
+- **Etapa 3 — Back-office avanzado** ✅ *(implementada)*: stock/insumos con
+  alertas, recetas con **costeo recursivo** (food cost %), órdenes de producción
+  que **descuentan stock** vía explosión del BOM, mermas, arqueo de caja por
+  turno y reportes/KPIs. Módulos: `inventory`, `recipes`, `production`, `mermas`,
+  `cash`, `reports`. Pendiente de esta etapa para más adelante: salón/mesas, KDS
+  por estación y modificadores en la UI de venta.
 - **Etapa 4 — Apps y cumplimiento**: PWA de mozos (comandas offline con
   IndexedDB + Background Sync), APKs cliente/delivery (Supabase Realtime para
   estados), encargos con seña, trazabilidad de lote y datos de rótulo/octógonos.

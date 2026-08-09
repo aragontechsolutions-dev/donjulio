@@ -7,6 +7,12 @@ import ProductosAdmin from "./admin/pages/ProductosAdmin";
 import PedidosAdmin from "./admin/pages/PedidosAdmin";
 import PromocionesAdmin from "./admin/pages/PromocionesAdmin";
 import CmsAdmin from "./admin/pages/CmsAdmin";
+import InsumosAdmin from "./admin/pages/InsumosAdmin";
+import RecetasAdmin from "./admin/pages/RecetasAdmin";
+import ProduccionAdmin from "./admin/pages/ProduccionAdmin";
+import MermasAdmin from "./admin/pages/MermasAdmin";
+import CajaAdmin from "./admin/pages/CajaAdmin";
+import ReportesAdmin from "./admin/pages/ReportesAdmin";
 import { useAuth } from "./lib/auth";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -39,6 +45,12 @@ export default function App() {
         <Route path="pedidos" element={<PedidosAdmin />} />
         <Route path="promociones" element={<PromocionesAdmin />} />
         <Route path="cms" element={<CmsAdmin />} />
+        <Route path="insumos" element={<InsumosAdmin />} />
+        <Route path="recetas" element={<RecetasAdmin />} />
+        <Route path="produccion" element={<ProduccionAdmin />} />
+        <Route path="mermas" element={<MermasAdmin />} />
+        <Route path="caja" element={<CajaAdmin />} />
+        <Route path="reportes" element={<ReportesAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
