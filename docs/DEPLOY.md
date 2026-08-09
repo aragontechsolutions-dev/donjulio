@@ -12,6 +12,17 @@ Vercel (pwa)   ─┼──HTTPS──►  Render (API NestJS)  ──►  Supab
 Todo es **toggleable por variables de entorno**: sin configurar Supabase, el
 sistema corre en modo local (JWT propio + Postgres en Docker + Storage en disco).
 
+> ### 🚦 Arranque recomendado en 2 fases
+> Para un primer deploy sin sorpresas:
+> - **Fase 1** — Base + Storage en Supabase, pero **Auth local** (`AUTH_PROVIDER=local`
+>   en Render, `VITE_AUTH_PROVIDER=local` en Vercel). Es lo que ya está verificado y
+>   no depende de tokens externos. Con esto ya tenés todo andando en la nube.
+> - **Fase 2** — Cuando confirmes que funciona, flipeás a **Supabase Auth**:
+>   `AUTH_PROVIDER=supabase` + `SUPABASE_JWT_SECRET` en Render, `VITE_AUTH_PROVIDER=supabase`
+>   + `VITE_SUPABASE_*` en Vercel, y corrés `provision:supabase`. Redeploy y listo.
+>
+> El `render.yaml` ya viene en Fase 1 (auth local + `JWT_SECRET` autogenerado).
+
 ---
 
 ## 1) Crear el proyecto en Supabase
@@ -82,11 +93,10 @@ end $$;
 
 1. Render → **New → Blueprint** → conectá el repo. Detecta `render.yaml`.
 2. Completá las variables marcadas (Environment):
-   - `DATABASE_URL`, `DIRECT_URL` (Supabase), `SUPABASE_JWT_SECRET`, `SUPABASE_URL`,
-     `SUPABASE_SERVICE_ROLE_KEY`.
-   - `CORS_ORIGIN` = las URLs de Vercel separadas por coma (las tendrás tras el paso 6;
-     podés volver a editarlas después).
-   - `AUTH_PROVIDER=supabase`, `STORAGE_PROVIDER=supabase` (ya vienen en el blueprint).
+   - **Fase 1**: `DATABASE_URL`, `DIRECT_URL` (Supabase), `SUPABASE_URL`,
+     `SUPABASE_SERVICE_ROLE_KEY` (para Storage), y `CORS_ORIGIN` (lo tendrás tras el
+     paso 6). `AUTH_PROVIDER=local` y `JWT_SECRET` ya vienen del blueprint.
+   - **Fase 2** (después): cambiá `AUTH_PROVIDER=supabase` y agregá `SUPABASE_JWT_SECRET`.
 3. Deploy. La API queda en `https://donjulio-api.onrender.com`; healthcheck en `/api/health`.
 
 > El `startCommand` corre `prisma migrate deploy` en cada arranque (idempotente).

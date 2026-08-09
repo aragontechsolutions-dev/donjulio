@@ -29,18 +29,31 @@ services:
         sync: false
       - key: CORS_ORIGIN # URLs de Vercel (web y pwa), separadas por coma
         sync: false
+
+      # ── FASE 1: arranque con Auth LOCAL (JWT propio) ──
+      # Más simple y sin dependencias externas para el primer deploy.
       - key: AUTH_PROVIDER
-        value: supabase
+        value: local
+      - key: JWT_SECRET
+        generateValue: true # Render genera un secreto fuerte
+      - key: JWT_EXPIRES_IN
+        value: "12h"
+
+      # ── FASE 2 (flip a Supabase Auth): poné AUTH_PROVIDER=supabase
+      #    y completá SUPABASE_JWT_SECRET (Settings → API → JWT Settings, HS256).
       - key: SUPABASE_JWT_SECRET
         sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
+
+      # ── Storage en Supabase desde el inicio ──
       - key: STORAGE_PROVIDER
         value: supabase
       - key: SUPABASE_STORAGE_BUCKET
         value: donjulio
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY # secreta; sólo en el backend
+        sync: false
+
       - key: PAYMENTS_PROVIDER
         value: mock
       - key: BILLING_PROVIDER
