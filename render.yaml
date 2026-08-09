@@ -1,0 +1,47 @@
+# Blueprint de Render para la API NestJS de Don Julio.
+# Importar desde el dashboard de Render (New → Blueprint) apuntando al repo.
+# Las variables marcadas `sync: false` se cargan a mano en el dashboard.
+services:
+  - type: web
+    name: donjulio-api
+    runtime: node
+    plan: free
+    region: oregon
+    # corepack habilita pnpm según el campo packageManager del package.json raíz.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @donjulio/shared build &&
+      pnpm --filter @donjulio/api prisma:generate &&
+      pnpm --filter @donjulio/api build
+    # Aplica migraciones y arranca. prisma migrate deploy usa DIRECT_URL.
+    startCommand: >-
+      pnpm --filter @donjulio/api prisma:deploy &&
+      node apps/api/dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # No hace falta setear PORT: Render lo inyecta y main.ts lo respeta.
+      - key: DATABASE_URL # pooler de Supabase (6543, ?pgbouncer=true)
+        sync: false
+      - key: DIRECT_URL # conexión directa de Supabase (5432)
+        sync: false
+      - key: CORS_ORIGIN # URLs de Vercel (web y pwa), separadas por coma
+        sync: false
+      - key: AUTH_PROVIDER
+        value: supabase
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: donjulio
+      - key: PAYMENTS_PROVIDER
+        value: mock
+      - key: BILLING_PROVIDER
+        value: mock

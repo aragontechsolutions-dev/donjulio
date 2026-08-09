@@ -6,6 +6,7 @@ interface Producto {
   id: string;
   nombre: string;
   precio: string;
+  imagenUrl: string | null;
   disponible: boolean;
   destacado: boolean;
   categoria?: { nombre: string };
@@ -29,6 +30,12 @@ export default function ProductosAdmin() {
     await load();
   };
 
+  const subirImagen = async (p: Producto, file: File) => {
+    const { url } = await api.upload<{ url: string }>("/admin/storage/upload", file);
+    await api.patch(`/admin/productos/${p.id}`, { imagenUrl: url });
+    await load();
+  };
+
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl font-bold text-crust-800">
@@ -38,6 +45,7 @@ export default function ProductosAdmin() {
         <table className="w-full text-sm">
           <thead className="bg-crust-50 text-left text-crust-600">
             <tr>
+              <th className="px-4 py-3">Img</th>
               <th className="px-4 py-3">Producto</th>
               <th className="px-4 py-3">Categoría</th>
               <th className="px-4 py-3 text-right">Precio</th>
@@ -48,6 +56,21 @@ export default function ProductosAdmin() {
           <tbody>
             {productos.map((p) => (
               <tr key={p.id} className="border-t border-crust-50">
+                <td className="px-4 py-3">
+                  <label className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-crust-100 text-crust-400">
+                    {p.imagenUrl ? (
+                      <img src={p.imagenUrl} alt={p.nombre} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-lg">📷</span>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && subirImagen(p, e.target.files[0])}
+                    />
+                  </label>
+                </td>
                 <td className="px-4 py-3 font-medium text-crust-800">
                   {p.nombre}
                 </td>
@@ -83,7 +106,7 @@ export default function ProductosAdmin() {
             ))}
             {productos.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-crust-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-crust-400">
                   No hay productos. Corré el seed: <code>pnpm db:seed</code>
                 </td>
               </tr>

@@ -161,6 +161,18 @@ CFE_RUT_EMISOR="..."
 Ver `docs/ARCHITECTURE.md` para el detalle de las integraciones, el modelo de
 datos y el roadmap de las etapas 2–4.
 
+## Supabase y despliegue (Render + Vercel)
+
+El sistema puede usar **Supabase** como base de datos, **Auth** y **Storage**, y
+desplegarse con la **API en Render** y los frontends **web y PWA en Vercel**.
+Todo es toggleable por variables de entorno (`AUTH_PROVIDER`, `STORAGE_PROVIDER`,
+`VITE_AUTH_PROVIDER`), así que el modo 100% local sigue funcionando.
+
+Guía paso a paso en **`docs/DEPLOY.md`** (crear el proyecto Supabase, migraciones,
+bucket de Storage, aprovisionar usuarios con roles, RLS, y desplegar en Render y
+Vercel). Archivos de despliegue incluidos: `render.yaml`, `apps/web/vercel.json`,
+`apps/pwa-mozo/vercel.json`.
+
 ## Contexto Uruguay / Maldonado
 
 El sistema está pensado para el marco local: facturación electrónica (CFE) de

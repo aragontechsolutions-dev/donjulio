@@ -55,4 +55,17 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  /** Sube un archivo (multipart). El navegador fija el Content-Type. */
+  upload: async <T>(path: string, file: File): Promise<T> => {
+    const token = tokenStore.get();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: form,
+    });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return res.json() as Promise<T>;
+  },
 };
