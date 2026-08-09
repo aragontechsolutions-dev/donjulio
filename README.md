@@ -63,6 +63,7 @@ pnpm dev
 - **Panel admin:** http://localhost:5173/admin/login
   (o **Shift + Ctrl + click** en el logo de la landing — acceso *oculto*, sólo UX)
 - **Credenciales demo:** `admin@donjulio.uy` / `donjulio123`
+  (también `caja@donjulio.uy` y `mozo@donjulio.uy`, misma contraseña)
 - **API:** http://localhost:3000/api/health
 
 ## Scripts útiles (raíz)
@@ -116,6 +117,15 @@ pnpm dev
   efectivo esperado, diferencia y conciliación por medio de pago.
 - **Reportes/KPIs**: ventas, ticket promedio, ventas por categoría/canal,
   productos más vendidos, food cost promedio y merma total.
+
+**Consumo en local — Salón y KDS**
+- **Salón / mesas**: mapa de mesas con estados (libre/ocupada), abrir cuenta
+  (pedido `DINE_IN` con mozo), agregar ítems con **modificadores** y variantes,
+  y **cobrar** (pago en POS → emite CFE, libera la mesa y registra la venta en
+  la caja abierta).
+- **KDS (Kitchen Display)**: enruta cada ítem a su **estación** (panadería,
+  repostería, cocina, barra), con avance de estado por ítem
+  (pendiente → en preparación → listo → entregado) y auto-refresh.
 
 ## Activar integraciones reales
 

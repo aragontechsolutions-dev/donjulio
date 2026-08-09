@@ -16,6 +16,8 @@ import { ProductionModule } from "./production/production.module";
 import { MermasModule } from "./mermas/mermas.module";
 import { CashModule } from "./cash/cash.module";
 import { ReportsModule } from "./reports/reports.module";
+import { SalonModule } from "./salon/salon.module";
+import { KdsModule } from "./kds/kds.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -35,6 +37,8 @@ import { HealthController } from "./health.controller";
     MermasModule,
     CashModule,
     ReportsModule,
+    SalonModule,
+    KdsModule,
   ],
   controllers: [HealthController],
   providers: [

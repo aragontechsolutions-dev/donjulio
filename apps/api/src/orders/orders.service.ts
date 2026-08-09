@@ -254,7 +254,7 @@ export class OrdersService {
   }
 
   /** Calcula precios de cada línea (producto + variante + modificadores). */
-  private async priceItems(cart: CartItemDto[]) {
+  async priceItems(cart: CartItemDto[]) {
     const productoIds = [...new Set(cart.map((i) => i.productoId))];
     const productos = await this.prisma.producto.findMany({
       where: { id: { in: productoIds } },

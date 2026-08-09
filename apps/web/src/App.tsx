@@ -13,6 +13,8 @@ import ProduccionAdmin from "./admin/pages/ProduccionAdmin";
 import MermasAdmin from "./admin/pages/MermasAdmin";
 import CajaAdmin from "./admin/pages/CajaAdmin";
 import ReportesAdmin from "./admin/pages/ReportesAdmin";
+import SalonAdmin from "./admin/pages/SalonAdmin";
+import KdsAdmin from "./admin/pages/KdsAdmin";
 import { useAuth } from "./lib/auth";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -51,6 +53,8 @@ export default function App() {
         <Route path="mermas" element={<MermasAdmin />} />
         <Route path="caja" element={<CajaAdmin />} />
         <Route path="reportes" element={<ReportesAdmin />} />
+        <Route path="salon" element={<SalonAdmin />} />
+        <Route path="kds" element={<KdsAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -3,6 +3,8 @@ import { useAuth } from "../lib/auth";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: "📊", end: true },
+  { to: "/admin/salon", label: "Salón / Mesas", icon: "🍽️" },
+  { to: "/admin/kds", label: "Cocina (KDS)", icon: "🔔" },
   { to: "/admin/pedidos", label: "Pedidos", icon: "🧾" },
   { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳" },
   { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },

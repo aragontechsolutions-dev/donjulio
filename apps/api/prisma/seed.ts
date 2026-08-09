@@ -28,6 +28,16 @@ async function main() {
       role: "CAJERO",
     },
   });
+  await prisma.usuario.upsert({
+    where: { email: "mozo@donjulio.uy" },
+    update: {},
+    create: {
+      email: "mozo@donjulio.uy",
+      passwordHash,
+      nombre: "Mozo/a",
+      role: "MOZO",
+    },
+  });
 
   // ---- Estaciones (KDS) ----
   const [panaderia, reposteria, barra] = await Promise.all([
@@ -245,7 +255,26 @@ async function main() {
     ],
   });
 
+  // ---- Salón: zona + mesas ----
+  const salon = await prisma.zona.upsert({
+    where: { id: "zona-salon" },
+    update: {},
+    create: { id: "zona-salon", nombre: "Salón principal" },
+  });
+  for (let n = 1; n <= 8; n++) {
+    await prisma.mesa.upsert({
+      where: { numero: n },
+      update: {},
+      create: {
+        numero: n,
+        zonaId: salon.id,
+        capacidad: n <= 4 ? 2 : 4,
+      },
+    });
+  }
+
   console.log("✅ Seed completo. Login admin: admin@donjulio.uy / donjulio123");
+  console.log("   Cajero: caja@donjulio.uy · Mozo: mozo@donjulio.uy (misma clave)");
 }
 
 main()
