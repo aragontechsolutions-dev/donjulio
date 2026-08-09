@@ -1,0 +1,23 @@
+{
+  "name": "donjulio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de gestión integral para Panadería Artesanal Don Julio (Maldonado, Uruguay)",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* dev",
+    "dev:api": "pnpm --filter @donjulio/api dev",
+    "dev:web": "pnpm --filter @donjulio/web dev",
+    "build": "pnpm --filter @donjulio/shared build && pnpm --filter @donjulio/api build && pnpm --filter @donjulio/web build",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @donjulio/api prisma:migrate",
+    "db:seed": "pnpm --filter @donjulio/api prisma:seed",
+    "db:studio": "pnpm --filter @donjulio/api prisma:studio",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

@@ -1,0 +1,803 @@
+// ─────────────────────────────────────────────────────────────────────────
+// Don Julio — Esquema de datos (Prisma + PostgreSQL / Supabase)
+// Modela las tres capas: catálogo/CMS público, back-office de gestión
+// (stock, BOM multinivel, producción, mermas, caja, salón/KDS) y fiscal (CFE).
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserRole {
+  ADMIN
+  CAJERO
+  PRODUCCION
+  MOZO
+  DELIVERY
+}
+
+enum UnitOfMeasure {
+  G
+  KG
+  ML
+  L
+  UNIDAD
+  DOCENA
+}
+
+enum IvaRate {
+  EXENTO
+  MINIMA // 10%
+  BASICA // 22%
+}
+
+enum OrderChannel {
+  WEB
+  APP_CLIENTE
+  MOSTRADOR
+  TELEFONO
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  CARRITO
+  PENDIENTE_PAGO
+  PAGADO
+  EN_PREPARACION
+  LISTO
+  EN_CAMINO
+  LISTO_PARA_RETIRO
+  ENTREGADO
+  RECHAZADO
+  CANCELADO
+}
+
+enum OrderItemStatus {
+  PENDIENTE
+  EN_PREPARACION
+  LISTO
+  ENTREGADO
+  CANCELADO
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  DEBITO
+  CREDITO
+  MERCADO_PAGO_QR
+  MERCADO_PAGO_CHECKOUT
+  TRANSFERENCIA
+  ABITAB
+  REDPAGOS
+}
+
+enum PaymentStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  REEMBOLSADO
+  CANCELADO
+}
+
+enum CfeType {
+  E_TICKET // 101
+  E_TICKET_NC // 102
+  E_FACTURA // 111
+  E_FACTURA_NC // 112
+}
+
+enum CfeStatus {
+  PENDIENTE
+  EMITIDO
+  RECHAZADO
+  ANULADO
+}
+
+enum StockMovementType {
+  ENTRADA
+  SALIDA
+  AJUSTE
+  MERMA
+}
+
+enum ProductionOrderStatus {
+  PLANIFICADA
+  EN_PROCESO
+  TERMINADA
+  CANCELADA
+}
+
+enum MermaMotivo {
+  NO_VENDIDO
+  ROTURA
+  VENCIMIENTO
+  CONSUMO_PERSONAL
+  OTRO
+}
+
+enum TableStatus {
+  LIBRE
+  OCUPADA
+  RESERVADA
+  PENDIENTE_PAGO
+}
+
+enum StationType {
+  PANADERIA
+  REPOSTERIA
+  COCINA
+  BARRA
+}
+
+enum CashSessionStatus {
+  ABIERTA
+  CERRADA
+}
+
+enum CashMovementType {
+  SALE
+  IN
+  OUT
+  WITHDRAWAL
+  EXPENSE
+}
+
+enum CustomOrderStatus {
+  RESERVADO
+  EN_PRODUCCION
+  LISTO
+  ENTREGADO
+  CANCELADO
+}
+
+enum PromoTipoDescuento {
+  PORCENTAJE
+  MONTO_FIJO
+  PRECIO_FIJO
+}
+
+// ──────────────────────── Usuarios y clientes ────────────────────────
+
+model Usuario {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  nombre       String
+  role         UserRole @default(CAJERO)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones operativas
+  movimientosStock  MovimientoStock[]
+  ordenesProduccion OrdenProduccion[]
+  mermas            Merma[]
+  pedidosComoMozo   Pedido[]          @relation("PedidoMozo")
+  eventosPedido     OrderStatusEvent[]
+  cajasAbiertas     CashSession[]     @relation("CajaAbiertaPor")
+  cajasCerradas     CashSession[]     @relation("CajaCerradaPor")
+  movimientosCaja   CashMovement[]
+  turnos            Shift[]
+  propinas          Propina[]
+}
+
+model Cliente {
+  id                 String   @id @default(uuid())
+  nombre             String
+  telefono           String?
+  email              String?
+  direccion          String?
+  // Ley 18.331 (URCDP): consentimiento informado del titular.
+  consentimientoDatos Boolean  @default(false)
+  consentimientoAt   DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pedidos      Pedido[]
+  customOrders CustomOrder[]
+
+  @@index([telefono])
+  @@index([email])
+}
+
+// ─────────────────────── Catálogo y menú ───────────────────────
+
+model Categoria {
+  id        String   @id @default(uuid())
+  nombre    String
+  slug      String   @unique
+  orden     Int      @default(0)
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  productos   Producto[]
+  promociones Promocion[]
+}
+
+model Producto {
+  id               String   @id @default(uuid())
+  categoriaId      String
+  categoria        Categoria @relation(fields: [categoriaId], references: [id])
+  nombre           String
+  slug             String   @unique
+  descripcion      String?
+  precio           Decimal  @db.Decimal(12, 2)
+  imagenUrl        String?
+  destacado        Boolean  @default(false)
+  disponible       Boolean  @default(true)
+  ivaRate          IvaRate  @default(MINIMA)
+  esReventa        Boolean  @default(false) // reventa (embotellados) vs elaborado
+  requiereOctogono Boolean  @default(false) // Decreto 272/018 (rotulado frontal)
+  stationId        String?
+  station          Station? @relation(fields: [stationId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  receta          Receta?
+  variantes       ProductVariant[]
+  modifierGroups  ProductModifierGroup[]
+  promociones     Promocion[]
+  itemsPedido     PedidoItem[]
+  lotesProduccion ProductionLot[]
+  mermas          Merma[]
+
+  @@index([categoriaId])
+  @@index([destacado])
+}
+
+model ProductVariant {
+  id         String  @id @default(uuid())
+  productoId String
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  nombre     String   // ej. "Grande", "500 g"
+  precioDelta Decimal @db.Decimal(12, 2) @default(0)
+
+  itemsPedido PedidoItem[]
+
+  @@index([productoId])
+}
+
+model ModifierGroup {
+  id        String  @id @default(uuid())
+  nombre    String  // ej. "Tipo de leche"
+  minSelect Int     @default(0)
+  maxSelect Int     @default(1)
+
+  modifiers Modifier[]
+  productos ProductModifierGroup[]
+}
+
+model Modifier {
+  id         String  @id @default(uuid())
+  groupId    String
+  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  nombre     String  // ej. "Leche vegetal"
+  priceDelta Decimal @db.Decimal(12, 2) @default(0)
+  insumoId   String?
+  insumo     Insumo? @relation(fields: [insumoId], references: [id])
+
+  itemsPedido PedidoItemModifier[]
+
+  @@index([groupId])
+}
+
+model ProductModifierGroup {
+  productoId String
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  groupId    String
+  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([productoId, groupId])
+  @@index([groupId])
+}
+
+model Promocion {
+  id             String   @id @default(uuid())
+  nombre         String
+  descripcion    String?
+  productoId     String?
+  producto       Producto? @relation(fields: [productoId], references: [id])
+  categoriaId    String?
+  categoria      Categoria? @relation(fields: [categoriaId], references: [id])
+  tipoDescuento  PromoTipoDescuento
+  valor          Decimal   @db.Decimal(12, 2) // % o monto según tipo
+  vigenciaDesde  DateTime
+  vigenciaHasta  DateTime
+  activa         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  @@index([activa, vigenciaDesde, vigenciaHasta])
+}
+
+// ─────────────────────── CMS ligero de la landing ───────────────────────
+
+model ContenidoLanding {
+  id        String   @id @default(uuid())
+  clave     String   @unique // ej. "hero.titulo", "historia.texto"
+  valor     String
+  updatedAt DateTime @updatedAt
+}
+
+model Galeria {
+  id        String   @id @default(uuid())
+  imagenUrl String
+  titulo    String?
+  orden     Int      @default(0)
+  activa    Boolean  @default(true)
+}
+
+model Testimonio {
+  id       String  @id @default(uuid())
+  autor    String
+  texto    String
+  rating   Int     @default(5)
+  aprobado Boolean @default(false)
+  orden    Int     @default(0)
+}
+
+model Horario {
+  id       String @id @default(uuid())
+  diaSemana Int    // 0=domingo … 6=sábado
+  apertura String // "07:00"
+  cierre   String // "20:00"
+  cerrado  Boolean @default(false)
+
+  @@unique([diaSemana])
+}
+
+model ConfigContacto {
+  id         String  @id @default(uuid())
+  direccion  String?
+  telefono   String?
+  whatsapp   String?
+  email      String?
+  instagram  String?
+  facebook   String?
+  mapsUrl    String?
+  lat        Float?
+  lng        Float?
+  updatedAt  DateTime @updatedAt
+}
+
+// ─────────────────── Insumos, proveedores y stock ───────────────────
+
+model Proveedor {
+  id       String  @id @default(uuid())
+  nombre   String
+  contacto String?
+  telefono String?
+  email    String?
+
+  insumos Insumo[]
+}
+
+model Insumo {
+  id            String        @id @default(uuid())
+  nombre        String
+  unidad        UnitOfMeasure
+  costoUnitario Decimal       @db.Decimal(12, 4)
+  stockActual   Decimal       @db.Decimal(12, 3) @default(0)
+  puntoReorden  Decimal       @db.Decimal(12, 3) @default(0)
+  proveedorId   String?
+  proveedor     Proveedor?    @relation(fields: [proveedorId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  lotes            InsumoLote[]
+  movimientos      MovimientoStock[]
+  recetaIngredientes RecetaIngrediente[]
+  modifiers        Modifier[]
+  mermas           Merma[]
+
+  @@index([proveedorId])
+}
+
+model InsumoLote {
+  id            String    @id @default(uuid())
+  insumoId      String
+  insumo        Insumo    @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  lote          String
+  cantidad      Decimal   @db.Decimal(12, 3)
+  vencimiento   DateTime?
+  costoUnitario Decimal   @db.Decimal(12, 4)
+  recibidoAt    DateTime  @default(now())
+
+  @@index([insumoId])
+  @@index([vencimiento])
+}
+
+model MovimientoStock {
+  id                String            @id @default(uuid())
+  insumoId          String
+  insumo            Insumo            @relation(fields: [insumoId], references: [id])
+  tipo              StockMovementType
+  cantidad          Decimal           @db.Decimal(12, 3)
+  costoUnitario     Decimal           @db.Decimal(12, 4) @default(0)
+  motivo            String?
+  ordenProduccionId String?
+  ordenProduccion   OrdenProduccion?  @relation(fields: [ordenProduccionId], references: [id])
+  usuarioId         String?
+  usuario           Usuario?          @relation(fields: [usuarioId], references: [id])
+  createdAt         DateTime          @default(now())
+
+  @@index([insumoId])
+  @@index([ordenProduccionId])
+  @@index([createdAt])
+}
+
+// ─────────────── Recetas / BOM multinivel (sub-recetas) ───────────────
+
+model Receta {
+  id           String        @id @default(uuid())
+  nombre       String
+  // Un producto terminado tiene una receta; las sub-recetas no tienen producto.
+  productoId   String?       @unique
+  producto     Producto?     @relation(fields: [productoId], references: [id])
+  isSubRecipe  Boolean       @default(false)
+  yieldQty     Decimal       @db.Decimal(12, 3) @default(1) // rendimiento del lote
+  yieldUnit    UnitOfMeasure @default(UNIDAD)
+  mermaPct     Decimal       @db.Decimal(5, 2) @default(0) // % de merma esperada
+  manoObraCosto Decimal      @db.Decimal(12, 2) @default(0)
+  overheadCosto Decimal      @db.Decimal(12, 2) @default(0)
+  notas        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // BOM: ingredientes de esta receta (insumos o sub-recetas)
+  ingredientes RecetaIngrediente[] @relation("RecetaParent")
+  // Dónde se usa esta receta como sub-receta de otra
+  usadaEn      RecetaIngrediente[] @relation("SubReceta")
+  ordenes      OrdenProduccion[]
+}
+
+/// Línea del BOM. Referencia un Insumo O una sub-Receta (self-relation),
+/// permitiendo recetas multinivel con costeo recursivo.
+model RecetaIngrediente {
+  id          String        @id @default(uuid())
+  recetaId    String
+  receta      Receta        @relation("RecetaParent", fields: [recetaId], references: [id], onDelete: Cascade)
+  insumoId    String?
+  insumo      Insumo?       @relation(fields: [insumoId], references: [id])
+  subRecetaId String?
+  subReceta   Receta?       @relation("SubReceta", fields: [subRecetaId], references: [id])
+  cantidad    Decimal       @db.Decimal(12, 3)
+  unidad      UnitOfMeasure
+
+  @@index([recetaId])
+  @@index([insumoId])
+  @@index([subRecetaId])
+}
+
+model OrdenProduccion {
+  id             String                @id @default(uuid())
+  recetaId       String
+  receta         Receta                @relation(fields: [recetaId], references: [id])
+  cantidadLotes  Decimal               @db.Decimal(12, 3) @default(1)
+  status         ProductionOrderStatus @default(PLANIFICADA)
+  planificadaPara DateTime?
+  iniciadaAt     DateTime?
+  terminadaAt    DateTime?
+  usuarioId      String?
+  usuario        Usuario?              @relation(fields: [usuarioId], references: [id])
+  createdAt      DateTime              @default(now())
+
+  movimientos MovimientoStock[]
+  lotes       ProductionLot[]
+
+  @@index([recetaId])
+  @@index([status])
+}
+
+model ProductionLot {
+  id                String           @id @default(uuid())
+  ordenProduccionId String?
+  ordenProduccion   OrdenProduccion? @relation(fields: [ordenProduccionId], references: [id])
+  productoId        String?
+  producto          Producto?        @relation(fields: [productoId], references: [id])
+  lote              String
+  qty               Decimal          @db.Decimal(12, 3)
+  producedAt        DateTime         @default(now())
+  expiresAt         DateTime?
+
+  mermas Merma[]
+
+  @@index([productoId])
+  @@index([expiresAt])
+}
+
+model Merma {
+  id              String         @id @default(uuid())
+  productoId      String?
+  producto        Producto?      @relation(fields: [productoId], references: [id])
+  insumoId        String?
+  insumo          Insumo?        @relation(fields: [insumoId], references: [id])
+  productionLotId String?
+  productionLot   ProductionLot? @relation(fields: [productionLotId], references: [id])
+  motivo          MermaMotivo
+  cantidad        Decimal        @db.Decimal(12, 3)
+  costo           Decimal        @db.Decimal(12, 2) @default(0)
+  usuarioId       String?
+  usuario         Usuario?       @relation(fields: [usuarioId], references: [id])
+  createdAt       DateTime       @default(now())
+
+  @@index([createdAt])
+}
+
+// ─────────────────────── Salón / mesas / KDS ───────────────────────
+
+model Station {
+  id     String      @id @default(uuid())
+  nombre String
+  tipo   StationType
+
+  productos Producto[]
+  items     PedidoItem[]
+}
+
+model Zona {
+  id     String  @id @default(uuid())
+  nombre String
+
+  mesas Mesa[]
+}
+
+model Mesa {
+  id         String      @id @default(uuid())
+  numero     Int
+  zonaId     String?
+  zona       Zona?       @relation(fields: [zonaId], references: [id])
+  capacidad  Int         @default(4)
+  status     TableStatus @default(LIBRE)
+
+  pedidos Pedido[]
+
+  @@unique([numero])
+  @@index([zonaId])
+}
+
+// ─────────────────────── Pedidos y ventas ───────────────────────
+
+model Pedido {
+  id          String       @id @default(uuid())
+  numero      Int          @unique @default(autoincrement())
+  channel     OrderChannel
+  orderType   OrderType
+  status      OrderStatus  @default(CARRITO)
+  clienteId   String?
+  cliente     Cliente?     @relation(fields: [clienteId], references: [id])
+  mesaId      String?
+  mesa        Mesa?        @relation(fields: [mesaId], references: [id])
+  mozoId      String?
+  mozo        Usuario?     @relation("PedidoMozo", fields: [mozoId], references: [id])
+  subtotal    Decimal      @db.Decimal(12, 2) @default(0)
+  descuento   Decimal      @db.Decimal(12, 2) @default(0)
+  total       Decimal      @db.Decimal(12, 2) @default(0)
+  notas       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  items        PedidoItem[]
+  pagos        Payment[]
+  eventos      OrderStatusEvent[]
+  comprobantes Comprobante[]
+  propinas     Propina[]
+
+  @@index([status])
+  @@index([clienteId])
+  @@index([mesaId])
+  @@index([createdAt])
+}
+
+model PedidoItem {
+  id               String          @id @default(uuid())
+  pedidoId         String
+  pedido           Pedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId       String
+  producto         Producto        @relation(fields: [productoId], references: [id])
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
+  stationId        String?
+  station          Station?        @relation(fields: [stationId], references: [id])
+  cantidad         Int
+  precioUnitario   Decimal         @db.Decimal(12, 2)
+  subtotal         Decimal         @db.Decimal(12, 2)
+  notas            String?
+  status           OrderItemStatus @default(PENDIENTE)
+
+  modificadores PedidoItemModifier[]
+
+  @@index([pedidoId])
+  @@index([productoId])
+  @@index([stationId])
+}
+
+model PedidoItemModifier {
+  id           String     @id @default(uuid())
+  pedidoItemId String
+  pedidoItem   PedidoItem @relation(fields: [pedidoItemId], references: [id], onDelete: Cascade)
+  modifierId   String
+  modifier     Modifier   @relation(fields: [modifierId], references: [id])
+  nombre       String
+  priceDelta   Decimal    @db.Decimal(12, 2) @default(0)
+
+  @@index([pedidoItemId])
+}
+
+/// Auditoría de transiciones de estado de un pedido.
+model OrderStatusEvent {
+  id        String       @id @default(uuid())
+  pedidoId  String
+  pedido    Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  fromState OrderStatus?
+  toState   OrderStatus
+  usuarioId String?
+  usuario   Usuario?     @relation(fields: [usuarioId], references: [id])
+  createdAt DateTime     @default(now())
+
+  @@index([pedidoId])
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  pedidoId       String
+  pedido         Pedido        @relation(fields: [pedidoId], references: [id])
+  metodo         PaymentMethod
+  monto          Decimal       @db.Decimal(12, 2)
+  status         PaymentStatus @default(PENDIENTE)
+  provider       String? // "mock" | "mercadopago"
+  mpPaymentId    String?
+  idempotencyKey String?       @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  propinas Propina[]
+
+  @@index([pedidoId])
+  @@index([status])
+}
+
+/// Idempotencia de webhooks (Mercado Pago, CFE). Rechaza duplicados.
+model WebhookEvent {
+  id        String   @id @default(uuid())
+  provider  String
+  eventId   String
+  tipo      String?
+  payload   Json
+  procesado Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+/// Propina registrada (para distribución interna). El aporte BPS es ficto (3 BFC).
+model Propina {
+  id        String   @id @default(uuid())
+  pedidoId  String?
+  pedido    Pedido?  @relation(fields: [pedidoId], references: [id])
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+  mozoId    String?
+  mozo      Usuario? @relation(fields: [mozoId], references: [id])
+  monto     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────── Caja / turnos ───────────────────────
+
+model CashSession {
+  id           String            @id @default(uuid())
+  openedById   String
+  openedBy     Usuario           @relation("CajaAbiertaPor", fields: [openedById], references: [id])
+  closedById   String?
+  closedBy     Usuario?          @relation("CajaCerradaPor", fields: [closedById], references: [id])
+  etiqueta     String? // ej. "Caja 1 - turno mañana"
+  openingFloat Decimal           @db.Decimal(12, 2) @default(0)
+  closingCount Decimal?          @db.Decimal(12, 2)
+  expected     Decimal?          @db.Decimal(12, 2)
+  difference   Decimal?          @db.Decimal(12, 2)
+  status       CashSessionStatus @default(ABIERTA)
+  openedAt     DateTime          @default(now())
+  closedAt     DateTime?
+
+  movimientos CashMovement[]
+
+  @@index([status])
+  @@index([openedById])
+}
+
+model CashMovement {
+  id            String           @id @default(uuid())
+  cashSessionId String
+  cashSession   CashSession      @relation(fields: [cashSessionId], references: [id], onDelete: Cascade)
+  tipo          CashMovementType
+  metodoPago    PaymentMethod?
+  monto         Decimal          @db.Decimal(12, 2)
+  referencia    String?
+  usuarioId     String?
+  usuario       Usuario?         @relation(fields: [usuarioId], references: [id])
+  createdAt     DateTime         @default(now())
+
+  @@index([cashSessionId])
+}
+
+model Shift {
+  id        String    @id @default(uuid())
+  usuarioId String
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id])
+  inicio    DateTime  @default(now())
+  fin       DateTime?
+
+  @@index([usuarioId])
+}
+
+// ─────────────────────── Encargos (pedidos a medida) ───────────────────────
+
+model CustomOrder {
+  id          String            @id @default(uuid())
+  clienteId   String?
+  cliente     Cliente?          @relation(fields: [clienteId], references: [id])
+  descripcion String
+  specs       Json? // sabor, relleno, porciones, tema, colores, texto…
+  porciones   Int?
+  pickupAt    DateTime
+  precioTotal Decimal           @db.Decimal(12, 2) @default(0)
+  senia       Decimal           @db.Decimal(12, 2) @default(0)
+  saldo       Decimal           @db.Decimal(12, 2) @default(0)
+  status      CustomOrderStatus @default(RESERVADO)
+  notas       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  depositos Deposito[]
+
+  @@index([status])
+  @@index([pickupAt])
+}
+
+model Deposito {
+  id            String        @id @default(uuid())
+  customOrderId String
+  customOrder   CustomOrder   @relation(fields: [customOrderId], references: [id], onDelete: Cascade)
+  monto         Decimal       @db.Decimal(12, 2)
+  metodo        PaymentMethod
+  createdAt     DateTime      @default(now())
+
+  @@index([customOrderId])
+}
+
+// ─────────────────────── Fiscal / CFE (DGI) ───────────────────────
+
+model Comprobante {
+  id             String    @id @default(uuid())
+  pedidoId       String?
+  pedido         Pedido?   @relation(fields: [pedidoId], references: [id])
+  tipo           CfeType
+  serie          String?
+  numero         Int?
+  caeNumero      String?
+  caeVencimiento DateTime?
+  hash           String?
+  xmlUrl         String?
+  qrUrl          String?
+  status         CfeStatus @default(PENDIENTE)
+  rutReceptor    String?
+  montoTotal     Decimal   @db.Decimal(12, 2)
+  iva            Decimal   @db.Decimal(12, 2) @default(0)
+  provider       String? // "mock" | "surtec" | "uruware"
+  createdAt      DateTime  @default(now())
+
+  @@index([pedidoId])
+  @@index([status])
+}
