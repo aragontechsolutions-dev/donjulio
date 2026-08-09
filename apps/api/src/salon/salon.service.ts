@@ -16,7 +16,13 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 import { BillingService } from "../integrations/billing/billing.service";
-import { AddItemsDto, CobrarDto, CreateMesaDto, CreateZonaDto } from "./salon.dto";
+import {
+  AddItemsDto,
+  CobrarDto,
+  CreateMesaDto,
+  CreateZonaDto,
+  UpdateMesaDto,
+} from "./salon.dto";
 
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
   d == null ? 0 : typeof d === "number" ? d : d.toNumber();
@@ -39,6 +45,32 @@ export class SalonService {
 
   createMesa(dto: CreateMesaDto) {
     return this.prisma.mesa.create({ data: dto });
+  }
+
+  listZonas() {
+    return this.prisma.zona.findMany({ orderBy: { nombre: "asc" } });
+  }
+
+  async updateMesa(id: string, dto: UpdateMesaDto) {
+    const mesa = await this.getMesa(id);
+    return this.prisma.mesa.update({ where: { id: mesa.id }, data: dto });
+  }
+
+  async deleteMesa(id: string) {
+    const mesa = await this.getMesa(id);
+    // No se puede eliminar una mesa con cuenta abierta.
+    const abierto = await this.prisma.pedido.findFirst({
+      where: {
+        mesaId: mesa.id,
+        orderType: OrderType.DINE_IN,
+        status: { in: OPEN_STATES as any },
+      },
+    });
+    if (abierto) {
+      throw new BadRequestException("La mesa tiene una cuenta abierta");
+    }
+    await this.prisma.mesa.delete({ where: { id: mesa.id } });
+    return { ok: true };
   }
 
   /** Mapa de mesas con la cuenta abierta (si la hay). */

@@ -564,6 +564,10 @@ model Mesa {
   zona       Zona?       @relation(fields: [zonaId], references: [id])
   capacidad  Int         @default(4)
   status     TableStatus @default(LIBRE)
+  // Posición y forma en el plano del salón (editor visual).
+  posX       Int         @default(20)
+  posY       Int         @default(20)
+  forma      String      @default("CUADRADA") // CUADRADA | CIRCULAR
 
   pedidos Pedido[]
 

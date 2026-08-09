@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from "@nestjs/common";
@@ -16,6 +18,7 @@ import {
   ComandaDto,
   CreateMesaDto,
   CreateZonaDto,
+  UpdateMesaDto,
 } from "./salon.dto";
 
 @UseGuards(RolesGuard)
@@ -34,6 +37,11 @@ export class SalonController {
     return this.salon.menuPos();
   }
 
+  @Get("zonas")
+  zonas() {
+    return this.salon.listZonas();
+  }
+
   @Roles(UserRole.ADMIN)
   @Post("zonas")
   createZona(@Body() dto: CreateZonaDto) {
@@ -44,6 +52,18 @@ export class SalonController {
   @Post("mesas")
   createMesa(@Body() dto: CreateMesaDto) {
     return this.salon.createMesa(dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch("mesas/:id")
+  updateMesa(@Param("id") id: string, @Body() dto: UpdateMesaDto) {
+    return this.salon.updateMesa(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete("mesas/:id")
+  deleteMesa(@Param("id") id: string) {
+    return this.salon.deleteMesa(id);
   }
 
   @Post("mesas/:id/abrir")

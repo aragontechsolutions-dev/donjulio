@@ -20,6 +20,18 @@ export class CreateMesaDto {
   @IsInt() numero!: number;
   @IsOptional() @IsString() zonaId?: string;
   @IsOptional() @IsInt() @Min(1) capacidad?: number;
+  @IsOptional() @IsInt() posX?: number;
+  @IsOptional() @IsInt() posY?: number;
+  @IsOptional() @IsString() forma?: string;
+}
+
+export class UpdateMesaDto {
+  @IsOptional() @IsInt() numero?: number;
+  @IsOptional() @IsString() zonaId?: string | null;
+  @IsOptional() @IsInt() @Min(1) capacidad?: number;
+  @IsOptional() @IsInt() posX?: number;
+  @IsOptional() @IsInt() posY?: number;
+  @IsOptional() @IsString() forma?: string;
 }
 
 export class AddItemsDto {
