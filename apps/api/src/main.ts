@@ -16,11 +16,22 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), "uploads"), { prefix: "/uploads/" });
 
   app.setGlobalPrefix("api");
+
+  // Lista de orígenes permitidos, normalizada (sin barra final ni espacios).
+  const stripSlash = (s: string) => s.trim().replace(/\/+$/, "");
+  const allowedOrigins = config
+    .get<string>("CORS_ORIGIN", "http://localhost:5173,http://localhost:5174")
+    .split(",")
+    .map(stripSlash)
+    .filter(Boolean);
   app.enableCors({
-    origin: config
-      .get<string>("CORS_ORIGIN", "http://localhost:5173")
-      .split(",")
-      .map((s) => s.trim()),
+    origin: (origin, cb) => {
+      // Sin Origin (curl, healthcheck, mismo origen) o en la lista → permitido.
+      if (!origin || allowedOrigins.includes(stripSlash(origin))) {
+        return cb(null, true);
+      }
+      cb(null, false);
+    },
     credentials: true,
   });
   app.useGlobalPipes(
