@@ -23,7 +23,10 @@ import { HealthController } from "./health.controller";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    // Lee el .env de apps/api o el de la raíz del monorepo (en local). En
+    // Render/producción las variables ya vienen del entorno; los archivos
+    // faltantes se ignoran sin error.
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: [".env", "../../.env"] }),
     PrismaModule,
     AuthModule,
     CatalogModule,

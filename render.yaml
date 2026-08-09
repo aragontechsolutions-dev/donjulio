@@ -8,15 +8,17 @@ services:
     plan: free
     region: oregon
     # corepack habilita pnpm según el campo packageManager del package.json raíz.
+    # En Render las variables ya están en el entorno, por eso se llama a prisma
+    # con `exec` (sin el wrapper dotenv que usan los scripts para desarrollo local).
     buildCommand: >-
       corepack enable &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @donjulio/shared build &&
-      pnpm --filter @donjulio/api prisma:generate &&
+      pnpm --filter @donjulio/api exec prisma generate &&
       pnpm --filter @donjulio/api build
     # Aplica migraciones y arranca. prisma migrate deploy usa DIRECT_URL.
     startCommand: >-
-      pnpm --filter @donjulio/api prisma:deploy &&
+      pnpm --filter @donjulio/api exec prisma migrate deploy &&
       node apps/api/dist/main.js
     healthCheckPath: /api/health
     envVars:

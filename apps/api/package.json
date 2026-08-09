@@ -10,12 +10,12 @@
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts",
-    "provision:supabase": "ts-node scripts/provision-supabase-users.ts"
+    "prisma:generate": "dotenv -e ../../.env -- prisma generate",
+    "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "prisma:studio": "dotenv -e ../../.env -- prisma studio",
+    "prisma:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
+    "provision:supabase": "dotenv -e ../../.env -- ts-node scripts/provision-supabase-users.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -46,6 +46,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.7.4",
     "@types/passport-jwt": "^4.0.1",
+    "dotenv-cli": "^7.4.2",
     "prisma": "^5.20.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
