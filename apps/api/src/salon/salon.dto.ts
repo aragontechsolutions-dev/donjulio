@@ -29,6 +29,17 @@ export class AddItemsDto {
   items!: CartItemDto[];
 }
 
+/** Comanda por mesa (abre la cuenta si no existe). Pensada para la PWA offline. */
+export class ComandaDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CartItemDto)
+  items!: CartItemDto[];
+
+  /** Id de transacción del cliente para idempotencia ante reintentos. */
+  @IsOptional() @IsString() clientTxnId?: string;
+}
+
 export class CobrarDto {
   @IsEnum(PaymentMethod) metodoPago!: PaymentMethod;
   @IsOptional() @IsString() rutReceptor?: string;

@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-masa text-crust-900 font-body antialiased;
+  overscroll-behavior: none;
+}
+
+/* Botones grandes y cómodos para tablet. */
+button {
+  touch-action: manipulation;
+}

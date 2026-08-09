@@ -26,7 +26,8 @@ permiten desarrollar todo el flujo sin credenciales reales.
 donjulio/
 ├── apps/
 │   ├── api/          # API NestJS + Prisma (esquema, migraciones, seed)
-│   └── web/          # React + Vite (landing pública + panel admin)
+│   ├── web/          # React + Vite (landing pública + panel admin)
+│   └── pwa-mozo/     # PWA de mozos (toma de comandas en tablet, offline)
 ├── packages/
 │   └── shared/       # Enums de dominio, DTOs y máquina de estados de pedidos
 ├── docker-compose.yml
@@ -65,6 +66,8 @@ pnpm dev
 - **Credenciales demo:** `admin@donjulio.uy` / `donjulio123`
   (también `caja@donjulio.uy` y `mozo@donjulio.uy`, misma contraseña)
 - **API:** http://localhost:3000/api/health
+- **PWA de mozos:** `pnpm dev:pwa` → http://localhost:5174
+  (login `mozo@donjulio.uy` / `donjulio123`; instalable desde el navegador)
 
 ## Scripts útiles (raíz)
 
@@ -126,6 +129,16 @@ pnpm dev
 - **KDS (Kitchen Display)**: enruta cada ítem a su **estación** (panadería,
   repostería, cocina, barra), con avance de estado por ítem
   (pendiente → en preparación → listo → entregado) y auto-refresh.
+
+**PWA de mozos (`apps/pwa-mozo`)**
+- App **instalable en tablet** (manifest + service worker vía `vite-plugin-pwa`)
+  para tomar comandas en el salón: login, mapa de mesas, selección de productos
+  con modificadores y envío a cocina.
+- **Funciona offline**: las comandas se guardan en **IndexedDB** (outbox) y se
+  **sincronizan automáticamente al reconectar** contra un endpoint
+  **idempotente** (`clientTxnId`), por lo que reintentar nunca duplica.
+- Indicador de conexión y de comandas pendientes de sincronizar. El cobro
+  requiere conexión (pago + CFE).
 
 ## Activar integraciones reales
 

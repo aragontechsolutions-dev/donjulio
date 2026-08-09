@@ -168,6 +168,52 @@ export class SalonService {
     });
   }
 
+  /**
+   * Comanda por mesa: abre la cuenta si no existe y agrega ítems, de forma
+   * idempotente (clientTxnId). Es el endpoint que usa la PWA de mozos para
+   * reintentar de forma segura las comandas encoladas offline.
+   */
+  async comandaByMesa(
+    mesaId: string,
+    items: AddItemsDto["items"],
+    mozoId: string,
+    clientTxnId?: string,
+  ) {
+    // Idempotencia: si ya se procesó esta transacción, no la repite.
+    if (clientTxnId) {
+      const yaProcesada = await this.prisma.webhookEvent.findUnique({
+        where: { provider_eventId: { provider: "comanda", eventId: clientTxnId } },
+      });
+      if (yaProcesada) return this.cuentaMesa(mesaId);
+    }
+
+    let pedido = await this.prisma.pedido.findFirst({
+      where: { mesaId, orderType: OrderType.DINE_IN, status: { in: OPEN_STATES as any } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!pedido) {
+      pedido = await this.abrirMesa(mesaId, mozoId);
+    }
+
+    await this.agregarItems(pedido.id, { items });
+
+    if (clientTxnId) {
+      await this.prisma.webhookEvent
+        .create({
+          data: {
+            provider: "comanda",
+            eventId: clientTxnId,
+            tipo: "comanda",
+            payload: { mesaId, items } as object,
+            procesado: true,
+          },
+        })
+        .catch(() => undefined); // carrera benigna en reintentos
+    }
+
+    return this.cuentaMesa(mesaId);
+  }
+
   /** Cobra la mesa: pago POS + emisión de CFE + libera la mesa + caja. */
   async cobrar(pedidoId: string, dto: CobrarDto, usuarioId: string) {
     const pedido = await this.getPedidoAbierto(pedidoId);

@@ -147,6 +147,11 @@ con CAE → transiciones de estado validadas.
   comandas, modificadores/variantes, cobro en POS y **KDS** por estación.
   Módulos: `inventory`, `recipes`, `production`, `mermas`, `cash`, `reports`,
   `salon`, `kds`.
+- **Etapa 4 — Apps (parcial)**: **PWA de mozos** (`apps/pwa-mozo`) para toma de
+  comandas en tablet, con soporte **offline** (IndexedDB outbox + sincronización
+  al reconectar contra el endpoint idempotente `POST /admin/salon/mesas/:id/
+  comanda` con `clientTxnId`). Pendiente: APKs cliente/delivery (React Native +
+  Supabase Realtime), encargos con seña y rótulos/octógonos.
 - **Etapa 4 — Apps y cumplimiento**: PWA de mozos (comandas offline con
   IndexedDB + Background Sync), APKs cliente/delivery (Supabase Realtime para
   estados), encargos con seña, trazabilidad de lote y datos de rótulo/octógonos.

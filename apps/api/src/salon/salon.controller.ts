@@ -10,7 +10,13 @@ import { AuthUser, UserRole } from "@donjulio/shared";
 import { CurrentUser, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
 import { SalonService } from "./salon.service";
-import { AddItemsDto, CobrarDto, CreateMesaDto, CreateZonaDto } from "./salon.dto";
+import {
+  AddItemsDto,
+  CobrarDto,
+  ComandaDto,
+  CreateMesaDto,
+  CreateZonaDto,
+} from "./salon.dto";
 
 @UseGuards(RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.CAJERO, UserRole.MOZO)
@@ -53,6 +59,16 @@ export class SalonController {
   @Post("pedidos/:id/items")
   agregarItems(@Param("id") id: string, @Body() dto: AddItemsDto) {
     return this.salon.agregarItems(id, dto);
+  }
+
+  /** Comanda idempotente por mesa (abre cuenta si hace falta). Usada por la PWA. */
+  @Post("mesas/:id/comanda")
+  comanda(
+    @Param("id") id: string,
+    @Body() dto: ComandaDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.salon.comandaByMesa(id, dto.items, user.id, dto.clientTxnId);
   }
 
   @Post("pedidos/:id/cobrar")
