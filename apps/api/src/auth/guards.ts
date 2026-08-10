@@ -96,7 +96,9 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
         this.userIdCache.set(email, localId);
       }
 
-      req.user = { id: localId, email, nombre, role };
+      const mustChangePassword =
+        (u.user_metadata as Record<string, unknown>)?.must_change_password === true;
+      req.user = { id: localId, email, nombre, role, mustChangePassword };
       return true;
     }
 

@@ -13,7 +13,14 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as bcrypt from "bcryptjs";
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from "class-validator";
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+} from "class-validator";
 import { UserRole } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { Roles } from "../auth/decorators";
@@ -24,9 +31,14 @@ class CreateUsuarioDto {
   @IsString() nombre!: string;
   @IsString() @MinLength(6) password!: string;
   @IsEnum(UserRole) role!: UserRole;
+  /** Obliga a cambiar la contraseña en el primer login (default true). */
+  @IsOptional() @IsBoolean() forceChange?: boolean;
 }
 class UpdateRoleDto {
   @IsEnum(UserRole) role!: UserRole;
+}
+class ResetPasswordDto {
+  @IsString() @MinLength(6) password!: string;
 }
 
 interface UsuarioView {
@@ -79,7 +91,11 @@ export class UsersService {
         password: dto.password,
         email_confirm: true,
         app_metadata: { role: dto.role },
-        user_metadata: { nombre: dto.nombre, role: dto.role },
+        user_metadata: {
+          nombre: dto.nombre,
+          role: dto.role,
+          must_change_password: dto.forceChange ?? true,
+        },
       });
       if (error) throw error;
       return { id: data.user!.id, email: dto.email, nombre: dto.nombre, role: dto.role };
@@ -109,6 +125,25 @@ export class UsersService {
     }
     const u = await this.prisma.usuario.update({ where: { id }, data: { role } });
     return { id: u.id, email: u.email, nombre: u.nombre, role: u.role };
+  }
+
+  /** Resetea la contraseña y obliga a cambiarla en el próximo login. */
+  async resetPassword(id: string, password: string) {
+    if (this.provider === "supabase") {
+      const actual = await this.sb().auth.admin.getUserById(id);
+      const meta = (actual.data.user?.user_metadata as Record<string, unknown>) ?? {};
+      const { error } = await this.sb().auth.admin.updateUserById(id, {
+        password,
+        user_metadata: { ...meta, must_change_password: true },
+      });
+      if (error) throw error;
+      return { ok: true };
+    }
+    await this.prisma.usuario.update({
+      where: { id },
+      data: { passwordHash: await bcrypt.hash(password, 10) },
+    });
+    return { ok: true };
   }
 
   async remove(id: string) {
@@ -141,6 +176,11 @@ class UsersController {
   @Patch(":id/rol")
   updateRole(@Param("id") id: string, @Body() dto: UpdateRoleDto) {
     return this.users.updateRole(id, dto.role);
+  }
+
+  @Post(":id/reset-password")
+  resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordDto) {
+    return this.users.resetPassword(id, dto.password);
   }
 
   @Delete(":id")

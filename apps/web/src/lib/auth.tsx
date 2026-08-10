@@ -15,6 +15,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Re-consulta /auth/me (por ej. tras cambiar la contraseña). */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -80,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (usesSupabaseAuth && supabase) supabase.auth.signOut();
         tokenStore.clear();
         setUser(null);
+      },
+      refresh: async () => {
+        const me = await api.get<AuthUser>("/auth/me");
+        setUser(me);
       },
     }),
     [user, loading],

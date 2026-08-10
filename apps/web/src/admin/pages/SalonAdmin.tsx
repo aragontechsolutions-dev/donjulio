@@ -29,6 +29,31 @@ const STATUS_BG: Record<string, string> = {
   PENDIENTE_PAGO: "bg-red-100 border-red-400 text-red-800",
 };
 const TILE = 76;
+const CHAIR = 12;
+
+/** Posición de cada silla (offset respecto al centro de la mesa). */
+function chairPositions(capacidad: number, forma: string): { x: number; y: number }[] {
+  const n = Math.max(0, Math.min(capacidad, 20));
+  const res: { x: number; y: number }[] = [];
+  if (forma === "CIRCULAR") {
+    const R = TILE / 2 + 10;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      res.push({ x: Math.cos(ang) * R, y: Math.sin(ang) * R });
+    }
+  } else {
+    const h = TILE / 2 + 8;
+    const per = 8 * h;
+    for (let i = 0; i < n; i++) {
+      const d = (i / n) * per;
+      if (d < 2 * h) res.push({ x: -h + d, y: -h });
+      else if (d < 4 * h) res.push({ x: h, y: -h + (d - 2 * h) });
+      else if (d < 6 * h) res.push({ x: h - (d - 4 * h), y: h });
+      else res.push({ x: -h, y: h - (d - 6 * h) });
+    }
+  }
+  return res;
+}
 
 export default function SalonAdmin() {
   const [mode, setMode] = useState<"operar" | "editar">("operar");
@@ -243,9 +268,23 @@ export default function SalonAdmin() {
                   if (mode === "operar") abrirCuenta(m);
                   else setEditSel(m);
                 }}
-                style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute" }}
+                style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute", overflow: "visible" }}
                 className={`flex flex-col items-center justify-center border-2 shadow-sm ${STATUS_BG[m.status] ?? "bg-white border-crust-300"} ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600" : ""}`}
               >
+                {/* Sillas alrededor de la mesa */}
+                {chairPositions(m.capacidad, m.forma).map((c, i) => (
+                  <span
+                    key={i}
+                    aria-hidden
+                    className="pointer-events-none absolute rounded-md bg-crust-400"
+                    style={{
+                      width: CHAIR,
+                      height: CHAIR,
+                      left: TILE / 2 + c.x - CHAIR / 2,
+                      top: TILE / 2 + c.y - CHAIR / 2,
+                    }}
+                  />
+                ))}
                 <span className="text-xl font-bold leading-none">{m.numero}</span>
                 <span className="text-[10px]">👥{m.capacidad}</span>
                 {m.pedidoAbierto && <span className="text-[10px] font-semibold">{formatUYU(m.pedidoAbierto.total)}</span>}

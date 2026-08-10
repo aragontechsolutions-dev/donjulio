@@ -16,6 +16,7 @@ import ReportesAdmin from "./admin/pages/ReportesAdmin";
 import SalonAdmin from "./admin/pages/SalonAdmin";
 import KdsAdmin from "./admin/pages/KdsAdmin";
 import UsuariosAdmin from "./admin/pages/UsuariosAdmin";
+import ChangePassword from "./admin/ChangePassword";
 import { useAuth } from "./lib/auth";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -27,7 +28,10 @@ function RequireAuth({ children }: { children: JSX.Element }) {
       </div>
     );
   }
-  return user ? children : <Navigate to="/admin/login" replace />;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  // Fuerza el cambio de contraseña en el primer login / tras un reset.
+  if (user.mustChangePassword) return <ChangePassword />;
+  return children;
 }
 
 export default function App() {

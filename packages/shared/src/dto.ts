@@ -12,6 +12,8 @@ export interface AuthUser {
   email: string;
   nombre: string;
   role: UserRole;
+  /** true si el usuario debe cambiar su contraseña en el próximo login. */
+  mustChangePassword?: boolean;
 }
 
 /** Respuesta del login del panel. */

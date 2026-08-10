@@ -13,7 +13,7 @@ const ROLES = Object.values(UserRole);
 
 export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO" });
+  const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -31,8 +31,21 @@ export default function UsuariosAdmin() {
     try {
       await api.post("/admin/usuarios", form);
       setOk(`Usuario ${form.email} creado`);
-      setForm({ email: "", nombre: "", password: "", role: "CAJERO" });
+      setForm({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
       load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const resetear = async (u: Usuario) => {
+    const temp = prompt(`Contraseña temporal para ${u.email} (se le pedirá cambiarla al ingresar):`);
+    if (!temp) return;
+    setError(null);
+    setOk(null);
+    try {
+      await api.post(`/admin/usuarios/${u.id}/reset-password`, { password: temp });
+      setOk(`Contraseña de ${u.email} reseteada. Deberá cambiarla al ingresar.`);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -74,6 +87,10 @@ export default function UsuariosAdmin() {
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         <button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Crear usuario</button>
+        <label className="flex items-center gap-2 text-sm text-crust-600 sm:col-span-2 lg:col-span-5">
+          <input type="checkbox" checked={form.forceChange} onChange={(e) => setForm({ ...form, forceChange: e.target.checked })} />
+          Obligar a cambiar la contraseña en el primer ingreso
+        </label>
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
@@ -97,6 +114,7 @@ export default function UsuariosAdmin() {
                   </select>
                 </td>
                 <td className="px-4 py-3 text-right">
+                  <button onClick={() => resetear(u)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1.5 text-sm text-crust-700 hover:bg-crust-100">Resetear contraseña</button>
                   <button onClick={() => eliminar(u)} className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
                 </td>
               </tr>
