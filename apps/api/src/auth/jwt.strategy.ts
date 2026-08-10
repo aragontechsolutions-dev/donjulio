@@ -26,9 +26,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   constructor(config: ConfigService) {
     const provider = config.get<string>("AUTH_PROVIDER", "local");
+    // En modo supabase la validación real la hace el guard (auth.getUser); esta
+    // estrategia no se usa, pero passport exige un secreto no vacío para iniciar.
     const secret =
       provider === "supabase"
-        ? config.get<string>("SUPABASE_JWT_SECRET", "")
+        ? config.get<string>("SUPABASE_JWT_SECRET") ||
+          config.get<string>("JWT_SECRET") ||
+          "supabase-mode-unused"
         : config.get<string>("JWT_SECRET", "dev-secret");
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
