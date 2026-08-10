@@ -105,9 +105,20 @@ export default function SalonAdmin() {
   };
 
   const agregarMesa = async () => {
+    setError(null);
     const numero = (mesas.reduce((max, m) => Math.max(max, m.numero), 0) || 0) + 1;
-    await api.post("/admin/salon/mesas", { numero, capacidad: 4, posX: 20, posY: 20, forma: "CUADRADA" });
-    await loadMesas();
+    try {
+      await api.post("/admin/salon/mesas", {
+        numero,
+        capacidad: 4,
+        posX: 20 + (mesas.length % 5) * 90,
+        posY: 20 + Math.floor(mesas.length / 5) * 90,
+        forma: "CUADRADA",
+      });
+      await loadMesas();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const guardarMesa = async () => {

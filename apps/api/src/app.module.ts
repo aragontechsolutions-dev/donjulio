@@ -19,6 +19,7 @@ import { ReportsModule } from "./reports/reports.module";
 import { SalonModule } from "./salon/salon.module";
 import { KdsModule } from "./kds/kds.module";
 import { StorageModule } from "./integrations/storage/storage.module";
+import { UsersModule } from "./users/users.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -44,6 +45,7 @@ import { HealthController } from "./health.controller";
     SalonModule,
     KdsModule,
     StorageModule,
+    UsersModule,
   ],
   controllers: [HealthController],
   providers: [

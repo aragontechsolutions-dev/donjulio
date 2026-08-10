@@ -15,6 +15,7 @@ const NAV = [
   { to: "/admin/productos", label: "Productos", icon: "🥖" },
   { to: "/admin/promociones", label: "Promociones", icon: "🏷️" },
   { to: "/admin/cms", label: "Contenido web", icon: "✏️" },
+  { to: "/admin/usuarios", label: "Usuarios", icon: "👤" },
 ];
 
 export default function AdminLayout() {

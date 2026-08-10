@@ -9,7 +9,10 @@ import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { UserRole } from "@donjulio/shared";
+import { PrismaService } from "../prisma/prisma.service";
 import { IS_PUBLIC_KEY, ROLES_KEY } from "./decorators";
+
+const ROLES = new Set<string>(Object.values(UserRole));
 
 /**
  * Guard de autenticación global.
@@ -23,10 +26,13 @@ import { IS_PUBLIC_KEY, ROLES_KEY } from "./decorators";
 export class JwtAuthGuard extends AuthGuard("jwt") {
   private supabase: SupabaseClient | null = null;
   private readonly provider: string;
+  // Cache email → id de la tabla Usuario, para no upsertear en cada request.
+  private readonly userIdCache = new Map<string, string>();
 
   constructor(
     private reflector: Reflector,
     private config: ConfigService,
+    private prisma: PrismaService,
   ) {
     super();
     this.provider = config.get<string>("AUTH_PROVIDER", "local");
@@ -64,20 +70,33 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       if (error || !data.user) throw new UnauthorizedException("Token inválido");
 
       const u = data.user;
-      const role =
-        ((u.app_metadata as Record<string, unknown>)?.role as UserRole) ??
-        ((u.user_metadata as Record<string, unknown>)?.role as UserRole) ??
-        UserRole.CAJERO;
-      req.user = {
-        id: u.id,
-        email: u.email ?? "",
-        nombre:
-          (u.user_metadata?.nombre as string) ??
-          (u.user_metadata?.full_name as string) ??
-          u.email ??
-          "Usuario",
-        role,
-      };
+      const email = u.email ?? `${u.id}@sinemail.local`;
+      const roleRaw =
+        (u.app_metadata as Record<string, unknown>)?.role ??
+        (u.user_metadata as Record<string, unknown>)?.role;
+      const role = ROLES.has(String(roleRaw))
+        ? (roleRaw as UserRole)
+        : UserRole.CAJERO;
+      const nombre =
+        (u.user_metadata?.nombre as string) ??
+        (u.user_metadata?.full_name as string) ??
+        u.email ??
+        "Usuario";
+
+      // Mapea la identidad de Supabase a un Usuario local (por email) para que
+      // las claves foráneas (mozoId, openedById, eventos, etc.) sean válidas.
+      let localId = this.userIdCache.get(email);
+      if (!localId) {
+        const dbUser = await this.prisma.usuario.upsert({
+          where: { email },
+          update: { nombre, role },
+          create: { email, nombre, role, passwordHash: "" },
+        });
+        localId = dbUser.id;
+        this.userIdCache.set(email, localId);
+      }
+
+      req.user = { id: localId, email, nombre, role };
       return true;
     }
 
