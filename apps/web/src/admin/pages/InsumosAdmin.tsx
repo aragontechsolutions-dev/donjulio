@@ -24,7 +24,7 @@ export default function InsumosAdmin() {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [reorden, setReorden] = useState<Insumo[]>([]);
   const [vencimientos, setVencimientos] = useState<Lote[]>([]);
-  const [form, setForm] = useState({ nombre: "", unidad: "KG", costoUnitario: 0, puntoReorden: 0 });
+  const [form, setForm] = useState({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -38,8 +38,13 @@ export default function InsumosAdmin() {
     e.preventDefault();
     setError(null);
     try {
-      await api.post("/admin/inventario/insumos", { ...form, costoUnitario: Number(form.costoUnitario), puntoReorden: Number(form.puntoReorden) });
-      setForm({ nombre: "", unidad: "KG", costoUnitario: 0, puntoReorden: 0 });
+      await api.post("/admin/inventario/insumos", {
+        ...form,
+        costoUnitario: Number(form.costoUnitario),
+        stockActual: Number(form.stockActual),
+        puntoReorden: Number(form.puntoReorden),
+      });
+      setForm({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0 });
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -97,16 +102,45 @@ export default function InsumosAdmin() {
         </div>
       )}
 
-      <form onSubmit={crear} className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-crust-100 bg-white p-4 shadow-sm">
-        <input placeholder="Nombre del insumo" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="flex-1 rounded-lg border border-crust-200 px-3 py-2" required />
-        <select value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
-          {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
-        <input type="number" step="0.01" placeholder="Costo unit." value={form.costoUnitario} onChange={(e) => setForm({ ...form, costoUnitario: Number(e.target.value) })} className="w-28 rounded-lg border border-crust-200 px-3 py-2" />
-        <input type="number" step="0.01" placeholder="Reorden" value={form.puntoReorden} onChange={(e) => setForm({ ...form, puntoReorden: Number(e.target.value) })} className="w-28 rounded-lg border border-crust-200 px-3 py-2" />
-        <button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Agregar</button>
+      <form onSubmit={crear} className="mb-6 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 font-display text-lg font-semibold text-crust-800">Nuevo insumo</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block sm:col-span-2 lg:col-span-1">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Nombre</span>
+            <input placeholder="Ej: Harina 000" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Unidad de medida</span>
+            <select value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+              {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-crust-400">Cómo lo medís (kg, litros, unidades…)</span>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Costo por {form.unidad}</span>
+            <input type="number" step="0.01" min="0" value={form.costoUnitario} onChange={(e) => setForm({ ...form, costoUnitario: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+            <span className="mt-1 block text-xs text-crust-400">Lo que te cuesta 1 {form.unidad} (para costear recetas)</span>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Stock inicial</span>
+            <input type="number" step="0.01" min="0" value={form.stockActual} onChange={(e) => setForm({ ...form, stockActual: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+            <span className="mt-1 block text-xs text-crust-400">Cuánto tenés ahora ({form.unidad}). Podés dejar 0.</span>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Punto de reorden</span>
+            <input type="number" step="0.01" min="0" value={form.puntoReorden} onChange={(e) => setForm({ ...form, puntoReorden: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+            <span className="mt-1 block text-xs text-crust-400">Te avisa cuando el stock baje de este valor</span>
+          </label>
+        </div>
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        <div className="mt-4">
+          <button className="rounded-lg bg-crust-600 px-5 py-2 font-semibold text-white hover:bg-crust-700">Agregar insumo</button>
+        </div>
       </form>
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
         <table className="w-full text-sm">
