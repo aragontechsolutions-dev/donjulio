@@ -5,6 +5,7 @@ import { outboxAll } from "./lib/db";
 import Login from "./pages/Login";
 import Mesas from "./pages/Mesas";
 import Comanda from "./pages/Comanda";
+import ChangePassword from "./pages/ChangePassword";
 
 export interface MesaSel {
   id: string;
@@ -43,6 +44,8 @@ export default function App() {
     return <div className="grid min-h-screen place-items-center text-crust-500">Cargando…</div>;
   }
   if (!user) return <Login />;
+  // Fuerza el cambio de contraseña en el primer login / tras un reset.
+  if (user.mustChangePassword) return <ChangePassword />;
 
   return (
     <div className="min-h-screen">

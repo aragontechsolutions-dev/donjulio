@@ -15,6 +15,7 @@ interface AuthCtx {
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -91,6 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tokenStore.clear();
         localStorage.removeItem("donjulio_mozo_user");
         setUser(null);
+      },
+      refresh: async () => {
+        const me = await api.get<AuthUser>("/auth/me");
+        localStorage.setItem("donjulio_mozo_user", JSON.stringify(me));
+        setUser(me);
       },
     }),
     [user, ready],
