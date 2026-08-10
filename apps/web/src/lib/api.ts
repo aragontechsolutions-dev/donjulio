@@ -1,3 +1,5 @@
+import { showToast } from "./toast";
+
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
 
@@ -18,19 +20,46 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+/** Mensaje de éxito por método para el toast automático. */
+function successMsg(method: string): string {
+  switch (method) {
+    case "POST":
+      return "Operación realizada ✓";
+    case "PATCH":
+    case "PUT":
+      return "Cambios guardados ✓";
+    case "DELETE":
+      return "Eliminado ✓";
+    default:
+      return "Listo ✓";
+  }
+}
+
+// No notificar en endpoints de autenticación (el flujo de login navega solo).
+const isAuthPath = (path: string) => path.startsWith("/auth");
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {}),
-    },
-  });
+  const method = (options.method ?? "GET").toUpperCase();
+  const isMutation = method !== "GET";
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch {
+    // Error de red / servidor caído (típico cold start de Render).
+    if (isMutation && !isAuthPath(path)) {
+      showToast("error", "Sin conexión con el servidor. Reintentá en unos segundos.");
+    }
+    throw new ApiError(0, "Sin conexión con el servidor");
+  }
 
   if (!res.ok) {
     let message = res.statusText;
@@ -40,8 +69,12 @@ async function request<T>(
     } catch {
       /* sin body */
     }
-    throw new ApiError(res.status, Array.isArray(message) ? message.join(", ") : message);
+    const finalMsg = Array.isArray(message) ? message.join(", ") : message;
+    if (isMutation && !isAuthPath(path)) showToast("error", finalMsg);
+    throw new ApiError(res.status, finalMsg);
   }
+
+  if (isMutation && !isAuthPath(path)) showToast("success", successMsg(method));
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
@@ -60,12 +93,22 @@ export const api = {
     const token = tokenStore.get();
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${BASE_URL}${path}`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form,
-    });
-    if (!res.ok) throw new ApiError(res.status, res.statusText);
-    return res.json() as Promise<T>;
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+      if (!res.ok) {
+        showToast("error", "No se pudo subir la imagen");
+        throw new ApiError(res.status, res.statusText);
+      }
+      showToast("success", "Imagen subida ✓");
+      return res.json() as Promise<T>;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      showToast("error", "No se pudo subir la imagen");
+      throw new ApiError(0, "upload failed");
+    }
   },
 };
