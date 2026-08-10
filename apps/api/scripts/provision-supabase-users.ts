@@ -1,9 +1,11 @@
 /**
- * Crea los usuarios del sistema en Supabase Auth con su rol en app_metadata.
+ * Crea/actualiza los usuarios del sistema en Supabase Auth con su rol en
+ * app_metadata. Es idempotente: si el usuario ya existe, corrige su contraseña,
+ * su rol y lo deja confirmado.
  *
  * Uso:
  *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
- *   pnpm --filter @donjulio/api exec ts-node scripts/provision-supabase-users.ts
+ *   pnpm --filter @donjulio/api provision:supabase
  *
  * La service_role key es secreta: usar sólo en el backend/CLI, nunca en el cliente.
  */
@@ -24,19 +26,40 @@ const usuarios = [
   { email: "mozo@donjulio.uy", password: "donjulio123", nombre: "Mozo/a", role: "MOZO" },
 ];
 
+/** Busca un usuario por email recorriendo las páginas del admin API. */
+async function findByEmail(email: string) {
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    const found = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    if (found) return found;
+    if (data.users.length < 200) break; // última página
+  }
+  return null;
+}
+
 (async () => {
   for (const u of usuarios) {
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: u.email,
-      password: u.password,
-      email_confirm: true,
+    const existente = await findByEmail(u.email);
+    const meta = {
       app_metadata: { role: u.role },
       user_metadata: { nombre: u.nombre, role: u.role },
-    });
-    if (error) {
-      console.warn(`⚠️  ${u.email}: ${error.message}`);
+    };
+    if (existente) {
+      const { error } = await supabase.auth.admin.updateUserById(existente.id, {
+        password: u.password,
+        email_confirm: true,
+        ...meta,
+      });
+      console.log(error ? `⚠️  ${u.email}: ${error.message}` : `♻️  actualizado ${u.email} (${u.role})`);
     } else {
-      console.log(`✅ ${u.email} (${u.role}) → ${data.user?.id}`);
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: u.email,
+        password: u.password,
+        email_confirm: true,
+        ...meta,
+      });
+      console.log(error ? `⚠️  ${u.email}: ${error.message}` : `✅ creado ${u.email} (${u.role}) → ${data.user?.id}`);
     }
   }
   console.log("Listo. Cambiá las contraseñas demo en producción.");
