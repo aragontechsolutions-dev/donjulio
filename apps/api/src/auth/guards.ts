@@ -22,12 +22,30 @@ const ROLES = new Set<string>(Object.values(UserRole));
  *   ES256/RS256 de los proyectos nuevos). El rol se lee de app_metadata.
  * Respeta @Public().
  */
+interface AuthUserPayload {
+  id: string;
+  email: string;
+  nombre: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+}
+
 @Injectable()
 export class JwtAuthGuard extends AuthGuard("jwt") {
   private supabase: SupabaseClient | null = null;
   private readonly provider: string;
   // Cache email → id de la tabla Usuario, para no upsertear en cada request.
   private readonly userIdCache = new Map<string, string>();
+  // Cache token → usuario validado. Evita llamar a Supabase (auth.getUser) en
+  // cada request: el panel dispara varias llamadas por pantalla y sin esto
+  // cada una pagaba un viaje de red a Supabase Auth. TTL corto y bien por
+  // debajo de la vida del token (1h); al refrescar el token cambia la clave.
+  private readonly tokenCache = new Map<
+    string,
+    { user: AuthUserPayload; exp: number }
+  >();
+  private static readonly TOKEN_TTL_MS = 5 * 60 * 1000;
+  private static readonly TOKEN_CACHE_MAX = 500;
 
   constructor(
     private reflector: Reflector,
@@ -66,8 +84,18 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       const token = header.startsWith("Bearer ") ? header.slice(7) : null;
       if (!token) throw new UnauthorizedException("Falta el token");
 
+      // Cache-hit: el token ya fue validado hace poco; evitamos el round-trip.
+      const cached = this.tokenCache.get(token);
+      if (cached && cached.exp > Date.now()) {
+        req.user = cached.user;
+        return true;
+      }
+
       const { data, error } = await this.getSupabase().auth.getUser(token);
-      if (error || !data.user) throw new UnauthorizedException("Token inválido");
+      if (error || !data.user) {
+        this.tokenCache.delete(token);
+        throw new UnauthorizedException("Token inválido");
+      }
 
       const u = data.user;
       const email = u.email ?? `${u.id}@sinemail.local`;
@@ -98,7 +126,18 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
 
       const mustChangePassword =
         (u.user_metadata as Record<string, unknown>)?.must_change_password === true;
-      req.user = { id: localId, email, nombre, role, mustChangePassword };
+      const payload: AuthUserPayload = { id: localId, email, nombre, role, mustChangePassword };
+      req.user = payload;
+
+      // Guarda en cache (con tope de tamaño para no crecer sin límite).
+      if (this.tokenCache.size >= JwtAuthGuard.TOKEN_CACHE_MAX) {
+        const oldest = this.tokenCache.keys().next().value;
+        if (oldest) this.tokenCache.delete(oldest);
+      }
+      this.tokenCache.set(token, {
+        user: payload,
+        exp: Date.now() + JwtAuthGuard.TOKEN_TTL_MS,
+      });
       return true;
     }
 
