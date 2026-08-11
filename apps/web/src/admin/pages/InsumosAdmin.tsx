@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { UnitOfMeasure } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { formatUYU } from "../../lib/format";
+import Modal from "../../lib/Modal";
 
 interface Insumo {
   id: string;
@@ -27,6 +28,11 @@ export default function InsumosAdmin() {
   const [form, setForm] = useState({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0 });
   const [error, setError] = useState<string | null>(null);
 
+  // Modal de Entrada / Ajuste sobre un insumo puntual.
+  const [modal, setModal] = useState<{ type: "entrada" | "ajuste"; insumo: Insumo } | null>(null);
+  const [modalForm, setModalForm] = useState({ cantidad: "", costoUnitario: "", lote: "", vencimiento: "", stockReal: "", motivo: "" });
+  const [saving, setSaving] = useState(false);
+
   const load = () => {
     api.get<Insumo[]>("/admin/inventario/insumos").then(setInsumos).catch(() => {});
     api.get<Insumo[]>("/admin/inventario/alertas/reorden").then(setReorden).catch(() => {});
@@ -51,22 +57,54 @@ export default function InsumosAdmin() {
     }
   };
 
-  const entrada = async (i: Insumo) => {
-    const cant = window.prompt(`Entrada de stock para ${i.nombre} (${i.unidad}). Cantidad:`);
-    if (!cant) return;
-    const costo = window.prompt("Costo unitario (opcional, enter para mantener):");
-    await api.post(`/admin/inventario/insumos/${i.id}/entrada`, {
-      cantidad: Number(cant),
-      ...(costo ? { costoUnitario: Number(costo) } : {}),
-    });
-    load();
+  const abrirEntrada = (i: Insumo) => {
+    setModalForm({ cantidad: "", costoUnitario: "", lote: "", vencimiento: "", stockReal: "", motivo: "" });
+    setModal({ type: "entrada", insumo: i });
   };
 
-  const ajustar = async (i: Insumo) => {
-    const real = window.prompt(`Stock real contado de ${i.nombre} (${i.unidad}):`, i.stockActual);
-    if (real == null) return;
-    await api.post(`/admin/inventario/insumos/${i.id}/ajuste`, { stockReal: Number(real) });
-    load();
+  const abrirAjuste = (i: Insumo) => {
+    setModalForm({ cantidad: "", costoUnitario: "", lote: "", vencimiento: "", stockReal: String(Number(i.stockActual)), motivo: "" });
+    setModal({ type: "ajuste", insumo: i });
+  };
+
+  const cerrarModal = () => setModal(null);
+
+  const submitEntrada = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modal) return;
+    setSaving(true);
+    try {
+      await api.post(`/admin/inventario/insumos/${modal.insumo.id}/entrada`, {
+        cantidad: Number(modalForm.cantidad),
+        ...(modalForm.costoUnitario ? { costoUnitario: Number(modalForm.costoUnitario) } : {}),
+        ...(modalForm.lote ? { lote: modalForm.lote } : {}),
+        ...(modalForm.vencimiento ? { vencimiento: modalForm.vencimiento } : {}),
+      });
+      cerrarModal();
+      load();
+    } catch {
+      /* el toast de error lo dispara el api client */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitAjuste = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modal) return;
+    setSaving(true);
+    try {
+      await api.post(`/admin/inventario/insumos/${modal.insumo.id}/ajuste`, {
+        stockReal: Number(modalForm.stockReal),
+        ...(modalForm.motivo ? { motivo: modalForm.motivo } : {}),
+      });
+      cerrarModal();
+      load();
+    } catch {
+      /* el toast de error lo dispara el api client */
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -165,8 +203,8 @@ export default function InsumosAdmin() {
                   <td className={`px-4 py-3 text-right font-semibold ${low ? "text-red-600" : "text-crust-800"}`}>{Number(i.stockActual)}</td>
                   <td className="px-4 py-3 text-right text-crust-500">{Number(i.puntoReorden)}</td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => entrada(i)} className="mr-2 rounded-lg bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200">+ Entrada</button>
-                    <button onClick={() => ajustar(i)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
+                    <button onClick={() => abrirEntrada(i)} className="mr-2 rounded-lg bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200">+ Entrada</button>
+                    <button onClick={() => abrirAjuste(i)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
                   </td>
                 </tr>
               );
@@ -177,6 +215,104 @@ export default function InsumosAdmin() {
           </tbody>
         </table>
       </div>
+
+      {modal?.type === "entrada" && (
+        <Modal
+          title="Entrada de stock"
+          subtitle={`${modal.insumo.nombre} · se mide en ${modal.insumo.unidad}`}
+          onClose={cerrarModal}
+        >
+          <form onSubmit={submitEntrada} className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Cantidad que ingresa ({modal.insumo.unidad})</span>
+              <input
+                type="number" step="0.01" min="0" autoFocus required
+                value={modalForm.cantidad}
+                onChange={(e) => setModalForm({ ...modalForm, cantidad: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                placeholder="Ej: 25"
+              />
+              <span className="mt-1 block text-xs text-crust-400">Se suma al stock actual ({Number(modal.insumo.stockActual)} {modal.insumo.unidad}).</span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Costo por {modal.insumo.unidad} <span className="font-normal text-crust-400">(opcional)</span></span>
+              <input
+                type="number" step="0.01" min="0"
+                value={modalForm.costoUnitario}
+                onChange={(e) => setModalForm({ ...modalForm, costoUnitario: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                placeholder={`Actual: ${formatUYU(modal.insumo.costoUnitario)}`}
+              />
+              <span className="mt-1 block text-xs text-crust-400">Actualiza el costo del insumo. Dejalo vacío para mantenerlo.</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Lote <span className="font-normal text-crust-400">(opcional)</span></span>
+                <input
+                  value={modalForm.lote}
+                  onChange={(e) => setModalForm({ ...modalForm, lote: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                  placeholder="Ej: L-240"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Vencimiento <span className="font-normal text-crust-400">(opcional)</span></span>
+                <input
+                  type="date"
+                  value={modalForm.vencimiento}
+                  onChange={(e) => setModalForm({ ...modalForm, vencimiento: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+                {saving ? "Guardando…" : "Registrar entrada"}
+              </button>
+              <button type="button" onClick={cerrarModal} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {modal?.type === "ajuste" && (
+        <Modal
+          title="Ajustar stock"
+          subtitle={`${modal.insumo.nombre} · conteo físico`}
+          onClose={cerrarModal}
+        >
+          <form onSubmit={submitAjuste} className="space-y-4">
+            <div className="rounded-lg bg-crust-50 px-3 py-2 text-sm text-crust-600">
+              Stock en sistema: <b className="text-crust-800">{Number(modal.insumo.stockActual)} {modal.insumo.unidad}</b>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Stock real contado ({modal.insumo.unidad})</span>
+              <input
+                type="number" step="0.01" min="0" autoFocus required
+                value={modalForm.stockReal}
+                onChange={(e) => setModalForm({ ...modalForm, stockReal: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+              />
+              <span className="mt-1 block text-xs text-crust-400">Lo que hay físicamente. El sistema registra la diferencia como merma o sobrante.</span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Motivo <span className="font-normal text-crust-400">(opcional)</span></span>
+              <input
+                value={modalForm.motivo}
+                onChange={(e) => setModalForm({ ...modalForm, motivo: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                placeholder="Ej: conteo de inventario, rotura…"
+              />
+            </label>
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+                {saving ? "Guardando…" : "Aplicar ajuste"}
+              </button>
+              <button type="button" onClick={cerrarModal} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

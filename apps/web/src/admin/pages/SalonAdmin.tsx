@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PaymentMethod } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { formatUYU } from "../../lib/format";
+import Modal from "../../lib/Modal";
 
 interface Zona { id: string; nombre: string }
 interface Mesa {
@@ -72,6 +73,9 @@ export default function SalonAdmin() {
   const [editSel, setEditSel] = useState<Mesa | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; offX: number; offY: number; moved: boolean } | null>(null);
+  const [zonaModal, setZonaModal] = useState(false);
+  const [zonaNombre, setZonaNombre] = useState("");
+  const [savingZona, setSavingZona] = useState(false);
 
   const loadMesas = () =>
     api.get<Mesa[]>("/admin/salon/mesas").then(setMesas).catch(() => {});
@@ -175,11 +179,24 @@ export default function SalonAdmin() {
     }
   };
 
-  const nuevaZona = async () => {
-    const nombre = prompt("Nombre de la zona:");
-    if (!nombre) return;
-    await api.post("/admin/salon/zonas", { nombre });
-    api.get<Zona[]>("/admin/salon/zonas").then(setZonas);
+  const abrirNuevaZona = () => {
+    setZonaNombre("");
+    setZonaModal(true);
+  };
+
+  const crearZona = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!zonaNombre.trim()) return;
+    setSavingZona(true);
+    try {
+      await api.post("/admin/salon/zonas", { nombre: zonaNombre.trim() });
+      setZonaModal(false);
+      api.get<Zona[]>("/admin/salon/zonas").then(setZonas).catch(() => {});
+    } catch {
+      /* el toast de error lo dispara el api client */
+    } finally {
+      setSavingZona(false);
+    }
   };
 
   // ---------------- OPERAR: comanda ----------------
@@ -243,7 +260,7 @@ export default function SalonAdmin() {
       {mode === "editar" && (
         <div className="mb-3 flex flex-wrap gap-2">
           <button onClick={agregarMesa} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">+ Agregar mesa</button>
-          <button onClick={nuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
+          <button onClick={abrirNuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
           <span className="self-center text-sm text-crust-500">Arrastrá las mesas para ubicarlas. Tocá una para editarla.</span>
         </div>
       )}
@@ -400,6 +417,33 @@ export default function SalonAdmin() {
           )}
         </div>
       </div>
+
+      {zonaModal && (
+        <Modal
+          title="Nueva zona"
+          subtitle="Agrupá mesas por sector (salón, vereda, terraza…)"
+          onClose={() => setZonaModal(false)}
+        >
+          <form onSubmit={crearZona} className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Nombre de la zona</span>
+              <input
+                autoFocus required
+                value={zonaNombre}
+                onChange={(e) => setZonaNombre(e.target.value)}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                placeholder="Ej: Terraza"
+              />
+            </label>
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={savingZona} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+                {savingZona ? "Guardando…" : "Crear zona"}
+              </button>
+              <button type="button" onClick={() => setZonaModal(false)} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
