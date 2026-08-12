@@ -222,8 +222,9 @@ export class SalonService {
     if (mesa.status === TableStatus.OCUPADA) {
       throw new BadRequestException("La mesa ya tiene una cuenta abierta");
     }
-    return this.prisma.$transaction(async (tx) => {
-      const pedido = await tx.pedido.create({
+    // Batch (no interactiva) por compatibilidad con el pooler de Supabase.
+    const [pedido] = await this.prisma.$transaction([
+      this.prisma.pedido.create({
         data: {
           channel: OrderChannel.MOSTRADOR,
           orderType: OrderType.DINE_IN,
@@ -232,13 +233,13 @@ export class SalonService {
           mozoId,
           eventos: { create: { toState: OrderStatus.EN_PREPARACION, usuarioId: mozoId } },
         },
-      });
-      await tx.mesa.update({
+      }),
+      this.prisma.mesa.update({
         where: { id: mesaId },
         data: { status: TableStatus.OCUPADA },
-      });
-      return pedido;
-    });
+      }),
+    ]);
+    return pedido;
   }
 
   async cuentaMesa(mesaId: string) {
@@ -280,39 +281,43 @@ export class SalonService {
         )
       : new Set<string>();
 
-    return this.prisma.$transaction(async (tx) => {
-      for (const it of items) {
-        const sillaId = it.sillaId && sillasValidas.has(it.sillaId) ? it.sillaId : undefined;
-        await tx.pedidoItem.create({
-          data: {
-            pedidoId,
-            productoId: it.productoId,
-            productVariantId: it.productVariantId,
-            stationId: it.stationId,
-            sillaId,
-            cantidad: it.cantidad,
-            precioUnitario: it.precioUnitario,
-            subtotal: it.subtotal,
-            notas: it.notas,
-            modificadores: {
-              create: it.modificadores.map((m) => ({
-                modifierId: m.id,
-                nombre: m.nombre,
-                priceDelta: m.priceDelta,
-              })),
-            },
+    // Transacción por lotes (no interactiva): compatible con el pooler de
+    // Supabase, que rompe las transacciones interactivas ("Transaction not found").
+    const ops: Prisma.PrismaPromise<unknown>[] = items.map((it) => {
+      const sillaId = it.sillaId && sillasValidas.has(it.sillaId) ? it.sillaId : undefined;
+      return this.prisma.pedidoItem.create({
+        data: {
+          pedidoId,
+          productoId: it.productoId,
+          productVariantId: it.productVariantId,
+          stationId: it.stationId,
+          sillaId,
+          cantidad: it.cantidad,
+          precioUnitario: it.precioUnitario,
+          subtotal: it.subtotal,
+          notas: it.notas,
+          modificadores: {
+            create: it.modificadores.map((m) => ({
+              modifierId: m.id,
+              nombre: m.nombre,
+              priceDelta: m.priceDelta,
+            })),
           },
-        });
-      }
-      return tx.pedido.update({
+        },
+      });
+    });
+    ops.push(
+      this.prisma.pedido.update({
         where: { id: pedidoId },
         data: {
           subtotal: num(pedido.subtotal) + subtotal,
           total: num(pedido.total) + subtotal,
         },
         include: { items: { include: { producto: true, modificadores: true } } },
-      });
-    });
+      }),
+    );
+    const results = await this.prisma.$transaction(ops);
+    return results[results.length - 1];
   }
 
   /**
@@ -436,14 +441,22 @@ export class SalonService {
       /* CFE best-effort en mock */
     }
 
-    const cerrado = await this.prisma.$transaction(async (tx) => {
-      await tx.pedidoItem.updateMany({ where: { id: { in: itemIds } }, data: { pagado: true } });
+    // Se cierra la mesa si, además de estos ítems, no queda nada pendiente.
+    const pendientesTotales = await this.prisma.pedidoItem.count({
+      where: { pedidoId, pagado: false },
+    });
+    const cerrado = pendientesTotales <= itemIds.length;
+    const sesion = await this.prisma.cashSession.findFirst({
+      where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
+    });
 
-      // ¿Queda algo sin pagar? Si no, se cierra el pedido y se libera la mesa.
-      const pendientes = await tx.pedidoItem.count({ where: { pedidoId, pagado: false } });
-      const seCierra = pendientes === 0;
-      if (seCierra) {
-        await tx.pedido.update({
+    // Batch (no interactiva) por compatibilidad con el pooler de Supabase.
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.pedidoItem.updateMany({ where: { id: { in: itemIds } }, data: { pagado: true } }),
+    ];
+    if (cerrado) {
+      ops.push(
+        this.prisma.pedido.update({
           where: { id: pedidoId },
           data: {
             status: OrderStatus.ENTREGADO,
@@ -454,25 +467,27 @@ export class SalonService {
               ],
             },
           },
-        });
-        if (pedido.mesaId) {
-          await tx.mesa.update({
+        }),
+      );
+      if (pedido.mesaId) {
+        ops.push(
+          this.prisma.mesa.update({
             where: { id: pedido.mesaId },
             data: { status: TableStatus.LIBRE },
-          });
-        }
+          }),
+        );
       }
-      if (dto.propina && dto.propina > 0) {
-        await tx.propina.create({
+    }
+    if (dto.propina && dto.propina > 0) {
+      ops.push(
+        this.prisma.propina.create({
           data: { pedidoId, paymentId: pago.id, mozoId: pedido.mozoId, monto: dto.propina },
-        });
-      }
-      // Registra la venta en la caja abierta del usuario (si hay).
-      const sesion = await tx.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-      });
-      if (sesion) {
-        await tx.cashMovement.create({
+        }),
+      );
+    }
+    if (sesion) {
+      ops.push(
+        this.prisma.cashMovement.create({
           data: {
             cashSessionId: sesion.id,
             tipo: CashMovementType.SALE,
@@ -481,10 +496,10 @@ export class SalonService {
             referencia: `Pedido #${pedido.numero}`,
             usuarioId,
           },
-        });
-      }
-      return seCierra;
-    });
+        }),
+      );
+    }
+    await this.prisma.$transaction(ops);
 
     return { ok: true, total, comprobante, cerrado };
   }
