@@ -19,9 +19,12 @@ import { BillingService } from "../integrations/billing/billing.service";
 import {
   AddItemsDto,
   CobrarDto,
+  CobrarParcialDto,
   CreateMesaDto,
+  CreateSillaDto,
   CreateZonaDto,
   UpdateMesaDto,
+  UpdateSillaDto,
 } from "./salon.dto";
 
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
@@ -43,8 +46,10 @@ export class SalonService {
     return this.prisma.zona.create({ data: dto });
   }
 
-  createMesa(dto: CreateMesaDto) {
-    return this.prisma.mesa.create({ data: dto });
+  async createMesa(dto: CreateMesaDto) {
+    const mesa = await this.prisma.mesa.create({ data: dto });
+    await this.ensureSillas(mesa.id, mesa.capacidad, mesa.forma);
+    return mesa;
   }
 
   listZonas() {
@@ -53,7 +58,91 @@ export class SalonService {
 
   async updateMesa(id: string, dto: UpdateMesaDto) {
     const mesa = await this.getMesa(id);
+    // No permitir bajar la capacidad por debajo de las sillas ya creadas.
+    if (dto.capacidad != null) {
+      const sillas = await this.prisma.silla.count({ where: { mesaId: mesa.id } });
+      if (dto.capacidad < sillas) {
+        throw new BadRequestException(
+          `La mesa tiene ${sillas} sillas. Eliminá sillas antes de bajar la capacidad a ${dto.capacidad}.`,
+        );
+      }
+    }
     return this.prisma.mesa.update({ where: { id: mesa.id }, data: dto });
+  }
+
+  // ---------- Sillas / comensales ----------
+  /** Offset (respecto al centro de la mesa) por defecto para la silla i de n. */
+  private sillaOffset(i: number, n: number, forma: string): { posX: number; posY: number } {
+    const TILE = 76;
+    if (forma === "CIRCULAR") {
+      const R = TILE / 2 + 14;
+      const ang = (i / Math.max(n, 1)) * 2 * Math.PI - Math.PI / 2;
+      return { posX: Math.round(Math.cos(ang) * R), posY: Math.round(Math.sin(ang) * R) };
+    }
+    const h = TILE / 2 + 12;
+    const per = 8 * h;
+    const d = (i / Math.max(n, 1)) * per;
+    if (d < 2 * h) return { posX: Math.round(-h + d), posY: -h };
+    if (d < 4 * h) return { posX: h, posY: Math.round(-h + (d - 2 * h)) };
+    if (d < 6 * h) return { posX: Math.round(h - (d - 4 * h)), posY: h };
+    return { posX: -h, posY: Math.round(h - (d - 6 * h)) };
+  }
+
+  /** Crea las sillas por defecto si la mesa aún no tiene ninguna. */
+  private async ensureSillas(mesaId: string, capacidad: number, forma: string) {
+    const existentes = await this.prisma.silla.count({ where: { mesaId } });
+    if (existentes > 0) return;
+    const data = Array.from({ length: Math.max(0, capacidad) }, (_, i) => ({
+      mesaId,
+      numero: i + 1,
+      ...this.sillaOffset(i, capacidad, forma),
+    }));
+    if (data.length) await this.prisma.silla.createMany({ data });
+  }
+
+  async addSilla(mesaId: string, dto: CreateSillaDto) {
+    const mesa = await this.getMesa(mesaId);
+    const sillas = await this.prisma.silla.findMany({ where: { mesaId } });
+    if (sillas.length >= mesa.capacidad) {
+      throw new BadRequestException(
+        `La mesa ${mesa.numero} admite ${mesa.capacidad} sillas. Subí la capacidad para agregar más.`,
+      );
+    }
+    const numero = (sillas.reduce((mx, s) => Math.max(mx, s.numero), 0) || 0) + 1;
+    const pos = this.sillaOffset(sillas.length, mesa.capacidad, mesa.forma);
+    return this.prisma.silla.create({
+      data: {
+        mesaId,
+        numero,
+        nombre: dto.nombre,
+        posX: dto.posX ?? pos.posX,
+        posY: dto.posY ?? pos.posY,
+      },
+    });
+  }
+
+  async updateSilla(id: string, dto: UpdateSillaDto) {
+    await this.getSilla(id);
+    return this.prisma.silla.update({ where: { id }, data: dto });
+  }
+
+  async deleteSilla(id: string) {
+    const silla = await this.getSilla(id);
+    // No borrar una silla con consumos sin cobrar.
+    const conItems = await this.prisma.pedidoItem.count({
+      where: { sillaId: id, pagado: false },
+    });
+    if (conItems > 0) {
+      throw new BadRequestException("La silla tiene consumos sin cobrar.");
+    }
+    await this.prisma.silla.delete({ where: { id: silla.id } });
+    return { ok: true };
+  }
+
+  private async getSilla(id: string) {
+    const s = await this.prisma.silla.findUnique({ where: { id } });
+    if (!s) throw new NotFoundException("Silla no encontrada");
+    return s;
   }
 
   async deleteMesa(id: string) {
@@ -75,9 +164,16 @@ export class SalonService {
 
   /** Mapa de mesas con la cuenta abierta (si la hay). */
   async mapa() {
+    // Asegura sillas por defecto en mesas creadas antes de esta funcionalidad.
+    const sinSillas = await this.prisma.mesa.findMany({
+      where: { sillas: { none: {} } },
+      select: { id: true, capacidad: true, forma: true },
+    });
+    for (const m of sinSillas) await this.ensureSillas(m.id, m.capacidad, m.forma);
+
     const mesas = await this.prisma.mesa.findMany({
       orderBy: { numero: "asc" },
-      include: { zona: true },
+      include: { zona: true, sillas: { orderBy: { numero: "asc" } } },
     });
     const abiertos = await this.prisma.pedido.findMany({
       where: { orderType: OrderType.DINE_IN, status: { in: OPEN_STATES as any } },
@@ -154,9 +250,12 @@ export class SalonService {
       },
       orderBy: { createdAt: "desc" },
       include: {
-        items: { include: { producto: true, modificadores: true }, orderBy: { id: "asc" } },
+        items: {
+          include: { producto: true, modificadores: true, silla: true },
+          orderBy: { id: "asc" },
+        },
         mozo: true,
-        mesa: true,
+        mesa: { include: { sillas: { orderBy: { numero: "asc" } } } },
       },
     });
     if (!pedido) throw new NotFoundException("La mesa no tiene cuenta abierta");
@@ -175,6 +274,7 @@ export class SalonService {
             productoId: it.productoId,
             productVariantId: it.productVariantId,
             stationId: it.stationId,
+            sillaId: it.sillaId,
             cantidad: it.cantidad,
             precioUnitario: it.precioUnitario,
             subtotal: it.subtotal,
@@ -246,10 +346,50 @@ export class SalonService {
     return this.cuentaMesa(mesaId);
   }
 
-  /** Cobra la mesa: pago POS + emisión de CFE + libera la mesa + caja. */
+  /** Cobra toda la cuenta pendiente de la mesa (ítems sin pagar) y la cierra. */
   async cobrar(pedidoId: string, dto: CobrarDto, usuarioId: string) {
     const pedido = await this.getPedidoAbierto(pedidoId);
-    const total = num(pedido.total);
+    const items = await this.prisma.pedidoItem.findMany({
+      where: { pedidoId, pagado: false },
+      include: { producto: true },
+    });
+    if (items.length === 0) {
+      throw new BadRequestException("No hay consumos pendientes de cobro.");
+    }
+    return this.settleItems(pedido, items, dto, usuarioId);
+  }
+
+  /** Cobra sólo los ítems de ciertas sillas (o ítems puntuales): división de cuenta. */
+  async cobrarParcial(pedidoId: string, dto: CobrarParcialDto, usuarioId: string) {
+    const pedido = await this.getPedidoAbierto(pedidoId);
+    const where: Prisma.PedidoItemWhereInput = { pedidoId, pagado: false };
+    if (dto.itemIds?.length) {
+      where.id = { in: dto.itemIds };
+    } else if (dto.sillaIds?.length) {
+      where.sillaId = { in: dto.sillaIds };
+    } else {
+      throw new BadRequestException("Indicá qué comensales o ítems cobrar.");
+    }
+    const items = await this.prisma.pedidoItem.findMany({ where, include: { producto: true } });
+    if (items.length === 0) {
+      throw new BadRequestException("No hay consumos pendientes para esa selección.");
+    }
+    return this.settleItems(pedido, items, dto, usuarioId);
+  }
+
+  /**
+   * Liquida un conjunto de ítems: pago POS + CFE + caja, los marca pagados y,
+   * si ya no queda nada pendiente, cierra el pedido y libera la mesa.
+   */
+  private async settleItems(
+    pedido: { id: string; numero: number; status: string; mesaId: string | null; mozoId: string | null },
+    items: { id: string; subtotal: Prisma.Decimal; cantidad: number; precioUnitario: Prisma.Decimal; producto: { nombre: string } }[],
+    dto: CobrarDto | CobrarParcialDto,
+    usuarioId: string,
+  ) {
+    const pedidoId = pedido.id;
+    const total = Math.round(items.reduce((a, it) => a + num(it.subtotal), 0) * 100) / 100;
+    const itemIds = items.map((it) => it.id);
 
     const pago = await this.prisma.payment.create({
       data: {
@@ -261,13 +401,9 @@ export class SalonService {
       },
     });
 
-    // Emite CFE (e-Ticket o e-Factura según rutReceptor).
+    // Emite CFE (e-Ticket o e-Factura según rutReceptor) sólo por lo cobrado.
     let comprobante = null;
     try {
-      const full = await this.prisma.pedido.findUnique({
-        where: { id: pedidoId },
-        include: { items: { include: { producto: true } } },
-      });
       comprobante = await this.billing.emitForOrder({
         tipo: "E_TICKET" as any,
         orderId: pedidoId,
@@ -275,7 +411,7 @@ export class SalonService {
         montoTotal: total,
         iva: 0,
         rutReceptor: dto.rutReceptor,
-        lineas: (full?.items ?? []).map((it) => ({
+        lineas: items.map((it) => ({
           descripcion: it.producto.nombre,
           cantidad: it.cantidad,
           precioUnitario: num(it.precioUnitario),
@@ -285,33 +421,35 @@ export class SalonService {
       /* CFE best-effort en mock */
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.pedido.update({
-        where: { id: pedidoId },
-        data: {
-          status: OrderStatus.ENTREGADO,
-          eventos: {
-            create: [
-              { fromState: pedido.status, toState: OrderStatus.PAGADO, usuarioId },
-              { fromState: OrderStatus.PAGADO, toState: OrderStatus.ENTREGADO, usuarioId },
-            ],
+    const cerrado = await this.prisma.$transaction(async (tx) => {
+      await tx.pedidoItem.updateMany({ where: { id: { in: itemIds } }, data: { pagado: true } });
+
+      // ¿Queda algo sin pagar? Si no, se cierra el pedido y se libera la mesa.
+      const pendientes = await tx.pedidoItem.count({ where: { pedidoId, pagado: false } });
+      const seCierra = pendientes === 0;
+      if (seCierra) {
+        await tx.pedido.update({
+          where: { id: pedidoId },
+          data: {
+            status: OrderStatus.ENTREGADO,
+            eventos: {
+              create: [
+                { fromState: pedido.status as OrderStatus, toState: OrderStatus.PAGADO, usuarioId },
+                { fromState: OrderStatus.PAGADO, toState: OrderStatus.ENTREGADO, usuarioId },
+              ],
+            },
           },
-        },
-      });
-      if (pedido.mesaId) {
-        await tx.mesa.update({
-          where: { id: pedido.mesaId },
-          data: { status: TableStatus.LIBRE },
         });
+        if (pedido.mesaId) {
+          await tx.mesa.update({
+            where: { id: pedido.mesaId },
+            data: { status: TableStatus.LIBRE },
+          });
+        }
       }
       if (dto.propina && dto.propina > 0) {
         await tx.propina.create({
-          data: {
-            pedidoId,
-            paymentId: pago.id,
-            mozoId: pedido.mozoId,
-            monto: dto.propina,
-          },
+          data: { pedidoId, paymentId: pago.id, mozoId: pedido.mozoId, monto: dto.propina },
         });
       }
       // Registra la venta en la caja abierta del usuario (si hay).
@@ -330,9 +468,10 @@ export class SalonService {
           },
         });
       }
+      return seCierra;
     });
 
-    return { ok: true, total, comprobante };
+    return { ok: true, total, comprobante, cerrado };
   }
 
   private async getMesa(id: string) {

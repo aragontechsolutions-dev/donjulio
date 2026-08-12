@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PaymentMethod } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 import Modal from "../../lib/Modal";
 
 interface Zona { id: string; nombre: string }
+interface Silla { id: string; numero: number; nombre: string | null; posX: number; posY: number }
 interface Mesa {
   id: string;
   numero: number;
@@ -14,14 +16,31 @@ interface Mesa {
   posY: number;
   forma: string;
   zona: { id: string; nombre: string } | null;
+  sillas: Silla[];
   pedidoAbierto: { id: string; numero: number; total: number; itemsCount: number; mozo: string | null } | null;
 }
 interface Modifier { id: string; nombre: string; priceDelta: string }
 interface ModGroup { group: { id: string; nombre: string; minSelect: number; maxSelect: number; modifiers: Modifier[] } }
 interface PosProducto { id: string; nombre: string; precio: string; modifierGroups: ModGroup[] }
 interface PosCategoria { id: string; nombre: string; productos: PosProducto[] }
-interface CuentaItem { id: string; cantidad: number; precioUnitario: string; subtotal: string; producto: { nombre: string }; modificadores: { nombre: string }[] }
-interface Cuenta { id: string; numero: number; total: string; items: CuentaItem[]; mozo: { nombre: string } | null }
+interface CuentaItem {
+  id: string;
+  cantidad: number;
+  precioUnitario: string;
+  subtotal: string;
+  sillaId: string | null;
+  pagado: boolean;
+  producto: { nombre: string };
+  modificadores: { nombre: string }[];
+}
+interface Cuenta {
+  id: string;
+  numero: number;
+  total: string;
+  items: CuentaItem[];
+  mozo: { nombre: string } | null;
+  mesa: { id: string; numero: number; sillas: Silla[] } | null;
+}
 
 const STATUS_BG: Record<string, string> = {
   LIBRE: "bg-green-100 border-green-400 text-green-800",
@@ -30,31 +49,16 @@ const STATUS_BG: Record<string, string> = {
   PENDIENTE_PAGO: "bg-red-100 border-red-400 text-red-800",
 };
 const TILE = 76;
-const CHAIR = 12;
+const CHAIR = 20;
+const METODOS: { m: PaymentMethod; label: string; cls: string }[] = [
+  { m: PaymentMethod.EFECTIVO, label: "Efectivo", cls: "bg-green-600 hover:bg-green-700" },
+  { m: PaymentMethod.MERCADO_PAGO_QR, label: "QR / MP", cls: "bg-sky-600 hover:bg-sky-700" },
+  { m: PaymentMethod.DEBITO, label: "Débito", cls: "bg-crust-600 hover:bg-crust-700" },
+  { m: PaymentMethod.CREDITO, label: "Crédito", cls: "bg-crust-600 hover:bg-crust-700" },
+];
 
-/** Posición de cada silla (offset respecto al centro de la mesa). */
-function chairPositions(capacidad: number, forma: string): { x: number; y: number }[] {
-  const n = Math.max(0, Math.min(capacidad, 20));
-  const res: { x: number; y: number }[] = [];
-  if (forma === "CIRCULAR") {
-    const R = TILE / 2 + 10;
-    for (let i = 0; i < n; i++) {
-      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
-      res.push({ x: Math.cos(ang) * R, y: Math.sin(ang) * R });
-    }
-  } else {
-    const h = TILE / 2 + 8;
-    const per = 8 * h;
-    for (let i = 0; i < n; i++) {
-      const d = (i / n) * per;
-      if (d < 2 * h) res.push({ x: -h + d, y: -h });
-      else if (d < 4 * h) res.push({ x: h, y: -h + (d - 2 * h) });
-      else if (d < 6 * h) res.push({ x: h - (d - 4 * h), y: h });
-      else res.push({ x: -h, y: h - (d - 6 * h) });
-    }
-  }
-  return res;
-}
+/** Iniciales para mostrar sobre la silla cuando tiene cliente asignado. */
+const inicial = (nombre: string | null) => (nombre ? nombre.trim().charAt(0).toUpperCase() : "");
 
 export default function SalonAdmin() {
   const [mode, setMode] = useState<"operar" | "editar">("operar");
@@ -68,11 +72,14 @@ export default function SalonAdmin() {
   const [mesaSel, setMesaSel] = useState<Mesa | null>(null);
   const [prodSel, setProdSel] = useState<PosProducto | null>(null);
   const [mods, setMods] = useState<Record<string, string[]>>({});
+  const [comensalSel, setComensalSel] = useState<string>(""); // sillaId o "" = sin asignar
+  const [splitMode, setSplitMode] = useState<"todo" | "comensal" | "iguales">("todo");
+  const [sillasCobro, setSillasCobro] = useState<string[]>([]); // sillas seleccionadas para cobro parcial
 
   // --- estado editar ---
   const [editSel, setEditSel] = useState<Mesa | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: string; offX: number; offY: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ kind: "mesa" | "silla"; id: string; mesaId?: string; offX: number; offY: number; moved: boolean } | null>(null);
   const [zonaModal, setZonaModal] = useState(false);
   const [zonaNombre, setZonaNombre] = useState("");
   const [savingZona, setSavingZona] = useState(false);
@@ -86,7 +93,10 @@ export default function SalonAdmin() {
     api.get<PosCategoria[]>("/admin/salon/menu").then(setMenu).catch(() => {});
   }, []);
 
-  // ---------------- EDITAR: drag & drop ----------------
+  // Mesa "viva" seleccionada en editar (para reflejar sillas al instante).
+  const editMesa = useMemo(() => mesas.find((m) => m.id === editSel?.id) ?? null, [mesas, editSel]);
+
+  // ---------------- EDITAR: drag & drop (mesas y sillas) ----------------
   useEffect(() => {
     if (mode !== "editar") return;
     const onMove = (e: PointerEvent) => {
@@ -94,23 +104,38 @@ export default function SalonAdmin() {
       const canvas = canvasRef.current;
       if (!d || !canvas) return;
       const rect = canvas.getBoundingClientRect();
-      let x = e.clientX - rect.left - d.offX;
-      let y = e.clientY - rect.top - d.offY;
-      x = Math.max(0, Math.min(x, rect.width - TILE));
-      y = Math.max(0, Math.min(y, rect.height - TILE));
       d.moved = true;
-      setMesas((prev) => prev.map((m) => (m.id === d.id ? { ...m, posX: x, posY: y } : m)));
+      if (d.kind === "mesa") {
+        let x = e.clientX - rect.left - d.offX;
+        let y = e.clientY - rect.top - d.offY;
+        x = Math.max(0, Math.min(x, rect.width - TILE));
+        y = Math.max(0, Math.min(y, rect.height - TILE));
+        setMesas((prev) => prev.map((m) => (m.id === d.id ? { ...m, posX: x, posY: y } : m)));
+      } else {
+        // Silla: offset relativo al centro de su mesa.
+        setMesas((prev) =>
+          prev.map((m) => {
+            if (m.id !== d.mesaId) return m;
+            const cx = m.posX + TILE / 2;
+            const cy = m.posY + TILE / 2;
+            const ox = e.clientX - rect.left - cx;
+            const oy = e.clientY - rect.top - cy;
+            return { ...m, sillas: m.sillas.map((s) => (s.id === d.id ? { ...s, posX: ox, posY: oy } : s)) };
+          }),
+        );
+      }
     };
     const onUp = async () => {
       const d = dragRef.current;
       dragRef.current = null;
       if (!d || !d.moved) return;
-      const m = mesas.find((x) => x.id === d.id);
-      if (m) {
-        await api.patch(`/admin/salon/mesas/${m.id}`, {
-          posX: Math.round(m.posX),
-          posY: Math.round(m.posY),
-        }).catch(() => {});
+      if (d.kind === "mesa") {
+        const m = mesas.find((x) => x.id === d.id);
+        if (m) await api.patch(`/admin/salon/mesas/${m.id}`, { posX: Math.round(m.posX), posY: Math.round(m.posY) }).catch(() => {});
+      } else {
+        const m = mesas.find((x) => x.id === d.mesaId);
+        const s = m?.sillas.find((x) => x.id === d.id);
+        if (s) await api.patch(`/admin/salon/sillas/${s.id}`, { posX: Math.round(s.posX), posY: Math.round(s.posY) }).catch(() => {});
       }
     };
     window.addEventListener("pointermove", onMove);
@@ -121,15 +146,16 @@ export default function SalonAdmin() {
     };
   }, [mode, mesas]);
 
-  const startDrag = (e: React.PointerEvent, m: Mesa) => {
+  const startDragMesa = (e: React.PointerEvent, m: Mesa) => {
     if (mode !== "editar") return;
     const rect = canvasRef.current!.getBoundingClientRect();
-    dragRef.current = {
-      id: m.id,
-      offX: e.clientX - rect.left - m.posX,
-      offY: e.clientY - rect.top - m.posY,
-      moved: false,
-    };
+    dragRef.current = { kind: "mesa", id: m.id, offX: e.clientX - rect.left - m.posX, offY: e.clientY - rect.top - m.posY, moved: false };
+    setEditSel(m);
+  };
+  const startDragSilla = (e: React.PointerEvent, m: Mesa, s: Silla) => {
+    if (mode !== "editar") return;
+    e.stopPropagation();
+    dragRef.current = { kind: "silla", id: s.id, mesaId: m.id, offX: 0, offY: 0, moved: false };
     setEditSel(m);
   };
 
@@ -179,11 +205,40 @@ export default function SalonAdmin() {
     }
   };
 
+  // Sillas
+  const agregarSilla = async () => {
+    if (!editMesa) return;
+    if (editMesa.sillas.length >= editMesa.capacidad) {
+      showToast("error", `La mesa ${editMesa.numero} admite ${editMesa.capacidad} sillas. Subí la capacidad primero.`);
+      return;
+    }
+    try {
+      await api.post(`/admin/salon/mesas/${editMesa.id}/sillas`, {});
+      await loadMesas();
+    } catch {
+      /* toast del api */
+    }
+  };
+  const renombrarSilla = async (s: Silla, nombre: string) => {
+    // Optimista en UI; persiste al salir del input (onBlur).
+    setMesas((prev) => prev.map((m) => ({ ...m, sillas: m.sillas.map((x) => (x.id === s.id ? { ...x, nombre } : x)) })));
+  };
+  const guardarNombreSilla = async (s: Silla) => {
+    await api.patch(`/admin/salon/sillas/${s.id}`, { nombre: s.nombre || null }).catch(() => {});
+  };
+  const eliminarSilla = async (s: Silla) => {
+    try {
+      await api.del(`/admin/salon/sillas/${s.id}`);
+      await loadMesas();
+    } catch {
+      /* toast del api */
+    }
+  };
+
   const abrirNuevaZona = () => {
     setZonaNombre("");
     setZonaModal(true);
   };
-
   const crearZona = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!zonaNombre.trim()) return;
@@ -193,13 +248,17 @@ export default function SalonAdmin() {
       setZonaModal(false);
       api.get<Zona[]>("/admin/salon/zonas").then(setZonas).catch(() => {});
     } catch {
-      /* el toast de error lo dispara el api client */
+      /* toast del api */
     } finally {
       setSavingZona(false);
     }
   };
 
   // ---------------- OPERAR: comanda ----------------
+  const refreshCuenta = async (mesaId: string) => {
+    const c = await api.get<Cuenta>(`/admin/salon/mesas/${mesaId}/cuenta`);
+    setCuenta(c);
+  };
   const abrirCuenta = async (m: Mesa) => {
     setError(null);
     try {
@@ -207,10 +266,12 @@ export default function SalonAdmin() {
         await api.post(`/admin/salon/mesas/${m.id}/abrir`);
         await loadMesas();
       }
-      const c = await api.get<Cuenta>(`/admin/salon/mesas/${m.id}/cuenta`);
-      setCuenta(c);
+      await refreshCuenta(m.id);
       setMesaSel(m);
       setProdSel(null);
+      setComensalSel("");
+      setSplitMode("todo");
+      setSillasCobro([]);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -222,22 +283,67 @@ export default function SalonAdmin() {
       return { ...prev, [groupId]: cur.includes(modId) ? cur.filter((x) => x !== modId) : [...cur, modId] };
     });
   const agregar = async () => {
-    if (!cuenta || !prodSel) return;
+    if (!cuenta || !prodSel || !mesaSel) return;
     await api.post(`/admin/salon/pedidos/${cuenta.id}/items`, {
-      items: [{ productoId: prodSel.id, cantidad: 1, modificadorIds: Object.values(mods).flat() }],
+      items: [{ productoId: prodSel.id, cantidad: 1, modificadorIds: Object.values(mods).flat(), ...(comensalSel ? { sillaId: comensalSel } : {}) }],
     });
     setProdSel(null);
     setMods({});
-    setCuenta(await api.get<Cuenta>(`/admin/salon/mesas/${mesaSel!.id}/cuenta`));
+    await refreshCuenta(mesaSel.id);
     loadMesas();
   };
-  const cobrar = async (metodoPago: PaymentMethod) => {
+
+  const finalizarCobro = async (res: { cerrado?: boolean }) => {
+    if (!mesaSel) return;
+    if (res.cerrado) {
+      setCuenta(null);
+      setMesaSel(null);
+    } else {
+      await refreshCuenta(mesaSel.id);
+      setSillasCobro([]);
+    }
+    loadMesas();
+  };
+  const cobrarTodo = async (metodoPago: PaymentMethod) => {
     if (!cuenta) return;
-    await api.post(`/admin/salon/pedidos/${cuenta.id}/cobrar`, { metodoPago });
-    setCuenta(null);
-    setMesaSel(null);
-    loadMesas();
+    try {
+      const res = await api.post<{ cerrado?: boolean }>(`/admin/salon/pedidos/${cuenta.id}/cobrar`, { metodoPago });
+      await finalizarCobro(res);
+    } catch {
+      /* toast del api */
+    }
   };
+  const cobrarComensales = async (metodoPago: PaymentMethod) => {
+    if (!cuenta || sillasCobro.length === 0) return;
+    try {
+      const res = await api.post<{ cerrado?: boolean }>(`/admin/salon/pedidos/${cuenta.id}/cobrar-parcial`, {
+        metodoPago,
+        sillaIds: sillasCobro,
+      });
+      await finalizarCobro(res);
+    } catch {
+      /* toast del api */
+    }
+  };
+
+  // Agrupa los ítems de la cuenta por comensal (silla) + "sin asignar".
+  const gruposCuenta = useMemo(() => {
+    if (!cuenta) return [];
+    const sillas = cuenta.mesa?.sillas ?? [];
+    const grupos = sillas.map((s) => ({
+      sillaId: s.id as string | null,
+      titulo: s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`,
+      items: cuenta.items.filter((it) => it.sillaId === s.id),
+    }));
+    const sinAsignar = cuenta.items.filter((it) => !it.sillaId);
+    if (sinAsignar.length) grupos.push({ sillaId: null, titulo: "Sin asignar", items: sinAsignar });
+    return grupos.filter((g) => g.items.length > 0);
+  }, [cuenta]);
+
+  const pendienteDe = (items: CuentaItem[]) =>
+    items.filter((it) => !it.pagado).reduce((a, it) => a + Number(it.subtotal), 0);
+  const totalPendiente = cuenta ? pendienteDe(cuenta.items) : 0;
+  const nComensalesConItems = gruposCuenta.filter((g) => g.sillaId && pendienteDe(g.items) > 0).length || 1;
 
   return (
     <div>
@@ -261,7 +367,7 @@ export default function SalonAdmin() {
         <div className="mb-3 flex flex-wrap gap-2">
           <button onClick={agregarMesa} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">+ Agregar mesa</button>
           <button onClick={abrirNuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
-          <span className="self-center text-sm text-crust-500">Arrastrá las mesas para ubicarlas. Tocá una para editarla.</span>
+          <span className="self-center text-sm text-crust-500">Arrastrá mesas y sillas para ubicarlas. Tocá una mesa para editarla.</span>
         </div>
       )}
 
@@ -278,34 +384,36 @@ export default function SalonAdmin() {
             }}
           >
             {mesas.map((m) => (
-              <button
-                key={m.id}
-                onPointerDown={(e) => startDrag(e, m)}
-                onClick={() => {
-                  if (mode === "operar") abrirCuenta(m);
-                  else setEditSel(m);
-                }}
-                style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute", overflow: "visible" }}
-                className={`flex flex-col items-center justify-center border-2 shadow-sm ${STATUS_BG[m.status] ?? "bg-white border-crust-300"} ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600" : ""}`}
-              >
-                {/* Sillas alrededor de la mesa */}
-                {chairPositions(m.capacidad, m.forma).map((c, i) => (
-                  <span
-                    key={i}
-                    aria-hidden
-                    className="pointer-events-none absolute rounded-md bg-crust-400"
-                    style={{
-                      width: CHAIR,
-                      height: CHAIR,
-                      left: TILE / 2 + c.x - CHAIR / 2,
-                      top: TILE / 2 + c.y - CHAIR / 2,
-                    }}
-                  />
-                ))}
-                <span className="text-xl font-bold leading-none">{m.numero}</span>
-                <span className="text-[10px]">👥{m.capacidad}</span>
-                {m.pedidoAbierto && <span className="text-[10px] font-semibold">{formatUYU(m.pedidoAbierto.total)}</span>}
-              </button>
+              <div key={m.id}>
+                {/* Sillas de la mesa */}
+                {m.sillas.map((s) => {
+                  const left = m.posX + TILE / 2 + s.posX - CHAIR / 2;
+                  const top = m.posY + TILE / 2 + s.posY - CHAIR / 2;
+                  const ocupada = !!s.nombre?.trim();
+                  return (
+                    <div
+                      key={s.id}
+                      onPointerDown={(e) => startDragSilla(e, m, s)}
+                      title={s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`}
+                      style={{ left, top, width: CHAIR, height: CHAIR, position: "absolute" }}
+                      className={`z-10 grid place-items-center rounded-md text-[9px] font-bold ${ocupada ? "bg-crust-600 text-white" : "bg-crust-300 text-crust-700"} ${mode === "editar" ? "cursor-move touch-none ring-1 ring-white" : "pointer-events-none"}`}
+                    >
+                      {ocupada ? inicial(s.nombre) : s.numero}
+                    </div>
+                  );
+                })}
+                {/* Mesa */}
+                <button
+                  onPointerDown={(e) => startDragMesa(e, m)}
+                  onClick={() => { if (mode === "operar") abrirCuenta(m); else setEditSel(m); }}
+                  style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute" }}
+                  className={`flex flex-col items-center justify-center border-2 shadow-sm ${STATUS_BG[m.status] ?? "bg-white border-crust-300"} ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600" : ""}`}
+                >
+                  <span className="text-xl font-bold leading-none">{m.numero}</span>
+                  <span className="text-[10px]">👥{m.sillas.length}/{m.capacidad}</span>
+                  {m.pedidoAbierto && <span className="text-[10px] font-semibold">{formatUYU(m.pedidoAbierto.total)}</span>}
+                </button>
+              </div>
             ))}
             {mesas.length === 0 && (
               <p className="absolute inset-0 grid place-items-center text-crust-400">
@@ -318,34 +426,59 @@ export default function SalonAdmin() {
         {/* Panel lateral */}
         <div className="rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
           {mode === "editar" ? (
-            editSel ? (
+            editMesa ? (
               <div className="space-y-3">
-                <h3 className="font-display text-lg font-semibold text-crust-800">Mesa {editSel.numero}</h3>
+                <h3 className="font-display text-lg font-semibold text-crust-800">Mesa {editMesa.numero}</h3>
                 <label className="block text-sm text-crust-600">Número
-                  <input type="number" value={editSel.numero} onChange={(e) => setEditSel({ ...editSel, numero: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2" />
+                  <input type="number" value={editSel?.numero ?? editMesa.numero} onChange={(e) => setEditSel({ ...(editSel ?? editMesa), numero: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2" />
                 </label>
-                <label className="block text-sm text-crust-600">Sillas (capacidad)
-                  <input type="number" min={1} value={editSel.capacidad} onChange={(e) => setEditSel({ ...editSel, capacidad: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2" />
+                <label className="block text-sm text-crust-600">Capacidad (máx. sillas)
+                  <input type="number" min={editMesa.sillas.length} value={editSel?.capacidad ?? editMesa.capacidad} onChange={(e) => setEditSel({ ...(editSel ?? editMesa), capacidad: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2" />
+                  <span className="mt-1 block text-xs text-crust-400">Tiene {editMesa.sillas.length} sillas. No podés bajar de ese número sin eliminarlas.</span>
                 </label>
                 <label className="block text-sm text-crust-600">Forma
-                  <select value={editSel.forma} onChange={(e) => setEditSel({ ...editSel, forma: e.target.value })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2">
+                  <select value={editSel?.forma ?? editMesa.forma} onChange={(e) => setEditSel({ ...(editSel ?? editMesa), forma: e.target.value })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2">
                     <option value="CUADRADA">Cuadrada</option>
                     <option value="CIRCULAR">Circular</option>
                   </select>
                 </label>
                 <label className="block text-sm text-crust-600">Zona
-                  <select value={editSel.zona?.id ?? ""} onChange={(e) => setEditSel({ ...editSel, zona: e.target.value ? { id: e.target.value, nombre: zonas.find((z) => z.id === e.target.value)?.nombre ?? "" } : null })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2">
+                  <select value={(editSel ?? editMesa).zona?.id ?? ""} onChange={(e) => setEditSel({ ...(editSel ?? editMesa), zona: e.target.value ? { id: e.target.value, nombre: zonas.find((z) => z.id === e.target.value)?.nombre ?? "" } : null })} className="mt-1 w-full rounded-lg border border-crust-200 px-3 py-2">
                     <option value="">— sin zona —</option>
                     {zonas.map((z) => <option key={z.id} value={z.id}>{z.nombre}</option>)}
                   </select>
                 </label>
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-2 pt-1">
                   <button onClick={guardarMesa} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700">Guardar</button>
                   <button onClick={eliminarMesa} className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
                 </div>
+
+                {/* Sillas / comensales */}
+                <div className="border-t border-crust-100 pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-crust-700">Sillas ({editMesa.sillas.length}/{editMesa.capacidad})</h4>
+                    <button onClick={agregarSilla} disabled={editMesa.sillas.length >= editMesa.capacidad} className="rounded-lg bg-crust-100 px-2 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200 disabled:opacity-50">+ Silla</button>
+                  </div>
+                  <ul className="space-y-2">
+                    {editMesa.sillas.map((s) => (
+                      <li key={s.id} className="flex items-center gap-2">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-crust-100 text-xs font-bold text-crust-600">{s.numero}</span>
+                        <input
+                          value={s.nombre ?? ""}
+                          onChange={(e) => renombrarSilla(s, e.target.value)}
+                          onBlur={() => guardarNombreSilla(s)}
+                          placeholder="Nombre del cliente (opcional)"
+                          className="flex-1 rounded-lg border border-crust-200 px-2 py-1 text-sm"
+                        />
+                        <button onClick={() => eliminarSilla(s)} className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50" title="Eliminar silla">✕</button>
+                      </li>
+                    ))}
+                    {editMesa.sillas.length === 0 && <li className="text-xs text-crust-400">Sin sillas. Agregá con “+ Silla”.</li>}
+                  </ul>
+                </div>
               </div>
             ) : (
-              <p className="text-crust-400">Tocá una mesa para editar su número, sillas, forma y zona; o arrastrala para moverla.</p>
+              <p className="text-crust-400">Tocá una mesa para editar su número, capacidad, forma, zona y sillas; o arrastrá mesas/sillas para moverlas.</p>
             )
           ) : !cuenta ? (
             <p className="text-crust-400">Elegí una mesa para abrir o ver su cuenta.</p>
@@ -355,29 +488,56 @@ export default function SalonAdmin() {
                 <h3 className="font-display text-lg font-semibold text-crust-800">Mesa {mesaSel?.numero} · #{cuenta.numero}</h3>
                 <span className="text-sm text-crust-500">{cuenta.mozo?.nombre}</span>
               </div>
-              <ul className="mb-3 max-h-48 space-y-1 overflow-auto text-sm">
-                {cuenta.items.map((it) => (
-                  <li key={it.id} className="flex justify-between border-b border-crust-50 py-1">
-                    <span className="text-crust-700">{it.cantidad}× {it.producto.nombre}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
-                    <span className="font-medium">{formatUYU(it.subtotal)}</span>
-                  </li>
-                ))}
-                {cuenta.items.length === 0 && <li className="text-crust-400">Sin ítems aún.</li>}
-              </ul>
-              <p className="mb-4 flex justify-between border-t border-crust-100 pt-2 font-bold text-crust-900"><span>Total</span><span>{formatUYU(cuenta.total)}</span></p>
-              {!prodSel ? (
-                <div className="mb-4 max-h-56 overflow-auto rounded-lg border border-crust-100 p-2">
-                  {menu.map((cat) => (
-                    <div key={cat.id} className="mb-2">
-                      <p className="px-1 text-xs font-semibold uppercase text-crust-400">{cat.nombre}</p>
-                      {cat.productos.map((p) => (
-                        <button key={p.id} onClick={() => { setProdSel(p); setMods({}); }} className="flex w-full justify-between rounded px-2 py-1 text-left text-sm hover:bg-crust-50">
-                          <span>{p.nombre}</span><span className="text-crust-500">{formatUYU(p.precio)}</span>
-                        </button>
-                      ))}
+
+              {/* Cuenta agrupada por comensal */}
+              <div className="mb-3 max-h-52 space-y-3 overflow-auto text-sm">
+                {gruposCuenta.map((g) => (
+                  <div key={g.sillaId ?? "sin"}>
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase text-crust-400">
+                      <span>{g.titulo}</span>
+                      <span>{formatUYU(pendienteDe(g.items))}</span>
                     </div>
-                  ))}
-                </div>
+                    <ul>
+                      {g.items.map((it) => (
+                        <li key={it.id} className={`flex justify-between border-b border-crust-50 py-1 ${it.pagado ? "text-crust-300 line-through" : "text-crust-700"}`}>
+                          <span>{it.cantidad}× {it.producto.nombre}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
+                          <span className="font-medium">{formatUYU(it.subtotal)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {cuenta.items.length === 0 && <p className="text-crust-400">Sin ítems aún.</p>}
+              </div>
+              <p className="mb-4 flex justify-between border-t border-crust-100 pt-2 font-bold text-crust-900"><span>Total pendiente</span><span>{formatUYU(totalPendiente)}</span></p>
+
+              {/* Selector de comensal + alta de productos */}
+              {!prodSel ? (
+                <>
+                  {(cuenta.mesa?.sillas.length ?? 0) > 0 && (
+                    <label className="mb-2 block text-sm">
+                      <span className="mb-1 block font-medium text-crust-700">Cargar a…</span>
+                      <select value={comensalSel} onChange={(e) => setComensalSel(e.target.value)} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+                        <option value="">Sin asignar (mesa)</option>
+                        {cuenta.mesa?.sillas.map((s) => (
+                          <option key={s.id} value={s.id}>{s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <div className="mb-4 max-h-48 overflow-auto rounded-lg border border-crust-100 p-2">
+                    {menu.map((cat) => (
+                      <div key={cat.id} className="mb-2">
+                        <p className="px-1 text-xs font-semibold uppercase text-crust-400">{cat.nombre}</p>
+                        {cat.productos.map((p) => (
+                          <button key={p.id} onClick={() => { setProdSel(p); setMods({}); }} className="flex w-full justify-between rounded px-2 py-1 text-left text-sm hover:bg-crust-50">
+                            <span>{p.nombre}</span><span className="text-crust-500">{formatUYU(p.precio)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="mb-4 rounded-lg border border-crust-200 bg-crust-50 p-3">
                   <p className="mb-2 font-semibold text-crust-800">{prodSel.nombre}</p>
@@ -396,20 +556,67 @@ export default function SalonAdmin() {
                       })}
                     </div>
                   ))}
+                  <p className="mb-2 text-xs text-crust-500">Comensal: <b>{comensalSel ? (cuenta.mesa?.sillas.find((s) => s.id === comensalSel)?.nombre?.trim() || `Silla ${cuenta.mesa?.sillas.find((s) => s.id === comensalSel)?.numero}`) : "Sin asignar"}</b></p>
                   <div className="mt-2 flex gap-2">
                     <button onClick={agregar} className="flex-1 rounded-lg bg-crust-600 py-1.5 text-sm font-semibold text-white hover:bg-crust-700">Agregar</button>
                     <button onClick={() => setProdSel(null)} className="rounded-lg border border-crust-200 px-3 py-1.5 text-sm">Cancelar</button>
                   </div>
                 </div>
               )}
-              {cuenta.items.length > 0 && (
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-crust-700">Cobrar con:</p>
+
+              {/* Cobro / división de cuenta */}
+              {totalPendiente > 0 && (
+                <div className="border-t border-crust-100 pt-3">
+                  <div className="mb-2 flex rounded-full bg-crust-100 p-1 text-xs font-semibold">
+                    {([["todo", "Todo"], ["comensal", "Por comensal"], ["iguales", "Partes iguales"]] as const).map(([k, label]) => (
+                      <button key={k} onClick={() => { setSplitMode(k); setSillasCobro([]); }} className={`flex-1 rounded-full px-2 py-1 ${splitMode === k ? "bg-crust-600 text-white" : "text-crust-700"}`}>{label}</button>
+                    ))}
+                  </div>
+
+                  {splitMode === "iguales" && (
+                    <p className="mb-2 rounded-lg bg-crust-50 px-3 py-2 text-sm text-crust-700">
+                      {nComensalesConItems} comensales · <b>{formatUYU(totalPendiente / nComensalesConItems)}</b> cada uno.
+                      <span className="mt-1 block text-xs text-crust-400">Cobralo con los botones (registra el total).</span>
+                    </p>
+                  )}
+
+                  {splitMode === "comensal" && (
+                    <div className="mb-2 space-y-1">
+                      <p className="text-xs font-medium text-crust-600">Elegí a quién cobrar:</p>
+                      {gruposCuenta.filter((g) => g.sillaId && pendienteDe(g.items) > 0).map((g) => (
+                        <label key={g.sillaId} className="flex items-center justify-between rounded-lg border border-crust-100 px-2 py-1 text-sm">
+                          <span className="flex items-center gap-2">
+                            <input type="checkbox" checked={sillasCobro.includes(g.sillaId!)} onChange={(e) => setSillasCobro((prev) => e.target.checked ? [...prev, g.sillaId!] : prev.filter((x) => x !== g.sillaId))} />
+                            {g.titulo}
+                          </span>
+                          <span className="font-medium text-crust-700">{formatUYU(pendienteDe(g.items))}</span>
+                        </label>
+                      ))}
+                      {gruposCuenta.filter((g) => g.sillaId && pendienteDe(g.items) > 0).length === 0 && (
+                        <p className="text-xs text-crust-400">No hay consumos asignados a comensales. Asigná ítems a las sillas al cargarlos.</p>
+                      )}
+                      {sillasCobro.length > 0 && (
+                        <p className="pt-1 text-right text-sm font-semibold text-crust-800">
+                          Seleccionado: {formatUYU(gruposCuenta.filter((g) => g.sillaId && sillasCobro.includes(g.sillaId)).reduce((a, g) => a + pendienteDe(g.items), 0))}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="mb-2 text-sm font-semibold text-crust-700">
+                    {splitMode === "comensal" ? "Cobrar comensales con:" : "Cobrar con:"}
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => cobrar(PaymentMethod.EFECTIVO)} className="rounded-lg bg-green-600 py-2 text-sm font-semibold text-white hover:bg-green-700">Efectivo</button>
-                    <button onClick={() => cobrar(PaymentMethod.MERCADO_PAGO_QR)} className="rounded-lg bg-sky-600 py-2 text-sm font-semibold text-white hover:bg-sky-700">QR / MP</button>
-                    <button onClick={() => cobrar(PaymentMethod.DEBITO)} className="rounded-lg bg-crust-600 py-2 text-sm font-semibold text-white hover:bg-crust-700">Débito</button>
-                    <button onClick={() => cobrar(PaymentMethod.CREDITO)} className="rounded-lg bg-crust-600 py-2 text-sm font-semibold text-white hover:bg-crust-700">Crédito</button>
+                    {METODOS.map(({ m, label, cls }) => (
+                      <button
+                        key={m}
+                        onClick={() => (splitMode === "comensal" ? cobrarComensales(m) : cobrarTodo(m))}
+                        disabled={splitMode === "comensal" && sillasCobro.length === 0}
+                        className={`rounded-lg py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${cls}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

@@ -294,6 +294,7 @@ export class OrdersService {
         productoId: producto.id,
         productVariantId: variante?.id,
         stationId: producto.stationId ?? undefined,
+        sillaId: ci.sillaId,
         cantidad: ci.cantidad,
         precioUnitario: unit,
         subtotal: lineSubtotal,

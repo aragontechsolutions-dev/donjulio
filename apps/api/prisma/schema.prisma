@@ -570,9 +570,26 @@ model Mesa {
   forma      String      @default("CUADRADA") // CUADRADA | CIRCULAR
 
   pedidos Pedido[]
+  sillas  Silla[]
 
   @@unique([numero])
   @@index([zonaId])
+}
+
+/// Silla/comensal de una mesa: posición propia y nombre del cliente sentado.
+model Silla {
+  id     String  @id @default(uuid())
+  mesaId String
+  mesa   Mesa    @relation(fields: [mesaId], references: [id], onDelete: Cascade)
+  numero Int // orden de la silla dentro de la mesa (1..capacidad)
+  nombre String? // nombre/etiqueta del cliente sentado
+  // Posición como offset respecto al centro de la mesa (el editor las arrastra).
+  posX   Int     @default(0)
+  posY   Int     @default(0)
+
+  items PedidoItem[]
+
+  @@index([mesaId])
 }
 
 // ─────────────────────── Pedidos y ventas ───────────────────────
@@ -623,12 +640,17 @@ model PedidoItem {
   subtotal         Decimal         @db.Decimal(12, 2)
   notas            String?
   status           OrderItemStatus @default(PENDIENTE)
+  // Comensal (silla) al que se le imputa el ítem, para cuentas individuales.
+  sillaId          String?
+  silla            Silla?          @relation(fields: [sillaId], references: [id])
+  pagado           Boolean         @default(false) // marcado al cobrar parcial por comensal
 
   modificadores PedidoItemModifier[]
 
   @@index([pedidoId])
   @@index([productoId])
   @@index([stationId])
+  @@index([sillaId])
 }
 
 model PedidoItemModifier {

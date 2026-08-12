@@ -15,10 +15,13 @@ import { SalonService } from "./salon.service";
 import {
   AddItemsDto,
   CobrarDto,
+  CobrarParcialDto,
   ComandaDto,
   CreateMesaDto,
+  CreateSillaDto,
   CreateZonaDto,
   UpdateMesaDto,
+  UpdateSillaDto,
 } from "./salon.dto";
 
 @UseGuards(RolesGuard)
@@ -66,6 +69,24 @@ export class SalonController {
     return this.salon.deleteMesa(id);
   }
 
+  // ---------- Sillas / comensales ----------
+  @Roles(UserRole.ADMIN)
+  @Post("mesas/:id/sillas")
+  addSilla(@Param("id") id: string, @Body() dto: CreateSillaDto) {
+    return this.salon.addSilla(id, dto);
+  }
+
+  @Patch("sillas/:id")
+  updateSilla(@Param("id") id: string, @Body() dto: UpdateSillaDto) {
+    return this.salon.updateSilla(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete("sillas/:id")
+  deleteSilla(@Param("id") id: string) {
+    return this.salon.deleteSilla(id);
+  }
+
   @Post("mesas/:id/abrir")
   abrir(@Param("id") id: string, @CurrentUser() user: AuthUser) {
     return this.salon.abrirMesa(id, user.id);
@@ -98,5 +119,15 @@ export class SalonController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.salon.cobrar(id, dto, user.id);
+  }
+
+  /** Cobro parcial (división de cuenta por comensal). */
+  @Post("pedidos/:id/cobrar-parcial")
+  cobrarParcial(
+    @Param("id") id: string,
+    @Body() dto: CobrarParcialDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.salon.cobrarParcial(id, dto, user.id);
   }
 }

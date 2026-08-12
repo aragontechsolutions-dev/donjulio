@@ -16,6 +16,8 @@ export class CartItemDto {
   @IsOptional() @IsString() productVariantId?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) modificadorIds?: string[];
   @IsOptional() @IsString() notas?: string;
+  /** Comensal (silla) al que se imputa el ítem (comandas en mesa). */
+  @IsOptional() @IsString() sillaId?: string;
 }
 
 export class ClienteDto {

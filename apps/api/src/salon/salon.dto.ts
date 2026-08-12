@@ -57,3 +57,24 @@ export class CobrarDto {
   @IsOptional() @IsString() rutReceptor?: string;
   @IsOptional() @IsNumber() @Min(0) propina?: number;
 }
+
+export class CreateSillaDto {
+  @IsOptional() @IsString() nombre?: string;
+  @IsOptional() @IsInt() posX?: number;
+  @IsOptional() @IsInt() posY?: number;
+}
+
+export class UpdateSillaDto {
+  @IsOptional() @IsString() nombre?: string | null;
+  @IsOptional() @IsInt() posX?: number;
+  @IsOptional() @IsInt() posY?: number;
+}
+
+/** Cobro parcial: cobra los ítems de ciertas sillas (o ítems puntuales). */
+export class CobrarParcialDto {
+  @IsEnum(PaymentMethod) metodoPago!: PaymentMethod;
+  @IsOptional() @IsArray() @IsString({ each: true }) sillaIds?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) itemIds?: string[];
+  @IsOptional() @IsString() rutReceptor?: string;
+  @IsOptional() @IsNumber() @Min(0) propina?: number;
+}
