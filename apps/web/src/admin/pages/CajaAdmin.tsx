@@ -22,6 +22,9 @@ interface Arqueo {
   expected: number;
   difference: number;
   conciliacion: Record<string, number>;
+  tolerance: number;
+  cuadra: boolean;
+  justificacion: string | null;
 }
 
 const TIPOS = Object.values(CashMovementType);
@@ -65,13 +68,18 @@ export default function CajaAdmin() {
   const [openFloat, setOpenFloat] = useState(1000);
   const [mov, setMov] = useState({ tipo: "SALE", metodoPago: "EFECTIVO", monto: "", referencia: "", recibido: "" });
   const [formError, setFormError] = useState<string | null>(null);
-  const [closing, setClosing] = useState(0);
+  const [closing, setClosing] = useState("");
+  const [justificacion, setJustificacion] = useState("");
+  const [tolerance, setTolerance] = useState(20);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     api.get<Session | null>("/admin/caja/actual").then(setSession).catch(() => {});
   };
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    api.get<{ tolerance: number }>("/admin/caja/config").then((c) => setTolerance(c.tolerance)).catch(() => {});
+  }, []);
 
   const abrir = async () => {
     setError(null);
@@ -112,9 +120,19 @@ export default function CajaAdmin() {
   };
   const cerrar = async () => {
     if (!session) return;
-    const res = await api.post<Arqueo>(`/admin/caja/${session.id}/cerrar`, { closingCount: Number(closing) });
-    setArqueo(res);
-    setSession(null);
+    setError(null);
+    try {
+      const res = await api.post<Arqueo>(`/admin/caja/${session.id}/cerrar`, {
+        closingCount: Number(closing),
+        ...(justificacion.trim() ? { justificacion: justificacion.trim() } : {}),
+      });
+      setArqueo(res);
+      setSession(null);
+      setClosing("");
+      setJustificacion("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   if (!session) {
@@ -127,8 +145,15 @@ export default function CajaAdmin() {
             <div className="flex justify-between border-b border-crust-50 py-1"><span>Esperado en efectivo</span><span className="font-semibold">{formatUYU(arqueo.expected)}</span></div>
             <div className="flex justify-between py-1">
               <span>Diferencia</span>
-              <span className={`font-bold ${arqueo.difference === 0 ? "text-green-600" : "text-red-600"}`}>{formatUYU(arqueo.difference)} {arqueo.difference === 0 ? "✓ cuadra" : "descuadre"}</span>
+              <span className={`font-bold ${arqueo.cuadra ? "text-green-600" : "text-red-600"}`}>
+                {arqueo.difference > 0 ? "+" : ""}{formatUYU(arqueo.difference)} {arqueo.difference === 0 ? "✓ cuadra" : arqueo.cuadra ? "(dentro de tolerancia)" : arqueo.difference > 0 ? "sobrante" : "faltante"}
+              </span>
             </div>
+            {arqueo.justificacion && (
+              <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <span className="font-semibold">Motivo:</span> {arqueo.justificacion}
+              </div>
+            )}
             <p className="mt-3 text-sm font-semibold text-crust-600">Conciliación por medio de pago</p>
             <ul className="text-sm text-crust-600">
               {Object.entries(arqueo.conciliacion).map(([k, v]) => <li key={k} className="flex justify-between"><span>{metodoLabel(k)}</span><span>{formatUYU(v)}</span></li>)}
@@ -153,6 +178,18 @@ export default function CajaAdmin() {
   const recibidoNum = Number(mov.recibido) || 0;
   const esVentaEfectivo = mov.tipo === "SALE" && mov.metodoPago === "EFECTIVO";
   const vuelto = recibidoNum - montoNum;
+
+  // Arqueo en vivo: efectivo esperado en el cajón (mismo cálculo que el backend).
+  const sumMov = (pred: (m: Movimiento) => boolean) =>
+    session.movimientos.filter(pred).reduce((a, m) => a + Number(m.monto), 0);
+  const ventasEfectivo = sumMov((m) => m.tipo === "SALE" && m.metodoPago === "EFECTIVO");
+  const ingresosCaja = sumMov((m) => m.tipo === "IN");
+  const egresosCaja = sumMov((m) => m.tipo === "OUT" || m.tipo === "WITHDRAWAL" || m.tipo === "EXPENSE");
+  const efectivoEsperado = Number(session.openingFloat) + ventasEfectivo + ingresosCaja - egresosCaja;
+  const closingNum = Number(closing) || 0;
+  const descuadre = closing === "" ? 0 : closingNum - efectivoEsperado;
+  const fueraDeTolerancia = Math.abs(descuadre) > tolerance;
+  const requiereMotivo = closing !== "" && fueraDeTolerancia;
 
   return (
     <div>
@@ -233,9 +270,40 @@ export default function CajaAdmin() {
 
         <div className="rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
           <h3 className="mb-3 font-semibold text-crust-700">Cerrar caja (arqueo)</h3>
-          <label className="mb-2 block text-sm text-crust-600">Efectivo contado</label>
-          <input type="number" step="0.01" value={closing} onChange={(e) => setClosing(Number(e.target.value))} className="mb-4 w-full rounded-lg border border-crust-200 px-3 py-2" />
-          <button onClick={cerrar} className="w-full rounded-lg bg-crust-800 py-2.5 font-semibold text-white hover:bg-crust-900">Cerrar y arquear</button>
+
+          <div className="mb-3 flex justify-between rounded-lg bg-crust-50 px-3 py-2 text-sm">
+            <span className="text-crust-600">Efectivo esperado</span>
+            <span className="font-semibold text-crust-800">{formatUYU(efectivoEsperado)}</span>
+          </div>
+
+          <label className="mb-2 block text-sm font-medium text-crust-700">Efectivo contado</label>
+          <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="Contá el cajón" value={closing} onChange={(e) => setClosing(e.target.value)} className="mb-3 w-full rounded-lg border border-crust-200 px-3 py-2" />
+
+          {/* Descuadre en vivo */}
+          {closing !== "" && (
+            descuadre === 0 ? (
+              <p className="mb-3 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800">✓ Cuadra exacto.</p>
+            ) : !fueraDeTolerancia ? (
+              <p className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+                {descuadre > 0 ? "Sobrante" : "Faltante"} de {formatUYU(Math.abs(descuadre))} · dentro de la tolerancia (±{formatUYU(tolerance)}).
+              </p>
+            ) : (
+              <p className="mb-3 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-700">
+                {descuadre > 0 ? "Sobrante" : "Faltante"} de {formatUYU(Math.abs(descuadre))} · supera la tolerancia (±{formatUYU(tolerance)}).
+              </p>
+            )
+          )}
+
+          {/* Justificación obligatoria fuera de tolerancia */}
+          {requiereMotivo && (
+            <label className="mb-3 block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Motivo del descuadre <span className="text-red-500">*</span></span>
+              <textarea value={justificacion} onChange={(e) => setJustificacion(e.target.value)} rows={2} placeholder="Ej: vuelto de más en una venta, retiro no registrado…" className="w-full rounded-lg border border-crust-200 px-3 py-2 text-sm" />
+            </label>
+          )}
+
+          {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+          <button onClick={cerrar} disabled={closing === "" || (requiereMotivo && !justificacion.trim())} className="w-full rounded-lg bg-crust-800 py-2.5 font-semibold text-white hover:bg-crust-900 disabled:cursor-not-allowed disabled:opacity-50">Cerrar y arquear</button>
         </div>
       </div>
     </div>

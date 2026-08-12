@@ -715,6 +715,7 @@ model CashSession {
   closingCount Decimal?          @db.Decimal(12, 2)
   expected     Decimal?          @db.Decimal(12, 2)
   difference   Decimal?          @db.Decimal(12, 2)
+  justificacion String? // motivo del descuadre cuando supera la tolerancia
   status       CashSessionStatus @default(ABIERTA)
   openedAt     DateTime          @default(now())
   closedAt     DateTime?

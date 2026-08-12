@@ -41,7 +41,11 @@ class MovementDto {
 
 class CloseSessionDto {
   @IsNumber() @Min(0) closingCount!: number;
+  @IsOptional() @IsString() justificacion?: string;
 }
+
+// Margen aceptable de descuadre (redondeos). Configurable por env CASH_TOLERANCE.
+const CASH_TOLERANCE = Number(process.env.CASH_TOLERANCE ?? 20);
 
 @Injectable()
 export class CashService {
@@ -110,6 +114,15 @@ export class CashService {
     );
     const difference = round2(dto.closingCount - expected);
 
+    // Fuera de tolerancia exige un motivo del descuadre para poder cerrar.
+    const fueraDeTolerancia = Math.abs(difference) > CASH_TOLERANCE;
+    const justificacion = dto.justificacion?.trim();
+    if (fueraDeTolerancia && !justificacion) {
+      throw new BadRequestException(
+        `El descuadre es de ${difference > 0 ? "+" : ""}${difference} (tolerancia ±${CASH_TOLERANCE}). Ingresá un motivo para cerrar la caja.`,
+      );
+    }
+
     // Conciliación de ventas por medio de pago (todos los medios).
     const conciliacion: Record<string, number> = {};
     for (const m of movimientos) {
@@ -127,10 +140,19 @@ export class CashService {
         closingCount: dto.closingCount,
         expected,
         difference,
+        justificacion: justificacion || null,
       },
     });
 
-    return { session: updated, expected, difference, conciliacion };
+    return {
+      session: updated,
+      expected,
+      difference,
+      conciliacion,
+      tolerance: CASH_TOLERANCE,
+      cuadra: !fueraDeTolerancia,
+      justificacion: justificacion || null,
+    };
   }
 
   history() {
@@ -157,6 +179,11 @@ export class CashService {
 @Controller("admin/caja")
 class CashController {
   constructor(private readonly cash: CashService) {}
+
+  @Get("config")
+  config() {
+    return { tolerance: CASH_TOLERANCE };
+  }
 
   @Get("actual")
   current(@CurrentUser() user: AuthUser) {
