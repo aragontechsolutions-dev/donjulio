@@ -12,7 +12,7 @@ export interface OutboxComanda {
   id: string; // = clientTxnId
   mesaId: string;
   mesaNumero: number;
-  items: { productoId: string; cantidad: number; modificadorIds?: string[]; notas?: string }[];
+  items: { productoId: string; cantidad: number; modificadorIds?: string[]; notas?: string; sillaId?: string }[];
   createdAt: number;
 }
 
