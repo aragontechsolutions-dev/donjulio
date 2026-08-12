@@ -42,14 +42,46 @@ interface Cuenta {
   mesa: { id: string; numero: number; sillas: Silla[] } | null;
 }
 
-const STATUS_BG: Record<string, string> = {
-  LIBRE: "bg-green-100 border-green-400 text-green-800",
-  OCUPADA: "bg-crust-200 border-crust-500 text-crust-800",
-  RESERVADA: "bg-amber-100 border-amber-400 text-amber-800",
-  PENDIENTE_PAGO: "bg-red-100 border-red-400 text-red-800",
+// Colores del ícono de mesa según estado (relleno / borde / texto).
+const STATUS_COLOR: Record<string, { fill: string; stroke: string; text: string }> = {
+  LIBRE: { fill: "#dcfce7", stroke: "#4ade80", text: "#166534" },
+  OCUPADA: { fill: "#e7e5e4", stroke: "#a8a29e", text: "#44403c" },
+  RESERVADA: { fill: "#fef3c7", stroke: "#fbbf24", text: "#92400e" },
+  PENDIENTE_PAGO: { fill: "#fee2e2", stroke: "#f87171", text: "#991b1b" },
 };
+const statusColor = (s: string) =>
+  STATUS_COLOR[s] ?? { fill: "#ffffff", stroke: "#d6d3d1", text: "#44403c" };
 const TILE = 76;
-const CHAIR = 20;
+const CHAIR = 24;
+
+/** Ícono de mesa (vista superior), redonda o cuadrada, tintado por estado. */
+function TableIcon({ forma, fill, stroke, size }: { forma: string; fill: string; stroke: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" className="absolute inset-0" aria-hidden>
+      {forma === "CIRCULAR" ? (
+        <>
+          <circle cx="24" cy="24" r="18" fill={fill} stroke={stroke} strokeWidth="2.5" />
+          <circle cx="24" cy="24" r="10" fill="none" stroke={stroke} strokeOpacity="0.45" strokeWidth="1.5" />
+        </>
+      ) : (
+        <>
+          <rect x="6" y="6" width="36" height="36" rx="8" fill={fill} stroke={stroke} strokeWidth="2.5" />
+          <rect x="14" y="14" width="20" height="20" rx="4" fill="none" stroke={stroke} strokeOpacity="0.45" strokeWidth="1.5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Ícono de silla (vista superior): respaldo + asiento. */
+function ChairIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className="absolute inset-0" aria-hidden>
+      <rect x="4" y="3.5" width="16" height="4" rx="2" fill={color} />
+      <rect x="5" y="8" width="14" height="12" rx="3" fill={color} />
+    </svg>
+  );
+}
 const METODOS: { m: PaymentMethod; label: string; cls: string }[] = [
   { m: PaymentMethod.EFECTIVO, label: "Efectivo", cls: "bg-green-600 hover:bg-green-700" },
   { m: PaymentMethod.MERCADO_PAGO_QR, label: "QR / MP", cls: "bg-sky-600 hover:bg-sky-700" },
@@ -396,9 +428,12 @@ export default function SalonAdmin() {
                       onPointerDown={(e) => startDragSilla(e, m, s)}
                       title={s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`}
                       style={{ left, top, width: CHAIR, height: CHAIR, position: "absolute" }}
-                      className={`z-10 grid place-items-center rounded-md text-[9px] font-bold ${ocupada ? "bg-crust-600 text-white" : "bg-crust-300 text-crust-700"} ${mode === "editar" ? "cursor-move touch-none ring-1 ring-white" : "pointer-events-none"}`}
+                      className={`relative z-10 grid place-items-center ${mode === "editar" ? "cursor-move touch-none" : "pointer-events-none"}`}
                     >
-                      {ocupada ? inicial(s.nombre) : s.numero}
+                      <ChairIcon color={ocupada ? "#78716c" : "#d6d3d1"} size={CHAIR} />
+                      <span className={`relative mt-1 text-[8px] font-bold leading-none ${ocupada ? "text-white" : "text-crust-600"}`}>
+                        {ocupada ? inicial(s.nombre) : s.numero}
+                      </span>
                     </div>
                   );
                 })}
@@ -407,11 +442,14 @@ export default function SalonAdmin() {
                   onPointerDown={(e) => startDragMesa(e, m)}
                   onClick={() => { if (mode === "operar") abrirCuenta(m); else setEditSel(m); }}
                   style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute" }}
-                  className={`flex flex-col items-center justify-center border-2 shadow-sm ${STATUS_BG[m.status] ?? "bg-white border-crust-300"} ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600" : ""}`}
+                  className={`relative flex flex-col items-center justify-center ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600 ring-offset-1" : ""}`}
                 >
-                  <span className="text-xl font-bold leading-none">{m.numero}</span>
-                  <span className="text-[10px]">👥{m.sillas.length}/{m.capacidad}</span>
-                  {m.pedidoAbierto && <span className="text-[10px] font-semibold">{formatUYU(m.pedidoAbierto.total)}</span>}
+                  <TableIcon forma={m.forma} fill={statusColor(m.status).fill} stroke={statusColor(m.status).stroke} size={TILE} />
+                  <div className="relative z-10 flex flex-col items-center justify-center leading-none" style={{ color: statusColor(m.status).text }}>
+                    <span className="text-lg font-bold">{m.numero}</span>
+                    <span className="text-[9px] font-semibold">👥{m.sillas.length}/{m.capacidad}</span>
+                    {m.pedidoAbierto && <span className="text-[9px] font-semibold">{formatUYU(m.pedidoAbierto.total)}</span>}
+                  </div>
                 </button>
               </div>
             ))}
