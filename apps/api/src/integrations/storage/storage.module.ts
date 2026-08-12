@@ -1,8 +1,11 @@
 import {
   Controller,
+  FileTypeValidator,
   Inject,
   Injectable,
+  MaxFileSizeValidator,
   Module,
+  ParseFilePipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -34,6 +37,10 @@ export class StorageService {
   }
 }
 
+// Límites de subida de imágenes (validados en front y back).
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_IMAGE_TYPES = /^(image\/jpeg|image\/png|image\/webp|image\/gif)$/;
+
 @UseGuards(RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.PRODUCCION)
 @Controller("admin/storage")
@@ -41,8 +48,23 @@ class StorageController {
   constructor(private readonly storage: StorageService) {}
 
   @Post("upload")
-  @UseInterceptors(FileInterceptor("file"))
-  upload(@UploadedFile() file: Express.Multer.File) {
+  // limits.fileSize corta la subida en memoria antes de bufferizar archivos enormes.
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_UPLOAD_BYTES } }))
+  upload(
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: true,
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: MAX_UPLOAD_BYTES,
+            message: "La imagen supera el máximo de 5 MB.",
+          }),
+          new FileTypeValidator({ fileType: ALLOWED_IMAGE_TYPES }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     return this.storage.upload(file);
   }
 }

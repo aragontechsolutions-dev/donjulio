@@ -93,22 +93,30 @@ export const api = {
     const token = tokenStore.get();
     const form = new FormData();
     form.append("file", file);
+    let res: Response;
     try {
-      const res = await fetch(`${BASE_URL}${path}`, {
+      res = await fetch(`${BASE_URL}${path}`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
-      if (!res.ok) {
-        showToast("error", "No se pudo subir la imagen");
-        throw new ApiError(res.status, res.statusText);
-      }
-      showToast("success", "Imagen subida ✓");
-      return res.json() as Promise<T>;
-    } catch (e) {
-      if (e instanceof ApiError) throw e;
-      showToast("error", "No se pudo subir la imagen");
+    } catch {
+      showToast("error", "Sin conexión con el servidor. Reintentá en unos segundos.");
       throw new ApiError(0, "upload failed");
     }
+    if (!res.ok) {
+      // Mostrar el motivo real del backend (tipo/tamaño/bucket) en vez de un genérico.
+      let message = "No se pudo subir la imagen";
+      try {
+        const body = await res.json();
+        if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
+      } catch {
+        /* sin body */
+      }
+      showToast("error", message);
+      throw new ApiError(res.status, message);
+    }
+    showToast("success", "Imagen subida ✓");
+    return res.json() as Promise<T>;
   },
 };

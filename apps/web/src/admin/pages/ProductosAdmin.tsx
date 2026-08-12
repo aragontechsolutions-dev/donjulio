@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
+
+const MAX_IMAGE_MB = 5;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 interface Producto {
   id: string;
@@ -31,9 +35,22 @@ export default function ProductosAdmin() {
   };
 
   const subirImagen = async (p: Producto, file: File) => {
-    const { url } = await api.upload<{ url: string }>("/admin/storage/upload", file);
-    await api.patch(`/admin/productos/${p.id}`, { imagenUrl: url });
-    await load();
+    // Validación de tipo y tamaño antes de enviar (feedback inmediato).
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      showToast("error", "Formato no permitido. Usá JPG, PNG, WEBP o GIF.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      showToast("error", `La imagen supera el máximo de ${MAX_IMAGE_MB} MB.`);
+      return;
+    }
+    try {
+      const { url } = await api.upload<{ url: string }>("/admin/storage/upload", file);
+      await api.patch(`/admin/productos/${p.id}`, { imagenUrl: url });
+      await load();
+    } catch {
+      /* el toast de error ya lo disparó api.upload */
+    }
   };
 
   return (
@@ -65,9 +82,13 @@ export default function ProductosAdmin() {
                     )}
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       className="hidden"
-                      onChange={(e) => e.target.files?.[0] && subirImagen(p, e.target.files[0])}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) subirImagen(p, f);
+                        e.target.value = ""; // permite reintentar el mismo archivo
+                      }}
                     />
                   </label>
                 </td>
