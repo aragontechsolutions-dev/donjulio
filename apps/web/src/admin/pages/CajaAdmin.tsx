@@ -27,11 +27,44 @@ interface Arqueo {
 const TIPOS = Object.values(CashMovementType);
 const METODOS = Object.values(PaymentMethod);
 
+/** Etiquetas en español para los conceptos de caja. */
+const TIPO_LABEL: Record<string, string> = {
+  SALE: "Venta",
+  IN: "Ingreso de efectivo",
+  OUT: "Egreso de efectivo",
+  WITHDRAWAL: "Retiro de caja",
+  EXPENSE: "Gasto menor",
+};
+/** Ayuda contextual por concepto. */
+const TIPO_HELP: Record<string, string> = {
+  SALE: "Cobro de una venta. Elegí el medio de pago.",
+  IN: "Entra plata a la caja que no es una venta (ej: aporte, cambio).",
+  OUT: "Sale plata de la caja (ej: pago a proveedor en el momento).",
+  WITHDRAWAL: "Retiro de efectivo de la caja (ej: llevar al banco).",
+  EXPENSE: "Gasto chico pagado de la caja (ej: bolsas, delivery).",
+};
+/** Etiquetas en español para los medios de pago. */
+const METODO_LABEL: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  DEBITO: "Débito",
+  CREDITO: "Crédito",
+  MERCADO_PAGO_QR: "Mercado Pago (QR)",
+  MERCADO_PAGO_CHECKOUT: "Mercado Pago (Checkout)",
+  TRANSFERENCIA: "Transferencia",
+  ABITAB: "Abitab",
+  REDPAGOS: "Redpagos",
+};
+const metodoLabel = (m: string | null) => (m ? METODO_LABEL[m] ?? m.replace(/_/g, " ") : "");
+const tipoLabel = (t: string) => TIPO_LABEL[t] ?? t;
+/** Billetes uruguayos frecuentes para el cálculo de vuelto. */
+const BILLETES = [200, 500, 1000, 2000];
+
 export default function CajaAdmin() {
   const [session, setSession] = useState<Session | null>(null);
   const [arqueo, setArqueo] = useState<Arqueo | null>(null);
   const [openFloat, setOpenFloat] = useState(1000);
-  const [mov, setMov] = useState({ tipo: "SALE", metodoPago: "EFECTIVO", monto: 0, referencia: "" });
+  const [mov, setMov] = useState({ tipo: "SALE", metodoPago: "EFECTIVO", monto: "", referencia: "", recibido: "" });
+  const [formError, setFormError] = useState<string | null>(null);
   const [closing, setClosing] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,14 +81,34 @@ export default function CajaAdmin() {
   const agregar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session) return;
-    await api.post(`/admin/caja/${session.id}/movimiento`, {
-      tipo: mov.tipo,
-      ...(mov.tipo === "SALE" ? { metodoPago: mov.metodoPago } : {}),
-      monto: Number(mov.monto),
-      referencia: mov.referencia || undefined,
-    });
-    setMov({ ...mov, monto: 0, referencia: "" });
-    load();
+    setFormError(null);
+    const montoNum = Number(mov.monto);
+    // Validaciones comunes a toda operación.
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      setFormError("Ingresá un monto mayor a 0.");
+      return;
+    }
+    // Validación específica de venta en efectivo: el recibido no puede ser menor.
+    const esVentaEfectivo = mov.tipo === "SALE" && mov.metodoPago === "EFECTIVO";
+    if (esVentaEfectivo && mov.recibido !== "") {
+      const rec = Number(mov.recibido);
+      if (rec < montoNum) {
+        setFormError("El efectivo recibido es menor al total a cobrar.");
+        return;
+      }
+    }
+    try {
+      await api.post(`/admin/caja/${session.id}/movimiento`, {
+        tipo: mov.tipo,
+        ...(mov.tipo === "SALE" ? { metodoPago: mov.metodoPago } : {}),
+        monto: montoNum,
+        referencia: mov.referencia || undefined,
+      });
+      setMov({ ...mov, monto: "", referencia: "", recibido: "" });
+      load();
+    } catch {
+      /* el toast de error lo dispara el api client */
+    }
   };
   const cerrar = async () => {
     if (!session) return;
@@ -78,7 +131,7 @@ export default function CajaAdmin() {
             </div>
             <p className="mt-3 text-sm font-semibold text-crust-600">Conciliación por medio de pago</p>
             <ul className="text-sm text-crust-600">
-              {Object.entries(arqueo.conciliacion).map(([k, v]) => <li key={k} className="flex justify-between"><span>{k.replace(/_/g, " ")}</span><span>{formatUYU(v)}</span></li>)}
+              {Object.entries(arqueo.conciliacion).map(([k, v]) => <li key={k} className="flex justify-between"><span>{metodoLabel(k)}</span><span>{formatUYU(v)}</span></li>)}
             </ul>
           </div>
         )}
@@ -95,6 +148,12 @@ export default function CajaAdmin() {
 
   const totalVentas = session.movimientos.filter((m) => m.tipo === "SALE").reduce((a, m) => a + Number(m.monto), 0);
 
+  // Derivados para la calculadora de vuelto.
+  const montoNum = Number(mov.monto) || 0;
+  const recibidoNum = Number(mov.recibido) || 0;
+  const esVentaEfectivo = mov.tipo === "SALE" && mov.metodoPago === "EFECTIVO";
+  const vuelto = recibidoNum - montoNum;
+
   return (
     <div>
       <h1 className="mb-1 font-display text-2xl font-bold text-crust-800">Caja abierta</h1>
@@ -105,17 +164,58 @@ export default function CajaAdmin() {
       <div className="grid gap-6 lg:grid-cols-3">
         <form onSubmit={agregar} className="space-y-3 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
           <h3 className="font-semibold text-crust-700">Registrar movimiento</h3>
-          <select value={mov.tipo} onChange={(e) => setMov({ ...mov, tipo: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
-            {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {mov.tipo === "SALE" && (
-            <select value={mov.metodoPago} onChange={(e) => setMov({ ...mov, metodoPago: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
-              {METODOS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Concepto</span>
+            <select value={mov.tipo} onChange={(e) => setMov({ ...mov, tipo: e.target.value, recibido: "" })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+              {TIPOS.map((t) => <option key={t} value={t}>{tipoLabel(t)}</option>)}
             </select>
+            <span className="mt-1 block text-xs text-crust-400">{TIPO_HELP[mov.tipo]}</span>
+          </label>
+
+          {mov.tipo === "SALE" && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Medio de pago</span>
+              <select value={mov.metodoPago} onChange={(e) => setMov({ ...mov, metodoPago: e.target.value, recibido: "" })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+                {METODOS.map((m) => <option key={m} value={m}>{metodoLabel(m)}</option>)}
+              </select>
+            </label>
           )}
-          <input type="number" step="0.01" placeholder="Monto" value={mov.monto} onChange={(e) => setMov({ ...mov, monto: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">{mov.tipo === "SALE" ? "Total a cobrar" : "Monto"}</span>
+            <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="Ej: 550" value={mov.monto} onChange={(e) => setMov({ ...mov, monto: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+          </label>
+
+          {/* Calculadora de vuelto: sólo para ventas en efectivo. */}
+          {esVentaEfectivo && (
+            <div className="rounded-lg border border-crust-100 bg-crust-50 p-3">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Paga con (efectivo recibido)</span>
+              <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="Ej: 1000" value={mov.recibido} onChange={(e) => setMov({ ...mov, recibido: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {BILLETES.map((b) => (
+                  <button key={b} type="button" onClick={() => setMov({ ...mov, recibido: String(b) })} className="rounded-md border border-crust-200 bg-white px-2 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100">${b}</button>
+                ))}
+                <button type="button" onClick={() => setMov({ ...mov, recibido: mov.monto })} className="rounded-md border border-crust-200 bg-white px-2 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100" disabled={!montoNum}>Justo</button>
+              </div>
+              {mov.recibido !== "" && montoNum > 0 && (
+                vuelto >= 0 ? (
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-green-100 px-3 py-2 text-green-800">
+                    <span className="text-sm font-medium">Vuelto a entregar</span>
+                    <span className="text-lg font-bold">{formatUYU(vuelto)}</span>
+                  </div>
+                ) : (
+                  <p className="mt-2 rounded-lg bg-red-100 px-3 py-2 text-sm font-medium text-red-700">Falta {formatUYU(-vuelto)} para cubrir el total.</p>
+                )
+              )}
+            </div>
+          )}
+
           <input placeholder="Referencia (opcional)" value={mov.referencia} onChange={(e) => setMov({ ...mov, referencia: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
-          <button className="w-full rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700">Agregar</button>
+          {formError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{formError}</p>}
+          <button disabled={!montoNum || (esVentaEfectivo && mov.recibido !== "" && vuelto < 0)} className="w-full rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:cursor-not-allowed disabled:opacity-50">
+            Agregar movimiento
+          </button>
         </form>
 
         <div className="rounded-2xl border border-crust-100 bg-white p-5 shadow-sm lg:col-span-1">
@@ -123,7 +223,7 @@ export default function CajaAdmin() {
           <ul className="max-h-80 space-y-1 overflow-auto text-sm">
             {session.movimientos.map((m) => (
               <li key={m.id} className="flex justify-between border-b border-crust-50 py-1">
-                <span className="text-crust-600">{m.tipo}{m.metodoPago ? ` · ${m.metodoPago.replace(/_/g, " ")}` : ""}</span>
+                <span className="text-crust-600">{tipoLabel(m.tipo)}{m.metodoPago ? ` · ${metodoLabel(m.metodoPago)}` : ""}</span>
                 <span className={m.tipo === "SALE" || m.tipo === "IN" ? "text-green-600" : "text-red-600"}>{formatUYU(m.monto)}</span>
               </li>
             ))}
