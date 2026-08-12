@@ -1,7 +1,14 @@
+import { showToast } from "./toast";
+
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
 
 const TOKEN_KEY = "donjulio_mozo_token";
+
+// No notificar en auth ni en comandas (la sincronización de la cola es aparte).
+const silencioso = (path: string) => path.startsWith("/auth") || path.includes("/comanda");
+const successMsg = (method: string) =>
+  method === "PATCH" || method === "PUT" ? "Actualizado ✓" : method === "DELETE" ? "Eliminado ✓" : "Listo ✓";
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
@@ -20,14 +27,24 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {}),
-    },
-  });
+  const method = (options.method ?? "GET").toUpperCase();
+  const isMutation = method !== "GET";
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch {
+    if (isMutation && !silencioso(path)) showToast("error", "Sin conexión con el servidor.");
+    throw new ApiError(0, "Sin conexión con el servidor");
+  }
+
   if (!res.ok) {
     let message = res.statusText;
     try {
@@ -36,8 +53,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       /* sin body */
     }
-    throw new ApiError(res.status, Array.isArray(message) ? message.join(", ") : message);
+    const finalMsg = Array.isArray(message) ? message.join(", ") : message;
+    if (isMutation && !silencioso(path)) showToast("error", finalMsg);
+    throw new ApiError(res.status, finalMsg);
   }
+  if (isMutation && !silencioso(path)) showToast("success", successMsg(method));
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }

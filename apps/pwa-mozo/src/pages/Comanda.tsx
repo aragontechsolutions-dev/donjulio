@@ -3,6 +3,7 @@ import { PaymentMethod } from "@donjulio/shared";
 import { api } from "../lib/api";
 import { cacheGet, cacheSet, outboxAdd, uuid } from "../lib/db";
 import { flushOutbox } from "../lib/sync";
+import { showToast } from "../lib/toast";
 import { formatUYU } from "../lib/format";
 import type { MesaSel } from "../App";
 
@@ -67,7 +68,6 @@ export default function Comanda({
   const [comensalSel, setComensalSel] = useState<string>(""); // sillaId o "" = mesa
   const [split, setSplit] = useState<"todo" | "comensal" | "iguales">("todo");
   const [sillasCobro, setSillasCobro] = useState<string[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const loadCuenta = () =>
     api
@@ -89,6 +89,9 @@ export default function Comanda({
       })
       .catch(async () => { const c = await cacheGet<Silla[]>(`sillas-${mesa.id}`); if (c) setSillasMesa(c); });
     loadCuenta();
+    // Tiempo real: refresca la cuenta/estados cada 5s mientras se ve la mesa.
+    const t = setInterval(() => { if (navigator.onLine) loadCuenta(); }, 5000);
+    return () => clearInterval(t);
   }, [mesa.id]);
 
   const cartTotal = useMemo(() => cart.reduce((a, l) => a + l.precio, 0), [cart]);
@@ -147,13 +150,12 @@ export default function Comanda({
     onQueued();
     if (navigator.onLine) {
       const n = await flushOutbox();
-      setMsg(n > 0 ? "Comanda enviada a cocina ✓" : "Comanda encolada, se enviará al reconectar");
+      showToast(n > 0 ? "success" : "info", n > 0 ? "Comanda enviada a cocina ✓" : "Comanda encolada, se enviará al reconectar");
       onQueued();
       loadCuenta();
     } else {
-      setMsg("Sin conexión: comanda guardada, se enviará al reconectar");
+      showToast("info", "Sin conexión: comanda guardada, se enviará al reconectar");
     }
-    setTimeout(() => setMsg(null), 3000);
   };
 
   const entregar = async (itemId: string) => {
@@ -206,8 +208,6 @@ export default function Comanda({
         <button onClick={onBack} className="rounded-lg border border-crust-200 px-3 py-2 text-crust-700">← Mesas</button>
         <h1 className="font-display text-xl font-bold text-crust-800">Mesa {mesa.numero}</h1>
       </div>
-
-      {msg && <div className="mb-3 rounded-lg bg-green-100 px-3 py-2 text-sm text-green-800">{msg}</div>}
 
       {/* Selector de comensal (se aplica a lo que agregues) */}
       {sillasMesa.length > 0 && (

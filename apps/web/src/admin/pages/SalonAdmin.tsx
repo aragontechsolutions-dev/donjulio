@@ -291,6 +291,16 @@ export default function SalonAdmin() {
     const c = await api.get<Cuenta>(`/admin/salon/mesas/${mesaId}/cuenta`);
     setCuenta(c);
   };
+
+  // Tiempo real en modo operar: refresca el mapa y la cuenta abierta cada 5s.
+  useEffect(() => {
+    if (mode !== "operar") return;
+    const t = setInterval(() => {
+      loadMesas();
+      if (mesaSel) refreshCuenta(mesaSel.id).catch(() => {});
+    }, 5000);
+    return () => clearInterval(t);
+  }, [mode, mesaSel]);
   const abrirCuenta = async (m: Mesa) => {
     setError(null);
     try {
