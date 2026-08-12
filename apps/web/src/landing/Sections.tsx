@@ -92,24 +92,40 @@ export function Productos({ categorias }: { categorias: MenuCategoria[] }) {
                 {cat.productos.map((p) => (
                   <article
                     key={p.id}
-                    className="flex flex-col rounded-2xl border border-crust-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="flex flex-col overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <h4 className="font-semibold text-crust-900">{p.nombre}</h4>
+                    {/* Imagen grande arriba */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-crust-100">
+                      {p.imagenUrl ? (
+                        <img
+                          src={p.imagenUrl}
+                          alt={p.nombre}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-5xl text-crust-300">
+                          🥐
+                        </div>
+                      )}
                       {p.destacado && (
-                        <span className="rounded-full bg-crust-100 px-2 py-0.5 text-xs font-semibold text-crust-600">
+                        <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-crust-700 shadow-sm backdrop-blur">
                           ★ Destacado
                         </span>
                       )}
                     </div>
-                    {p.descripcion && (
-                      <p className="mb-4 flex-1 text-sm text-crust-600">
-                        {p.descripcion}
+                    {/* Nombre, descripción y precio debajo */}
+                    <div className="flex flex-1 flex-col p-5">
+                      <h4 className="font-semibold text-crust-900">{p.nombre}</h4>
+                      {p.descripcion && (
+                        <p className="mt-1 mb-4 flex-1 text-sm text-crust-600">
+                          {p.descripcion}
+                        </p>
+                      )}
+                      <p className="mt-auto text-lg font-bold text-crust-700">
+                        {formatUYU(p.precio)}
                       </p>
-                    )}
-                    <p className="mt-auto text-lg font-bold text-crust-700">
-                      {formatUYU(p.precio)}
-                    </p>
+                    </div>
                   </article>
                 ))}
               </div>
