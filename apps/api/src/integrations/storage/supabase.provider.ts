@@ -46,7 +46,21 @@ export class SupabaseStorageProvider implements StorageProvider {
    */
   private async ensureBucket(client: SupabaseClient): Promise<void> {
     const { data } = await client.storage.getBucket(this.bucket);
-    if (data) return;
+    if (data) {
+      // Existe pero es privado: las URLs públicas no cargan (miniatura rota).
+      // Lo forzamos a público una sola vez.
+      if (!data.public) {
+        const { error: upErr } = await client.storage.updateBucket(this.bucket, {
+          public: true,
+        });
+        if (upErr) {
+          this.logger.error(`No se pudo hacer público el bucket "${this.bucket}": ${upErr.message}`);
+        } else {
+          this.logger.log(`Bucket "${this.bucket}" ahora es público.`);
+        }
+      }
+      return;
+    }
     const { error } = await client.storage.createBucket(this.bucket, {
       public: true,
       fileSizeLimit: "5MB",
