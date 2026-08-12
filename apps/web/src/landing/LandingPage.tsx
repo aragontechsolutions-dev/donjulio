@@ -24,12 +24,17 @@ const EMPTY: LandingData = {
 export default function LandingPage() {
   const [data, setData] = useState<LandingData>(EMPTY);
   const [menu, setMenu] = useState<MenuCategoria[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
   const [promos, setPromos] = useState<Promocion[]>([]);
 
   useEffect(() => {
     // Fallan en silencio: la landing se muestra igual aunque la API no esté.
     api.get<LandingData>("/cms/landing").then(setData).catch(() => {});
-    api.get<MenuCategoria[]>("/menu").then(setMenu).catch(() => {});
+    api
+      .get<MenuCategoria[]>("/menu")
+      .then(setMenu)
+      .catch(() => {})
+      .finally(() => setMenuLoading(false));
     api.get<Promocion[]>("/promociones").then(setPromos).catch(() => {});
   }, []);
 
@@ -39,7 +44,7 @@ export default function LandingPage() {
       <main>
         <Hero contenido={data.contenido} />
         <Nosotros contenido={data.contenido} />
-        <Productos categorias={menu} />
+        <Productos categorias={menu} loading={menuLoading} />
         <Promociones promos={promos} />
         <Galeria contenido={data.contenido} />
         <Testimonios items={data.testimonios} />

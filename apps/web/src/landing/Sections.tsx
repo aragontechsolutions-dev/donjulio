@@ -67,7 +67,27 @@ export function Nosotros({ contenido }: { contenido: Record<string, string> }) {
   );
 }
 
-export function Productos({ categorias }: { categorias: MenuCategoria[] }) {
+/** Placeholder animado mientras el catálogo carga. */
+function ProductoSkeleton() {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+      <div className="aspect-[4/3] w-full animate-pulse bg-crust-100" />
+      <div className="flex flex-col gap-3 p-5">
+        <div className="h-4 w-2/3 animate-pulse rounded bg-crust-100" />
+        <div className="h-3 w-full animate-pulse rounded bg-crust-100" />
+        <div className="h-5 w-1/3 animate-pulse rounded bg-crust-100" />
+      </div>
+    </div>
+  );
+}
+
+export function Productos({
+  categorias,
+  loading = false,
+}: {
+  categorias: MenuCategoria[];
+  loading?: boolean;
+}) {
   return (
     <section id="productos" className="bg-crust-50 py-20">
       <div className="mx-auto max-w-6xl px-4">
@@ -76,63 +96,71 @@ export function Productos({ categorias }: { categorias: MenuCategoria[] }) {
         </h2>
         <div className="mx-auto mt-3 mb-12 h-1 w-16 rounded-full bg-crust-400" />
 
-        {categorias.length === 0 && (
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ProductoSkeleton key={i} />
+            ))}
+          </div>
+        ) : categorias.length === 0 ? (
           <p className="text-center text-crust-500">
             El catálogo se está horneando… 🥖
           </p>
-        )}
-
-        <div className="space-y-14">
-          {categorias.map((cat) => (
-            <div key={cat.id}>
-              <h3 className="mb-6 font-display text-2xl font-semibold text-crust-700">
-                {cat.nombre}
-              </h3>
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {cat.productos.map((p) => (
-                  <article
-                    key={p.id}
-                    className="flex flex-col overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    {/* Imagen grande arriba */}
-                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-crust-100">
-                      {p.imagenUrl ? (
-                        <img
-                          src={p.imagenUrl}
-                          alt={p.nombre}
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-5xl text-crust-300">
-                          🥐
-                        </div>
-                      )}
-                      {p.destacado && (
-                        <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-crust-700 shadow-sm backdrop-blur">
-                          ★ Destacado
-                        </span>
-                      )}
-                    </div>
-                    {/* Nombre, descripción y precio debajo */}
-                    <div className="flex flex-1 flex-col p-5">
-                      <h4 className="font-semibold text-crust-900">{p.nombre}</h4>
-                      {p.descripcion && (
-                        <p className="mt-1 mb-4 flex-1 text-sm text-crust-600">
-                          {p.descripcion}
+        ) : (
+          <div className="space-y-14">
+            {categorias.map((cat) => (
+              <div key={cat.id}>
+                <h3 className="mb-6 font-display text-2xl font-semibold text-crust-700">
+                  {cat.nombre}
+                </h3>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {cat.productos.map((p, i) => (
+                    <article
+                      key={p.id}
+                      style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+                      className="group flex animate-[cardIn_.5s_ease-out_both] flex-col overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                    >
+                      {/* Imagen grande arriba (zoom sutil en hover) */}
+                      <div className="relative aspect-[4/3] w-full overflow-hidden bg-crust-100">
+                        {p.imagenUrl ? (
+                          <img
+                            src={p.imagenUrl}
+                            alt={p.nombre}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-5xl text-crust-300 transition-transform duration-500 group-hover:scale-110">
+                            🥐
+                          </div>
+                        )}
+                        {p.destacado && (
+                          <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-crust-700 shadow-sm backdrop-blur">
+                            ★ Destacado
+                          </span>
+                        )}
+                      </div>
+                      {/* Nombre, descripción y precio debajo */}
+                      <div className="flex flex-1 flex-col p-5">
+                        <h4 className="font-semibold text-crust-900">{p.nombre}</h4>
+                        {p.descripcion && (
+                          <p className="mt-1 mb-4 flex-1 text-sm text-crust-600">
+                            {p.descripcion}
+                          </p>
+                        )}
+                        <p className="mt-auto text-lg font-bold text-crust-700">
+                          {formatUYU(p.precio)}
                         </p>
-                      )}
-                      <p className="mt-auto text-lg font-bold text-crust-700">
-                        {formatUYU(p.precio)}
-                      </p>
-                    </div>
-                  </article>
-                ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+      <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}`}</style>
     </section>
   );
 }
