@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, ApiError } from "./api";
 import { outboxAll, outboxDelete, type OutboxComanda } from "./db";
 
 let flushing = false;
@@ -23,8 +23,13 @@ export async function flushOutbox(): Promise<number> {
         });
         await outboxDelete(c.id);
         ok++;
-      } catch {
-        // Si falla una, cortamos: probablemente volvió a caer la red.
+      } catch (e) {
+        // Error 4xx = comanda inválida (no va a andar reintentando): la
+        // descartamos para no bloquear la cola. 5xx/red: cortamos y reintentamos luego.
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+          await outboxDelete(c.id);
+          continue;
+        }
         break;
       }
     }

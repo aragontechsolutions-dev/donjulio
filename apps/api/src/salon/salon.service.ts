@@ -266,15 +266,30 @@ export class SalonService {
     const pedido = await this.getPedidoAbierto(pedidoId);
     const { items, subtotal } = await this.orders.priceItems(dto.items);
 
+    // Sólo aceptamos sillas que pertenezcan a la mesa del pedido. Si llega una
+    // silla inexistente/vieja (p. ej. una comanda encolada offline), el ítem se
+    // carga sin asignar en vez de romper por clave foránea.
+    const sillasValidas = pedido.mesaId
+      ? new Set(
+          (
+            await this.prisma.silla.findMany({
+              where: { mesaId: pedido.mesaId },
+              select: { id: true },
+            })
+          ).map((s) => s.id),
+        )
+      : new Set<string>();
+
     return this.prisma.$transaction(async (tx) => {
       for (const it of items) {
+        const sillaId = it.sillaId && sillasValidas.has(it.sillaId) ? it.sillaId : undefined;
         await tx.pedidoItem.create({
           data: {
             pedidoId,
             productoId: it.productoId,
             productVariantId: it.productVariantId,
             stationId: it.stationId,
-            sillaId: it.sillaId,
+            sillaId,
             cantidad: it.cantidad,
             precioUnitario: it.precioUnitario,
             subtotal: it.subtotal,
