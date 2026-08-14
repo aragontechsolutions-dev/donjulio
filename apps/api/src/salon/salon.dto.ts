@@ -64,6 +64,11 @@ export class CreateSillaDto {
   @IsOptional() @IsInt() posY?: number;
 }
 
+/** Autoservicio: el cliente se identifica por nombre (se mapea a una silla). */
+export class IdentificarComensalDto {
+  @IsString() nombre!: string;
+}
+
 export class UpdateSillaDto {
   @IsOptional() @IsString() nombre?: string | null;
   @IsOptional() @IsInt() posX?: number;

@@ -253,6 +253,33 @@ export class SalonService {
     return this.comandaByMesa(mesa.id, items, null, clientTxnId);
   }
 
+  /**
+   * El cliente del autoservicio se identifica por nombre. Se mapea a una silla:
+   * reusa la que ya tenga ese nombre, ocupa la primera libre, o crea una nueva
+   * si se sumó gente. Así el cliente nunca ve números de silla.
+   */
+  async identificarComensal(token: string, nombreRaw: string) {
+    const mesa = await this.mesaByToken(token);
+    const nombre = (nombreRaw ?? "").trim();
+    if (!nombre) throw new BadRequestException("Ingresá tu nombre.");
+    const sillas = await this.prisma.silla.findMany({
+      where: { mesaId: mesa.id },
+      orderBy: { numero: "asc" },
+    });
+    // Ya se anotó antes con ese nombre → reusa su silla.
+    const existente = sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === nombre.toLowerCase());
+    if (existente) return existente;
+    // Primera silla libre.
+    const libre = sillas.find((s) => !(s.nombre ?? "").trim());
+    if (libre) return this.prisma.silla.update({ where: { id: libre.id }, data: { nombre } });
+    // No hay libres: se sumó gente, creamos una silla nueva.
+    const numero = (sillas.reduce((mx, s) => Math.max(mx, s.numero), 0) || 0) + 1;
+    const pos = this.sillaOffset(sillas.length, Math.max(mesa.capacidad, sillas.length + 1), mesa.forma);
+    return this.prisma.silla.create({
+      data: { mesaId: mesa.id, numero, nombre, posX: pos.posX, posY: pos.posY },
+    });
+  }
+
   // ---------- Comanda ----------
   // mozoId es opcional: el autoservicio (QR/tablet) abre la mesa sin usuario.
   async abrirMesa(mesaId: string, mozoId?: string | null) {

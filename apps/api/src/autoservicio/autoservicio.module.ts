@@ -2,7 +2,7 @@ import { Body, Controller, Get, Module, Param, Post } from "@nestjs/common";
 import { Public } from "../auth/decorators";
 import { SalonModule } from "../salon/salon.module";
 import { SalonService } from "../salon/salon.service";
-import { ComandaDto } from "../salon/salon.dto";
+import { ComandaDto, IdentificarComensalDto } from "../salon/salon.dto";
 
 /**
  * Autoservicio por mesa (QR / tablet). Endpoints públicos validados por el
@@ -24,6 +24,11 @@ export class AutoservicioController {
     // Valida el token antes de exponer el menú.
     await this.salon.mesaByToken(token);
     return this.salon.menuPos();
+  }
+
+  @Post(":token/comensal")
+  identificar(@Param("token") token: string, @Body() dto: IdentificarComensalDto) {
+    return this.salon.identificarComensal(token, dto.nombre);
   }
 
   @Post(":token/comanda")

@@ -45,17 +45,65 @@ export default function Autoservicio() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [prodSel, setProdSel] = useState<Prod | null>(null);
   const [mods, setMods] = useState<Record<string, string[]>>({});
-  const [comensal, setComensal] = useState<string>("");
+  const [comensalId, setComensalId] = useState<string>("");
+  const [comensalNombre, setComensalNombre] = useState<string>("");
+  const [nombreInput, setNombreInput] = useState<string>("");
+  const [identificando, setIdentificando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+
+  const STORE_KEY = `auto:${token}:comensal`;
 
   const loadEstado = () => apiGet<Estado>(`/autoservicio/${token}`).then(setEstado).catch(() => setNotFound(true));
 
   useEffect(() => {
     loadEstado();
     apiGet<Cat[]>(`/autoservicio/${token}/menu`).then(setMenu).catch(() => setNotFound(true));
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { try { const v = JSON.parse(raw); setComensalId(v.id); setComensalNombre(v.nombre); } catch { /* ignore */ } }
     const t = setInterval(loadEstado, 8000);
     return () => clearInterval(t);
   }, [token]);
+
+  // Reconcilia el comensal guardado con las sillas actuales de la mesa.
+  useEffect(() => {
+    if (!estado || !comensalId) return;
+    const porId = estado.mesa.sillas.find((s) => s.id === comensalId);
+    if (porId) return;
+    const porNombre = estado.mesa.sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === comensalNombre.trim().toLowerCase());
+    if (porNombre) {
+      setComensalId(porNombre.id);
+      localStorage.setItem(STORE_KEY, JSON.stringify({ id: porNombre.id, nombre: porNombre.nombre }));
+    } else {
+      setComensalId("");
+      setComensalNombre("");
+      localStorage.removeItem(STORE_KEY);
+    }
+  }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const identificar = async (nombre: string) => {
+    const n = nombre.trim();
+    if (!n) return;
+    setIdentificando(true);
+    try {
+      const r = await fetch(`${BASE}/autoservicio/${token}/comensal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: n }),
+      });
+      if (!r.ok) throw new Error();
+      const s = (await r.json()) as Silla;
+      setComensalId(s.id);
+      setComensalNombre(s.nombre ?? n);
+      localStorage.setItem(STORE_KEY, JSON.stringify({ id: s.id, nombre: s.nombre ?? n }));
+      setNombreInput("");
+      loadEstado();
+    } catch {
+      showToast("error", "No se pudo registrar tu nombre. Reintentá.");
+    } finally {
+      setIdentificando(false);
+    }
+  };
+  const cambiarComensal = () => { setComensalId(""); setComensalNombre(""); localStorage.removeItem(STORE_KEY); };
 
   const sillas = estado?.mesa.sillas ?? [];
   const cartTotal = useMemo(() => cart.reduce((a, l) => a + l.precio, 0), [cart]);
@@ -67,6 +115,7 @@ export default function Autoservicio() {
   };
 
   const elegir = (p: Prod) => {
+    if (!comensalId) { showToast("info", "Primero ingresá tu nombre para pedir."); return; }
     if (p.modifierGroups.length === 0) addToCart(p, [], []);
     else { setProdSel(p); setMods({}); }
   };
@@ -89,7 +138,7 @@ export default function Autoservicio() {
     setMods({});
   };
   const addToCart = (p: Prod, ids: string[], labels: string[], extra = 0) =>
-    setCart((c) => [...c, { key: uid(), producto: p, modificadorIds: ids, modLabels: labels, precio: Number(p.precio) + extra, sillaId: comensal || null }]);
+    setCart((c) => [...c, { key: uid(), producto: p, modificadorIds: ids, modLabels: labels, precio: Number(p.precio) + extra, sillaId: comensalId || null }]);
 
   const enviar = async () => {
     if (cart.length === 0) return;
@@ -145,18 +194,40 @@ export default function Autoservicio() {
       </header>
 
       <div className="mx-auto max-w-2xl p-4">
-        {/* Comensal */}
-        {sillas.length > 0 && (
-          <div className="mb-4">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-crust-400">¿Para quién es?</p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <button onClick={() => setComensal("")} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensal === "" ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}>Mesa</button>
-              {sillas.map((s) => (
-                <button key={s.id} onClick={() => setComensal(s.id)} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensal === s.id ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}>
-                  {s.nombre?.trim() || `Silla ${s.numero}`}
-                </button>
-              ))}
-            </div>
+        {/* Identificación por nombre */}
+        {comensalId ? (
+          <div className="mb-4 flex items-center justify-between rounded-2xl border border-crust-100 bg-white px-4 py-3">
+            <span className="text-sm text-crust-700">Pedís como <b className="text-crust-900">{comensalNombre}</b></span>
+            <button onClick={cambiarComensal} className="rounded-lg px-2 py-1 text-xs font-semibold text-crust-500 hover:bg-crust-100">Cambiar</button>
+          </div>
+        ) : (
+          <div className="mb-4 rounded-2xl border border-crust-100 bg-white p-4">
+            <p className="mb-1 font-display text-lg font-semibold text-crust-800">¡Hola! 👋</p>
+            <p className="mb-3 text-sm text-crust-500">Ingresá tu nombre para pedir (así podés dividir la cuenta después).</p>
+            <form onSubmit={(e) => { e.preventDefault(); identificar(nombreInput); }} className="flex gap-2">
+              <input
+                value={nombreInput}
+                onChange={(e) => setNombreInput(e.target.value)}
+                placeholder="Tu nombre"
+                className="flex-1 rounded-xl border border-crust-200 px-3 py-2.5"
+                autoFocus
+              />
+              <button type="submit" disabled={identificando || !nombreInput.trim()} className="rounded-xl bg-crust-600 px-5 py-2.5 font-semibold text-white active:bg-crust-700 disabled:opacity-50">
+                {identificando ? "…" : "Entrar"}
+              </button>
+            </form>
+            {sillas.filter((s) => s.nombre?.trim()).length > 0 && (
+              <div className="mt-3">
+                <p className="mb-1 text-xs text-crust-400">¿Ya pediste antes? Tocá tu nombre:</p>
+                <div className="flex flex-wrap gap-2">
+                  {sillas.filter((s) => s.nombre?.trim()).map((s) => (
+                    <button key={s.id} onClick={() => identificar(s.nombre!)} className="rounded-full border border-crust-200 px-3 py-1.5 text-sm text-crust-700 active:bg-crust-100">
+                      {s.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -220,7 +291,7 @@ export default function Autoservicio() {
         <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={() => setProdSel(null)}>
           <div className="w-full rounded-t-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 font-display text-lg font-bold text-crust-800">{prodSel.nombre}</h3>
-            <p className="mb-3 text-xs text-crust-500">Para: <b>{labelById(comensal || null)}</b></p>
+            <p className="mb-3 text-xs text-crust-500">Para: <b>{comensalNombre || "vos"}</b></p>
             {prodSel.modifierGroups.map(({ group }) => (
               <div key={group.id} className="mb-3">
                 <p className="mb-1 text-sm font-medium text-crust-600">{group.nombre}</p>
