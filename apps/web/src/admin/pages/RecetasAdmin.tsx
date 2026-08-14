@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FOOD_COST_OBJETIVO, RecipeCost, UnitOfMeasure } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 
 interface Receta {
@@ -12,6 +13,7 @@ interface Receta {
   producto: { nombre: string } | null;
 }
 interface Insumo { id: string; nombre: string; unidad: string }
+interface ProductoRef { id: string; nombre: string }
 
 const UNIDADES = Object.values(UnitOfMeasure);
 
@@ -25,17 +27,20 @@ function foodCostColor(pct?: number) {
 export default function RecetasAdmin() {
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [productos, setProductos] = useState<ProductoRef[]>([]);
   const [cost, setCost] = useState<RecipeCost | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const [form, setForm] = useState({
     nombre: "",
+    productoId: "",
     isSubRecipe: false,
     yieldQty: 1,
     yieldUnit: "UNIDAD",
     mermaPct: 0,
     manoObraCosto: 0,
     overheadCosto: 0,
+    notas: "",
   });
   const [ings, setIngs] = useState<{ ref: string; cantidad: number; unidad: string }[]>([
     { ref: "", cantidad: 0, unidad: "KG" },
@@ -44,6 +49,7 @@ export default function RecetasAdmin() {
   const load = () => {
     api.get<Receta[]>("/admin/recetas").then(setRecetas).catch(() => {});
     api.get<Insumo[]>("/admin/inventario/insumos").then(setInsumos).catch(() => {});
+    api.get<ProductoRef[]>("/admin/productos").then(setProductos).catch(() => {});
   };
   useEffect(load, []);
 
@@ -63,18 +69,30 @@ export default function RecetasAdmin() {
           ? { insumoId: id, cantidad: i.cantidad, unidad: i.unidad }
           : { subRecetaId: id, cantidad: i.cantidad, unidad: i.unidad };
       });
-    await api.post("/admin/recetas", {
-      ...form,
-      yieldQty: Number(form.yieldQty),
-      mermaPct: Number(form.mermaPct),
-      manoObraCosto: Number(form.manoObraCosto),
-      overheadCosto: Number(form.overheadCosto),
-      ingredientes,
-    });
-    setShowForm(false);
-    setForm({ nombre: "", isSubRecipe: false, yieldQty: 1, yieldUnit: "UNIDAD", mermaPct: 0, manoObraCosto: 0, overheadCosto: 0 });
-    setIngs([{ ref: "", cantidad: 0, unidad: "KG" }]);
-    load();
+    if (ingredientes.length === 0) {
+      showToast("error", "Agregá al menos un ingrediente con cantidad.");
+      return;
+    }
+    try {
+      await api.post("/admin/recetas", {
+        nombre: form.nombre,
+        isSubRecipe: form.isSubRecipe,
+        yieldQty: Number(form.yieldQty),
+        yieldUnit: form.yieldUnit,
+        mermaPct: Number(form.mermaPct),
+        manoObraCosto: Number(form.manoObraCosto),
+        overheadCosto: Number(form.overheadCosto),
+        ...(form.productoId && !form.isSubRecipe ? { productoId: form.productoId } : {}),
+        ...(form.notas.trim() ? { notas: form.notas.trim() } : {}),
+        ingredientes,
+      });
+      setShowForm(false);
+      setForm({ nombre: "", productoId: "", isSubRecipe: false, yieldQty: 1, yieldUnit: "UNIDAD", mermaPct: 0, manoObraCosto: 0, overheadCosto: 0, notas: "" });
+      setIngs([{ ref: "", cantidad: 0, unidad: "KG" }]);
+      load();
+    } catch {
+      /* el toast de error lo dispara el api client */
+    }
   };
 
   return (
@@ -87,44 +105,131 @@ export default function RecetasAdmin() {
       </div>
 
       {showForm && (
-        <form onSubmit={crear} className="mb-6 space-y-3 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <input placeholder="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2" required />
-            <label className="flex items-center gap-2 text-sm text-crust-700">
-              <input type="checkbox" checked={form.isSubRecipe} onChange={(e) => setForm({ ...form, isSubRecipe: e.target.checked })} />
-              Es sub-receta (preparación intermedia)
-            </label>
-            <div className="flex gap-2">
-              <input type="number" step="0.01" placeholder="Rendimiento" value={form.yieldQty} onChange={(e) => setForm({ ...form, yieldQty: Number(e.target.value) })} className="w-32 rounded-lg border border-crust-200 px-3 py-2" />
-              <select value={form.yieldUnit} onChange={(e) => setForm({ ...form, yieldUnit: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
-                {UNIDADES.map((u) => <option key={u}>{u}</option>)}
-              </select>
+        <form onSubmit={crear} className="mb-6 space-y-5 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+          {/* 1. Qué es */}
+          <div>
+            <h3 className="mb-1 font-display text-lg font-semibold text-crust-800">1 · Qué preparás</h3>
+            <p className="mb-3 text-sm text-crust-500">La receta define cuánto cuesta producir algo, a partir de sus ingredientes.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Nombre de la receta</span>
+                <input placeholder="Ej: Bizcochos de grasa" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
+                <span className="mt-1 block text-xs text-crust-400">Cómo la vas a identificar en el listado.</span>
+              </label>
+
+              <div className="rounded-lg border border-crust-100 bg-crust-50 p-3">
+                <label className="flex items-start gap-2 text-sm text-crust-700">
+                  <input type="checkbox" className="mt-1" checked={form.isSubRecipe} onChange={(e) => setForm({ ...form, isSubRecipe: e.target.checked, productoId: "" })} />
+                  <span>
+                    <b>Es una sub-receta</b> (preparación intermedia)
+                    <span className="mt-0.5 block text-xs text-crust-500">
+                      Marcala si no se vende sola y se usa dentro de otras recetas (ej: masa madre, crema pastelera). Si es algo que vendés, dejala sin marcar.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {!form.isSubRecipe && (
+                <label className="block sm:col-span-2">
+                  <span className="mb-1 block text-sm font-medium text-crust-700">Producto que se vende <span className="font-normal text-crust-400">(opcional)</span></span>
+                  <select value={form.productoId} onChange={(e) => setForm({ ...form, productoId: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+                    <option value="">— sin asociar —</option>
+                    {productos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                  <span className="mt-1 block text-xs text-crust-400">Asocialo para comparar el costo con el precio de venta y ver el <b>food cost</b> (objetivo {FOOD_COST_OBJETIVO.min}–{FOOD_COST_OBJETIVO.max}%).</span>
+                </label>
+              )}
             </div>
-            <input type="number" step="0.01" placeholder="% merma" value={form.mermaPct} onChange={(e) => setForm({ ...form, mermaPct: Number(e.target.value) })} className="rounded-lg border border-crust-200 px-3 py-2" />
-            <input type="number" step="0.01" placeholder="Mano de obra $" value={form.manoObraCosto} onChange={(e) => setForm({ ...form, manoObraCosto: Number(e.target.value) })} className="rounded-lg border border-crust-200 px-3 py-2" />
-            <input type="number" step="0.01" placeholder="Overhead $" value={form.overheadCosto} onChange={(e) => setForm({ ...form, overheadCosto: Number(e.target.value) })} className="rounded-lg border border-crust-200 px-3 py-2" />
           </div>
 
-          <p className="text-sm font-semibold text-crust-700">Ingredientes (insumos y sub-recetas)</p>
-          {ings.map((ing, idx) => (
-            <div key={idx} className="flex gap-2">
-              <select value={ing.ref} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, ref: e.target.value } : x))} className="flex-1 rounded-lg border border-crust-200 px-3 py-2">
-                <option value="">— elegir —</option>
-                <optgroup label="Insumos">
-                  {insumos.map((i) => <option key={i.id} value={`insumo:${i.id}`}>{i.nombre}</option>)}
-                </optgroup>
-                <optgroup label="Sub-recetas">
-                  {recetas.filter((r) => r.isSubRecipe).map((r) => <option key={r.id} value={`receta:${r.id}`}>{r.nombre}</option>)}
-                </optgroup>
-              </select>
-              <input type="number" step="0.001" placeholder="Cant." value={ing.cantidad} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, cantidad: Number(e.target.value) } : x))} className="w-24 rounded-lg border border-crust-200 px-3 py-2" />
-              <select value={ing.unidad} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, unidad: e.target.value } : x))} className="rounded-lg border border-crust-200 px-3 py-2">
-                {UNIDADES.map((u) => <option key={u}>{u}</option>)}
-              </select>
+          {/* 2. Rendimiento */}
+          <div className="border-t border-crust-100 pt-4">
+            <h3 className="mb-1 font-display text-lg font-semibold text-crust-800">2 · Cuánto rinde</h3>
+            <p className="mb-3 text-sm text-crust-500">Con una tanda completa de esta receta, ¿cuánto obtenés? Sirve para calcular el costo por unidad.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Rendimiento (cantidad)</span>
+                <div className="flex gap-2">
+                  <input type="number" step="0.01" min="0.0001" value={form.yieldQty} onChange={(e) => setForm({ ...form, yieldQty: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
+                  <select value={form.yieldUnit} onChange={(e) => setForm({ ...form, yieldUnit: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
+                    {UNIDADES.map((u) => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
+                <span className="mt-1 block text-xs text-crust-400">Ej: 24 UNIDAD (salen 24 bizcochos) o 2 KG de masa.</span>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Merma del proceso (%)</span>
+                <input type="number" step="0.01" min="0" max="100" value={form.mermaPct} onChange={(e) => setForm({ ...form, mermaPct: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+                <span className="mt-1 block text-xs text-crust-400">Lo que se pierde al elaborar (evaporación, recortes, fallas). Encarece el material en ese %. Si no sabés, dejá 0.</span>
+              </label>
             </div>
-          ))}
-          <button type="button" onClick={() => setIngs([...ings, { ref: "", cantidad: 0, unidad: "KG" }])} className="text-sm font-medium text-crust-600">+ agregar ingrediente</button>
-          <div><button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Guardar receta</button></div>
+          </div>
+
+          {/* 3. Ingredientes */}
+          <div className="border-t border-crust-100 pt-4">
+            <h3 className="mb-1 font-display text-lg font-semibold text-crust-800">3 · Ingredientes</h3>
+            <p className="mb-3 text-sm text-crust-500">Qué lleva la receta para ese rendimiento. Podés usar insumos del stock y otras sub-recetas.</p>
+            <div className="space-y-2">
+              {ings.map((ing, idx) => (
+                <div key={idx} className="flex flex-wrap items-end gap-2">
+                  <label className="min-w-[180px] flex-1">
+                    {idx === 0 && <span className="mb-1 block text-xs font-medium text-crust-600">Insumo o sub-receta</span>}
+                    <select value={ing.ref} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, ref: e.target.value } : x))} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+                      <option value="">— elegir —</option>
+                      <optgroup label="Insumos">
+                        {insumos.map((i) => <option key={i.id} value={`insumo:${i.id}`}>{i.nombre} ({i.unidad})</option>)}
+                      </optgroup>
+                      <optgroup label="Sub-recetas">
+                        {recetas.filter((r) => r.isSubRecipe).map((r) => <option key={r.id} value={`receta:${r.id}`}>{r.nombre}</option>)}
+                      </optgroup>
+                    </select>
+                  </label>
+                  <label className="w-28">
+                    {idx === 0 && <span className="mb-1 block text-xs font-medium text-crust-600">Cantidad</span>}
+                    <input type="number" step="0.001" min="0" placeholder="0" value={ing.cantidad} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, cantidad: Number(e.target.value) } : x))} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+                  </label>
+                  <label className="w-28">
+                    {idx === 0 && <span className="mb-1 block text-xs font-medium text-crust-600">Unidad</span>}
+                    <select value={ing.unidad} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, unidad: e.target.value } : x))} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+                      {UNIDADES.map((u) => <option key={u}>{u}</option>)}
+                    </select>
+                  </label>
+                  {ings.length > 1 && (
+                    <button type="button" onClick={() => setIngs(ings.filter((_, i) => i !== idx))} className="rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50" title="Quitar ingrediente">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setIngs([...ings, { ref: "", cantidad: 0, unidad: "KG" }])} className="mt-2 text-sm font-medium text-crust-600 hover:text-crust-800">+ agregar ingrediente</button>
+            <p className="mt-1 text-xs text-crust-400">Podés cargar en otra unidad que la del insumo (ej: insumo en KG y acá 500 G): el sistema convierte.</p>
+          </div>
+
+          {/* 4. Otros costos */}
+          <div className="border-t border-crust-100 pt-4">
+            <h3 className="mb-1 font-display text-lg font-semibold text-crust-800">4 · Otros costos <span className="text-sm font-normal text-crust-400">(opcional)</span></h3>
+            <p className="mb-3 text-sm text-crust-500">Se suman al costo de los ingredientes para obtener el costo real de la tanda.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Mano de obra ($ por tanda)</span>
+                <input type="number" step="0.01" min="0" value={form.manoObraCosto} onChange={(e) => setForm({ ...form, manoObraCosto: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+                <span className="mt-1 block text-xs text-crust-400">Lo que cuesta el trabajo de elaborar esta tanda (ej: 1 h de panadero).</span>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Gastos indirectos ($ por tanda)</span>
+                <input type="number" step="0.01" min="0" value={form.overheadCosto} onChange={(e) => setForm({ ...form, overheadCosto: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
+                <span className="mt-1 block text-xs text-crust-400">Horno, luz, gas, envases… lo que no es ingrediente ni mano de obra.</span>
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Notas de preparación <span className="font-normal text-crust-400">(opcional)</span></span>
+                <textarea rows={2} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} placeholder="Ej: amasar 10 min, leudar 1 h, horno 200 °C" className="w-full rounded-lg border border-crust-200 px-3 py-2 text-sm" />
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-crust-100 pt-4">
+            <button className="rounded-lg bg-crust-600 px-5 py-2.5 font-semibold text-white hover:bg-crust-700">Guardar receta</button>
+          </div>
         </form>
       )}
 
