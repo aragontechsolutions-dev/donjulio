@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { PaymentMethod } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
@@ -15,6 +16,7 @@ interface Mesa {
   posX: number;
   posY: number;
   forma: string;
+  qrToken: string;
   zona: { id: string; nombre: string } | null;
   sillas: Silla[];
   pedidoAbierto: { id: string; numero: number; total: number; itemsCount: number; mozo: string | null } | null;
@@ -91,6 +93,15 @@ const METODOS: { m: PaymentMethod; label: string; cls: string }[] = [
 
 /** Iniciales para mostrar sobre la silla cuando tiene cliente asignado. */
 const inicial = (nombre: string | null) => (nombre ? nombre.trim().charAt(0).toUpperCase() : "");
+
+/** QR del autoservicio de una mesa (se genera en el cliente, sin dependencias externas). */
+function QrMesa({ url }: { url: string }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    QRCode.toDataURL(url, { width: 240, margin: 1 }).then(setSrc).catch(() => setSrc(""));
+  }, [url]);
+  return src ? <img src={src} alt="QR de la mesa" className="mx-auto h-40 w-40 rounded-lg" /> : <div className="h-40" />;
+}
 
 export default function SalonAdmin() {
   const [mode, setMode] = useState<"operar" | "editar">("operar");
@@ -261,6 +272,17 @@ export default function SalonAdmin() {
   const eliminarSilla = async (s: Silla) => {
     try {
       await api.del(`/admin/salon/sillas/${s.id}`);
+      await loadMesas();
+    } catch {
+      /* toast del api */
+    }
+  };
+
+  const regenerarToken = async () => {
+    if (!editMesa) return;
+    if (!confirm("¿Generar un QR nuevo? Los códigos/enlaces anteriores dejarán de funcionar.")) return;
+    try {
+      await api.post(`/admin/salon/mesas/${editMesa.id}/rotar-token`);
       await loadMesas();
     } catch {
       /* toast del api */
@@ -523,6 +545,28 @@ export default function SalonAdmin() {
                     ))}
                     {editMesa.sillas.length === 0 && <li className="text-xs text-crust-400">Sin sillas. Agregá con “+ Silla”.</li>}
                   </ul>
+                </div>
+
+                {/* Autoservicio: QR / link por mesa */}
+                <div className="border-t border-crust-100 pt-3">
+                  <h4 className="mb-2 text-sm font-semibold text-crust-700">Autoservicio (QR)</h4>
+                  {(() => {
+                    const url = `${window.location.origin}/mesa/${editMesa.qrToken}`;
+                    return (
+                      <div className="space-y-2">
+                        <div className="rounded-xl border border-crust-100 bg-crust-50 p-3">
+                          <QrMesa url={url} />
+                        </div>
+                        <p className="break-all rounded-lg bg-crust-50 px-2 py-1 text-xs text-crust-500">{url}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => { navigator.clipboard?.writeText(url); showToast("success", "Link copiado ✓"); }} className="rounded-lg bg-crust-100 px-3 py-1.5 text-xs font-semibold text-crust-700 hover:bg-crust-200">Copiar link</button>
+                          <a href={url} target="_blank" rel="noreferrer" className="rounded-lg bg-crust-100 px-3 py-1.5 text-xs font-semibold text-crust-700 hover:bg-crust-200">Abrir</a>
+                          <button onClick={regenerarToken} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">Regenerar</button>
+                        </div>
+                        <p className="text-xs text-crust-400">Imprimí el QR y ponelo en la mesa, o abrí el link en el tablet fijo. El cliente pide desde ahí; no puede cobrar.</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ) : (

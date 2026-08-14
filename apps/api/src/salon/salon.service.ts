@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   BadRequestException,
   Injectable,
@@ -216,8 +217,45 @@ export class SalonService {
     });
   }
 
+  // ---------- Autoservicio (QR / tablet por mesa) ----------
+  /** Rota el token del QR de una mesa (invalida los QR/links anteriores). */
+  async rotarToken(id: string) {
+    const mesa = await this.getMesa(id);
+    return this.prisma.mesa.update({
+      where: { id: mesa.id },
+      data: { qrToken: randomUUID() },
+    });
+  }
+
+  /** Busca la mesa por su token de autoservicio. */
+  async mesaByToken(token: string) {
+    const mesa = await this.prisma.mesa.findUnique({
+      where: { qrToken: token },
+      include: { sillas: { orderBy: { numero: "asc" } } },
+    });
+    if (!mesa) throw new NotFoundException("Mesa no encontrada");
+    return mesa;
+  }
+
+  /** Estado para el autoservicio: mesa, sillas y cuenta abierta (o null). */
+  async estadoAutoservicio(token: string) {
+    const mesa = await this.mesaByToken(token);
+    const cuenta = await this.cuentaMesa(mesa.id).catch(() => null);
+    return {
+      mesa: { id: mesa.id, numero: mesa.numero, sillas: mesa.sillas },
+      cuenta,
+    };
+  }
+
+  /** Comanda desde el autoservicio: valida el token y agrega ítems (sin mozo). */
+  async comandaAutoservicio(token: string, items: AddItemsDto["items"], clientTxnId?: string) {
+    const mesa = await this.mesaByToken(token);
+    return this.comandaByMesa(mesa.id, items, null, clientTxnId);
+  }
+
   // ---------- Comanda ----------
-  async abrirMesa(mesaId: string, mozoId: string) {
+  // mozoId es opcional: el autoservicio (QR/tablet) abre la mesa sin usuario.
+  async abrirMesa(mesaId: string, mozoId?: string | null) {
     const mesa = await this.getMesa(mesaId);
     if (mesa.status === TableStatus.OCUPADA) {
       throw new BadRequestException("La mesa ya tiene una cuenta abierta");
@@ -230,8 +268,8 @@ export class SalonService {
           orderType: OrderType.DINE_IN,
           status: OrderStatus.EN_PREPARACION,
           mesaId,
-          mozoId,
-          eventos: { create: { toState: OrderStatus.EN_PREPARACION, usuarioId: mozoId } },
+          mozoId: mozoId ?? undefined,
+          eventos: { create: { toState: OrderStatus.EN_PREPARACION, usuarioId: mozoId ?? undefined } },
         },
       }),
       this.prisma.mesa.update({
@@ -328,7 +366,7 @@ export class SalonService {
   async comandaByMesa(
     mesaId: string,
     items: AddItemsDto["items"],
-    mozoId: string,
+    mozoId?: string | null,
     clientTxnId?: string,
   ) {
     // Idempotencia: si ya se procesó esta transacción, no la repite.

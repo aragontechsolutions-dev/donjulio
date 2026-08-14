@@ -69,6 +69,12 @@ export class SalonController {
     return this.salon.deleteMesa(id);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Post("mesas/:id/rotar-token")
+  rotarToken(@Param("id") id: string) {
+    return this.salon.rotarToken(id);
+  }
+
   // ---------- Sillas / comensales ----------
   @Roles(UserRole.ADMIN)
   @Post("mesas/:id/sillas")
