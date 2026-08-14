@@ -53,11 +53,13 @@ export default function Comanda({
   onBack,
   onQueued,
   online,
+  cajaAbierta,
 }: {
   mesa: MesaSel;
   onBack: () => void;
   onQueued: () => void;
   online: boolean;
+  cajaAbierta: boolean;
 }) {
   const [menu, setMenu] = useState<Cat[]>([]);
   const [cuenta, setCuenta] = useState<Cuenta | null>(null);
@@ -187,6 +189,7 @@ export default function Comanda({
   const doCobrar = (m: PaymentMethod) => (split === "comensal" ? cobrarComensales(m) : cobrarTodo(m));
   // Efectivo: primero el paso de vuelto; otros medios cobran directo.
   const iniciarCobro = (m: PaymentMethod) => {
+    if (!cajaAbierta) { showToast("error", "La caja no está abierta. Pedile al responsable que la abra."); return; }
     if (split === "comensal" && sillasCobro.length === 0) return;
     if (m === PaymentMethod.EFECTIVO) { setRecibido(""); setCashModal(true); }
     else doCobrar(m);
@@ -400,7 +403,11 @@ export default function Comanda({
         ) : (
           hayCuenta && totalPendiente > 0 && (
             <div>
-              {!online ? (
+              {!cajaAbierta ? (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-center text-sm font-medium text-red-700">
+                  La caja no está abierta. Pedile al responsable que la abra para cobrar.
+                </p>
+              ) : !online ? (
                 <p className="mb-1 text-center text-sm text-crust-500">Cobro disponible sólo con conexión</p>
               ) : (
                 <div className="mb-2 flex rounded-full bg-crust-100 p-1 text-xs font-semibold">
@@ -429,23 +436,25 @@ export default function Comanda({
                 </div>
               )}
 
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  [PaymentMethod.EFECTIVO, "Efectivo"],
-                  [PaymentMethod.MERCADO_PAGO_QR, "QR"],
-                  [PaymentMethod.DEBITO, "Débito"],
-                  [PaymentMethod.CREDITO, "Crédito"],
-                ].map(([m, label]) => (
-                  <button
-                    key={m}
-                    disabled={!online || (split === "comensal" && sillasCobro.length === 0)}
-                    onClick={() => iniciarCobro(m as PaymentMethod)}
-                    className="rounded-xl bg-crust-700 py-3 text-sm font-semibold text-white active:bg-crust-800 disabled:opacity-40"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {cajaAbierta && (
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    [PaymentMethod.EFECTIVO, "Efectivo"],
+                    [PaymentMethod.MERCADO_PAGO_QR, "QR"],
+                    [PaymentMethod.DEBITO, "Débito"],
+                    [PaymentMethod.CREDITO, "Crédito"],
+                  ].map(([m, label]) => (
+                    <button
+                      key={m}
+                      disabled={!online || (split === "comensal" && sillasCobro.length === 0)}
+                      onClick={() => iniciarCobro(m as PaymentMethod)}
+                      className="rounded-xl bg-crust-700 py-3 text-sm font-semibold text-white active:bg-crust-800 disabled:opacity-40"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         )}

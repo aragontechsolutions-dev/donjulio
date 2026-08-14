@@ -164,6 +164,15 @@ export class CashService {
     });
   }
 
+  /** ¿Hay alguna caja abierta en el turno? (para habilitar cobros en la PWA). */
+  async estado() {
+    const s = await this.prisma.cashSession.findFirst({
+      where: { status: CashSessionStatus.ABIERTA },
+      orderBy: { openedAt: "desc" },
+    });
+    return { abierta: !!s, etiqueta: s?.etiqueta ?? null };
+  }
+
   private async getOpen(id: string) {
     const s = await this.prisma.cashSession.findUnique({ where: { id } });
     if (!s) throw new NotFoundException("Caja no encontrada");
@@ -183,6 +192,13 @@ class CashController {
   @Get("config")
   config() {
     return { tolerance: CASH_TOLERANCE };
+  }
+
+  /** Estado de caja del turno; accesible también al mozo (PWA) para habilitar cobros. */
+  @Roles(UserRole.ADMIN, UserRole.CAJERO, UserRole.MOZO)
+  @Get("estado")
+  estado() {
+    return this.cash.estado();
   }
 
   @Get("actual")

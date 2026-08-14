@@ -411,6 +411,21 @@ export class SalonService {
     const total = Math.round(items.reduce((a, it) => a + num(it.subtotal), 0) * 100) / 100;
     const itemIds = items.map((it) => it.id);
 
+    // El cobro requiere una caja abierta en el turno (propia o del turno).
+    const sesion =
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
+      })) ??
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA },
+        orderBy: { openedAt: "desc" },
+      }));
+    if (!sesion) {
+      throw new BadRequestException(
+        "La caja no está abierta. Pedile al responsable que abra la caja para cobrar.",
+      );
+    }
+
     const pago = await this.prisma.payment.create({
       data: {
         pedidoId,
@@ -446,16 +461,6 @@ export class SalonService {
       where: { pedidoId, pagado: false },
     });
     const cerrado = pendientesTotales <= itemIds.length;
-    // El efectivo entra a la caja del turno: primero la propia del usuario;
-    // si no tiene (típico en un mozo), la caja abierta del turno (la más reciente).
-    const sesion =
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-      })) ??
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA },
-        orderBy: { openedAt: "desc" },
-      }));
 
     // Batch (no interactiva) por compatibilidad con el pooler de Supabase.
     const ops: Prisma.PrismaPromise<unknown>[] = [
