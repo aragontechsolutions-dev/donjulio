@@ -68,6 +68,8 @@ export default function Comanda({
   const [comensalSel, setComensalSel] = useState<string>(""); // sillaId o "" = mesa
   const [split, setSplit] = useState<"todo" | "comensal" | "iguales">("todo");
   const [sillasCobro, setSillasCobro] = useState<string[]>([]);
+  const [cashModal, setCashModal] = useState(false); // paso de vuelto (efectivo)
+  const [recibido, setRecibido] = useState("");
 
   const loadCuenta = () =>
     api
@@ -182,6 +184,17 @@ export default function Comanda({
       else { setSillasCobro([]); loadCuenta(); }
     } catch { /* toast */ }
   };
+  const doCobrar = (m: PaymentMethod) => (split === "comensal" ? cobrarComensales(m) : cobrarTodo(m));
+  // Efectivo: primero el paso de vuelto; otros medios cobran directo.
+  const iniciarCobro = (m: PaymentMethod) => {
+    if (split === "comensal" && sillasCobro.length === 0) return;
+    if (m === PaymentMethod.EFECTIVO) { setRecibido(""); setCashModal(true); }
+    else doCobrar(m);
+  };
+  const confirmarEfectivo = async () => {
+    setCashModal(false);
+    await doCobrar(PaymentMethod.EFECTIVO);
+  };
 
   // Agrupa la cuenta por comensal.
   const grupos = useMemo(() => {
@@ -201,6 +214,12 @@ export default function Comanda({
   const gruposCobrables = grupos.filter((g) => g.sillaId && pendienteDe(g.items) > 0);
   const nComensales = gruposCobrables.length || 1;
   const hayCuenta = !!cuenta && cuenta.items.length > 0;
+  const BILLETES = [200, 500, 1000, 2000];
+  const montoACobrar =
+    split === "comensal"
+      ? gruposCobrables.filter((g) => sillasCobro.includes(g.sillaId!)).reduce((a, g) => a + pendienteDe(g.items), 0)
+      : totalPendiente;
+  const vuelto = (Number(recibido) || 0) - montoACobrar;
 
   return (
     <div className="p-4 pb-44">
@@ -311,6 +330,51 @@ export default function Comanda({
         </div>
       )}
 
+      {/* Paso de vuelto (pago en efectivo) */}
+      {cashModal && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={() => setCashModal(false)}>
+          <div className="w-full rounded-t-3xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 font-display text-lg font-bold text-crust-800">Pago en efectivo</h3>
+            <div className="mb-3 flex justify-between rounded-lg bg-crust-50 px-3 py-2 text-sm">
+              <span className="text-crust-600">A cobrar</span>
+              <span className="font-bold text-crust-900">{formatUYU(montoACobrar)}</span>
+            </div>
+            <label className="mb-2 block text-sm font-medium text-crust-700">Paga con</label>
+            <input
+              type="number" inputMode="decimal" autoFocus placeholder="Ej: 1000"
+              value={recibido} onChange={(e) => setRecibido(e.target.value)}
+              className="mb-2 w-full rounded-xl border border-crust-200 px-3 py-3 text-lg"
+            />
+            <div className="mb-3 flex flex-wrap gap-2">
+              {BILLETES.map((b) => (
+                <button key={b} onClick={() => setRecibido(String(b))} className="rounded-full border border-crust-200 px-3 py-1.5 text-sm text-crust-700 active:bg-crust-100">${b}</button>
+              ))}
+              <button onClick={() => setRecibido(String(montoACobrar))} className="rounded-full border border-crust-200 px-3 py-1.5 text-sm text-crust-700 active:bg-crust-100">Justo</button>
+            </div>
+            {recibido !== "" && (
+              vuelto >= 0 ? (
+                <div className="mb-3 flex items-center justify-between rounded-xl bg-green-100 px-3 py-2 text-green-800">
+                  <span className="text-sm font-medium">Vuelto a entregar</span>
+                  <span className="text-xl font-bold">{formatUYU(vuelto)}</span>
+                </div>
+              ) : (
+                <p className="mb-3 rounded-xl bg-red-100 px-3 py-2 text-sm font-medium text-red-700">Falta {formatUYU(-vuelto)} para cubrir el total.</p>
+              )
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={confirmarEfectivo}
+                disabled={recibido !== "" && vuelto < 0}
+                className="flex-1 rounded-xl bg-green-600 py-3 font-semibold text-white active:bg-green-700 disabled:opacity-40"
+              >
+                Confirmar cobro
+              </button>
+              <button onClick={() => setCashModal(false)} className="rounded-xl border border-crust-200 px-4 py-3 text-crust-700">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Barra inferior: carrito + cobro */}
       <div className="fixed inset-x-0 bottom-0 border-t border-crust-100 bg-white p-3 shadow-lg">
         {cart.length > 0 ? (
@@ -375,7 +439,7 @@ export default function Comanda({
                   <button
                     key={m}
                     disabled={!online || (split === "comensal" && sillasCobro.length === 0)}
-                    onClick={() => (split === "comensal" ? cobrarComensales(m as PaymentMethod) : cobrarTodo(m as PaymentMethod))}
+                    onClick={() => iniciarCobro(m as PaymentMethod)}
                     className="rounded-xl bg-crust-700 py-3 text-sm font-semibold text-white active:bg-crust-800 disabled:opacity-40"
                   >
                     {label}

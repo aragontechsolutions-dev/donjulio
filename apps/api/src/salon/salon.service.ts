@@ -446,9 +446,16 @@ export class SalonService {
       where: { pedidoId, pagado: false },
     });
     const cerrado = pendientesTotales <= itemIds.length;
-    const sesion = await this.prisma.cashSession.findFirst({
-      where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-    });
+    // El efectivo entra a la caja del turno: primero la propia del usuario;
+    // si no tiene (típico en un mozo), la caja abierta del turno (la más reciente).
+    const sesion =
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
+      })) ??
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA },
+        orderBy: { openedAt: "desc" },
+      }));
 
     // Batch (no interactiva) por compatibilidad con el pooler de Supabase.
     const ops: Prisma.PrismaPromise<unknown>[] = [
