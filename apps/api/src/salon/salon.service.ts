@@ -25,7 +25,9 @@ import {
   CreateSillaDto,
   CreateZonaDto,
   UpdateMesaDto,
+  UpdatePlanoDto,
   UpdateSillaDto,
+  UpsertAreaDto,
 } from "./salon.dto";
 
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
@@ -215,6 +217,47 @@ export class SalonService {
         },
       },
     });
+  }
+
+  // ---------- Plano del salón (imagen de fondo + áreas para mesas) ----------
+  /** Plano singleton; lo crea con valores por defecto la primera vez. */
+  async getPlano() {
+    const plano = await this.prisma.salonPlano.findUnique({
+      where: { id: "default" },
+      include: { areas: { orderBy: { nombre: "asc" } } },
+    });
+    if (plano) return plano;
+    return this.prisma.salonPlano.create({
+      data: { id: "default" },
+      include: { areas: true },
+    });
+  }
+
+  async updatePlano(dto: UpdatePlanoDto) {
+    await this.getPlano();
+    return this.prisma.salonPlano.update({
+      where: { id: "default" },
+      data: dto,
+      include: { areas: { orderBy: { nombre: "asc" } } },
+    });
+  }
+
+  async addArea(dto: UpsertAreaDto) {
+    await this.getPlano();
+    return this.prisma.areaMesas.create({ data: { planoId: "default", ...dto } });
+  }
+
+  async updateArea(id: string, dto: UpsertAreaDto) {
+    const a = await this.prisma.areaMesas.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException("Área no encontrada");
+    return this.prisma.areaMesas.update({ where: { id }, data: dto });
+  }
+
+  async deleteArea(id: string) {
+    const a = await this.prisma.areaMesas.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException("Área no encontrada");
+    await this.prisma.areaMesas.delete({ where: { id } });
+    return { ok: true };
   }
 
   // ---------- Autoservicio (QR / tablet por mesa) ----------

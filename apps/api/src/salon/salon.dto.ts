@@ -1,6 +1,7 @@
 import { Type } from "class-transformer";
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -67,6 +68,24 @@ export class CreateSillaDto {
 /** Autoservicio: el cliente se identifica por nombre (se mapea a una silla). */
 export class IdentificarComensalDto {
   @IsString() nombre!: string;
+}
+
+/** Plano del salón: imagen de fondo y tamaño del lienzo. */
+export class UpdatePlanoDto {
+  @IsOptional() @IsString() imagenUrl?: string | null;
+  @IsOptional() @IsInt() @Min(200) ancho?: number;
+  @IsOptional() @IsInt() @Min(200) alto?: number;
+  @IsOptional() @IsInt() @Min(0) opacidad?: number;
+  @IsOptional() @IsBoolean() mostrarGrilla?: boolean;
+}
+
+/** Área del plano donde se pueden ubicar mesas. */
+export class UpsertAreaDto {
+  @IsOptional() @IsString() nombre?: string;
+  @IsOptional() @IsInt() x?: number;
+  @IsOptional() @IsInt() y?: number;
+  @IsOptional() @IsInt() @Min(40) ancho?: number;
+  @IsOptional() @IsInt() @Min(40) alto?: number;
 }
 
 export class UpdateSillaDto {

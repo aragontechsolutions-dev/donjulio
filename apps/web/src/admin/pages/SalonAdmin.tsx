@@ -8,6 +8,8 @@ import Modal from "../../lib/Modal";
 import ProductoCard from "../../lib/ProductoCard";
 
 interface Zona { id: string; nombre: string }
+interface Area { id: string; nombre: string; x: number; y: number; ancho: number; alto: number }
+interface Plano { id: string; imagenUrl: string | null; ancho: number; alto: number; opacidad: number; mostrarGrilla: boolean; areas: Area[] }
 interface Silla { id: string; numero: number; nombre: string | null; posX: number; posY: number }
 interface Mesa {
   id: string;
@@ -109,6 +111,7 @@ export default function SalonAdmin() {
   const [mode, setMode] = useState<"operar" | "editar">("operar");
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
+  const [plano, setPlano] = useState<Plano | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // --- estado operar (comanda) ---
@@ -124,16 +127,28 @@ export default function SalonAdmin() {
   // --- estado editar ---
   const [editSel, setEditSel] = useState<Mesa | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ kind: "mesa" | "silla"; id: string; mesaId?: string; offX: number; offY: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    kind: "mesa" | "silla" | "area" | "area-resize";
+    id: string;
+    mesaId?: string;
+    offX: number;
+    offY: number;
+    moved: boolean;
+    startX?: number;
+    startY?: number;
+  } | null>(null);
   const [zonaModal, setZonaModal] = useState(false);
   const [zonaNombre, setZonaNombre] = useState("");
   const [savingZona, setSavingZona] = useState(false);
 
   const loadMesas = () =>
     api.get<Mesa[]>("/admin/salon/mesas").then(setMesas).catch(() => {});
+  const loadPlano = () =>
+    api.get<Plano>("/admin/salon/plano").then(setPlano).catch(() => {});
 
   useEffect(() => {
     loadMesas();
+    loadPlano();
     api.get<Zona[]>("/admin/salon/zonas").then(setZonas).catch(() => {});
     api.get<PosCategoria[]>("/admin/salon/menu").then(setMenu).catch(() => {});
   }, []);
@@ -150,7 +165,28 @@ export default function SalonAdmin() {
       if (!d || !canvas) return;
       const rect = canvas.getBoundingClientRect();
       d.moved = true;
-      if (d.kind === "mesa") {
+      if (d.kind === "area") {
+        const x = Math.max(0, Math.min(e.clientX - rect.left - d.offX, rect.width - 40));
+        const y = Math.max(0, Math.min(e.clientY - rect.top - d.offY, rect.height - 40));
+        setPlano((p) => (p ? { ...p, areas: p.areas.map((a) => (a.id === d.id ? { ...a, x, y } : a)) } : p));
+      } else if (d.kind === "area-resize") {
+        setPlano((p) =>
+          p
+            ? {
+                ...p,
+                areas: p.areas.map((a) =>
+                  a.id === d.id
+                    ? {
+                        ...a,
+                        ancho: Math.max(40, e.clientX - rect.left - a.x),
+                        alto: Math.max(40, e.clientY - rect.top - a.y),
+                      }
+                    : a,
+                ),
+              }
+            : p,
+        );
+      } else if (d.kind === "mesa") {
         let x = e.clientX - rect.left - d.offX;
         let y = e.clientY - rect.top - d.offY;
         x = Math.max(0, Math.min(x, rect.width - TILE));
@@ -174,9 +210,30 @@ export default function SalonAdmin() {
       const d = dragRef.current;
       dragRef.current = null;
       if (!d || !d.moved) return;
-      if (d.kind === "mesa") {
+      if (d.kind === "area" || d.kind === "area-resize") {
+        const a = plano?.areas.find((x) => x.id === d.id);
+        if (a) {
+          await api
+            .patch(`/admin/salon/plano/areas/${a.id}`, {
+              x: Math.round(a.x), y: Math.round(a.y),
+              ancho: Math.round(a.ancho), alto: Math.round(a.alto),
+            })
+            .catch(() => {});
+        }
+      } else if (d.kind === "mesa") {
         const m = mesas.find((x) => x.id === d.id);
-        if (m) await api.patch(`/admin/salon/mesas/${m.id}`, { posX: Math.round(m.posX), posY: Math.round(m.posY) }).catch(() => {});
+        if (!m) return;
+        // Si hay áreas definidas, la mesa debe quedar dentro de alguna.
+        const areas = plano?.areas ?? [];
+        const cx = m.posX + TILE / 2;
+        const cy = m.posY + TILE / 2;
+        const dentro = areas.length === 0 || areas.some((a) => cx >= a.x && cx <= a.x + a.ancho && cy >= a.y && cy <= a.y + a.alto);
+        if (!dentro) {
+          setMesas((prev) => prev.map((x) => (x.id === d.id ? { ...x, posX: d.startX!, posY: d.startY! } : x)));
+          showToast("error", "Las mesas solo pueden ubicarse dentro de las áreas del plano.");
+          return;
+        }
+        await api.patch(`/admin/salon/mesas/${m.id}`, { posX: Math.round(m.posX), posY: Math.round(m.posY) }).catch(() => {});
       } else {
         const m = mesas.find((x) => x.id === d.mesaId);
         const s = m?.sillas.find((x) => x.id === d.id);
@@ -189,13 +246,26 @@ export default function SalonAdmin() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [mode, mesas]);
+  }, [mode, mesas, plano]);
 
   const startDragMesa = (e: React.PointerEvent, m: Mesa) => {
     if (mode !== "editar") return;
     const rect = canvasRef.current!.getBoundingClientRect();
-    dragRef.current = { kind: "mesa", id: m.id, offX: e.clientX - rect.left - m.posX, offY: e.clientY - rect.top - m.posY, moved: false };
+    dragRef.current = {
+      kind: "mesa", id: m.id,
+      offX: e.clientX - rect.left - m.posX, offY: e.clientY - rect.top - m.posY,
+      moved: false, startX: m.posX, startY: m.posY,
+    };
     setEditSel(m);
+  };
+  const startDragArea = (e: React.PointerEvent, a: Area, resize = false) => {
+    if (mode !== "editar") return;
+    e.stopPropagation();
+    const rect = canvasRef.current!.getBoundingClientRect();
+    dragRef.current = {
+      kind: resize ? "area-resize" : "area", id: a.id,
+      offX: e.clientX - rect.left - a.x, offY: e.clientY - rect.top - a.y, moved: false,
+    };
   };
   const startDragSilla = (e: React.PointerEvent, m: Mesa, s: Silla) => {
     if (mode !== "editar") return;
@@ -278,6 +348,33 @@ export default function SalonAdmin() {
     } catch {
       /* toast del api */
     }
+  };
+
+  // ---- Plano del salón ----
+  const subirPlano = async (file: File) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      showToast("error", "Formato no permitido. Usá JPG, PNG o WEBP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { showToast("error", "La imagen supera los 5 MB."); return; }
+    try {
+      const { url } = await api.upload<{ url: string }>("/admin/storage/upload", file);
+      await api.patch("/admin/salon/plano", { imagenUrl: url });
+      loadPlano();
+    } catch { /* toast del api */ }
+  };
+  const patchPlano = async (data: Partial<Plano>) => {
+    setPlano((p) => (p ? { ...p, ...data } : p)); // optimista
+    await api.patch("/admin/salon/plano", data).catch(() => {});
+  };
+  const agregarArea = async () => {
+    try {
+      await api.post("/admin/salon/plano/areas", { nombre: `Área ${(plano?.areas.length ?? 0) + 1}` });
+      loadPlano();
+    } catch { /* toast del api */ }
+  };
+  const eliminarArea = async (id: string) => {
+    try { await api.del(`/admin/salon/plano/areas/${id}`); loadPlano(); } catch { /* toast */ }
   };
 
   const regenerarToken = async () => {
@@ -430,10 +527,44 @@ export default function SalonAdmin() {
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {mode === "editar" && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          <button onClick={agregarMesa} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">+ Agregar mesa</button>
-          <button onClick={abrirNuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
-          <span className="self-center text-sm text-crust-500">Arrastrá mesas y sillas para ubicarlas. Tocá una mesa para editarla.</span>
+        <div className="mb-3 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={agregarMesa} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">+ Agregar mesa</button>
+            <button onClick={abrirNuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
+            <button onClick={agregarArea} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Área para mesas</button>
+            <label className="cursor-pointer rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">
+              {plano?.imagenUrl ? "Cambiar plano" : "Subir plano del local"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirPlano(f); e.target.value = ""; }} />
+            </label>
+            {plano?.imagenUrl && (
+              <button onClick={() => patchPlano({ imagenUrl: null })} className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50">Quitar plano</button>
+            )}
+          </div>
+          {plano && (
+            <div className="flex flex-wrap items-center gap-4 rounded-lg border border-crust-100 bg-white px-3 py-2 text-sm text-crust-600">
+              <label className="flex items-center gap-1">Alto del lienzo
+                <input type="number" min={200} step={20} value={plano.alto}
+                  onChange={(e) => setPlano({ ...plano, alto: Number(e.target.value) })}
+                  onBlur={() => patchPlano({ alto: plano.alto })}
+                  className="w-20 rounded border border-crust-200 px-2 py-1" />
+              </label>
+              <label className="flex items-center gap-1">Opacidad del plano
+                <input type="range" min={10} max={100} value={plano.opacidad}
+                  onChange={(e) => setPlano({ ...plano, opacidad: Number(e.target.value) })}
+                  onMouseUp={() => patchPlano({ opacidad: plano.opacidad })}
+                  onTouchEnd={() => patchPlano({ opacidad: plano.opacidad })} />
+                <span className="w-8 text-xs">{plano.opacidad}%</span>
+              </label>
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={plano.mostrarGrilla} onChange={(e) => patchPlano({ mostrarGrilla: e.target.checked })} />
+                Grilla
+              </label>
+            </div>
+          )}
+          <p className="text-sm text-crust-500">
+            Subí el plano del local, dibujá las <b>áreas</b> donde van mesas (arrastrá para mover, esquina para redimensionar) y ubicá las mesas dentro. Tocá una mesa para editarla.
+          </p>
         </div>
       )}
 
@@ -442,13 +573,56 @@ export default function SalonAdmin() {
         <div className="lg:col-span-2">
           <div
             ref={canvasRef}
-            className="relative h-[520px] w-full overflow-hidden rounded-2xl border border-crust-200 bg-crust-50"
+            className="relative w-full max-w-full overflow-auto rounded-2xl border border-crust-200 bg-crust-50"
             style={{
-              backgroundImage:
-                "linear-gradient(#0000000a 1px, transparent 1px), linear-gradient(90deg, #0000000a 1px, transparent 1px)",
-              backgroundSize: "40px 40px",
+              height: plano?.alto ?? 520,
+              ...(plano?.mostrarGrilla !== false
+                ? {
+                    backgroundImage:
+                      "linear-gradient(#0000000a 1px, transparent 1px), linear-gradient(90deg, #0000000a 1px, transparent 1px)",
+                    backgroundSize: "40px 40px",
+                  }
+                : {}),
             }}
           >
+            {/* Plano del local como fondo */}
+            {plano?.imagenUrl && (
+              <img
+                src={plano.imagenUrl}
+                alt="Plano del local"
+                className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                style={{ opacity: (plano.opacidad ?? 100) / 100 }}
+              />
+            )}
+
+            {/* Áreas donde se pueden ubicar mesas */}
+            {plano?.areas.map((a) => (
+              <div
+                key={a.id}
+                onPointerDown={(e) => startDragArea(e, a)}
+                style={{ left: a.x, top: a.y, width: a.ancho, height: a.alto, position: "absolute" }}
+                className={`rounded-lg border-2 border-dashed ${mode === "editar" ? "cursor-move touch-none border-crust-500 bg-crust-500/10" : "pointer-events-none border-crust-300/60"}`}
+              >
+                {mode === "editar" && (
+                  <>
+                    <span className="absolute left-1 top-1 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-crust-600">{a.nombre}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); eliminarArea(a.id); }}
+                      className="absolute right-1 top-1 rounded bg-white/80 px-1 text-[10px] font-bold text-red-500 hover:bg-white"
+                      title="Eliminar área"
+                    >
+                      ✕
+                    </button>
+                    <span
+                      onPointerDown={(e) => startDragArea(e, a, true)}
+                      className="absolute -bottom-1 -right-1 h-4 w-4 cursor-se-resize touch-none rounded-sm border-2 border-white bg-crust-600"
+                      title="Redimensionar"
+                    />
+                  </>
+                )}
+              </div>
+            ))}
+
             {mesas.map((m) => (
               <div key={m.id}>
                 {/* Sillas de la mesa */}

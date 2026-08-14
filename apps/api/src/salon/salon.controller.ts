@@ -21,7 +21,9 @@ import {
   CreateSillaDto,
   CreateZonaDto,
   UpdateMesaDto,
+  UpdatePlanoDto,
   UpdateSillaDto,
+  UpsertAreaDto,
 } from "./salon.dto";
 
 @UseGuards(RolesGuard)
@@ -79,6 +81,36 @@ export class SalonController {
   @Post("mesas/:id/atender-cuenta")
   atenderCuenta(@Param("id") id: string) {
     return this.salon.atenderCuenta(id);
+  }
+
+  // ---------- Plano del salón ----------
+  @Get("plano")
+  plano() {
+    return this.salon.getPlano();
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch("plano")
+  updatePlano(@Body() dto: UpdatePlanoDto) {
+    return this.salon.updatePlano(dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post("plano/areas")
+  addArea(@Body() dto: UpsertAreaDto) {
+    return this.salon.addArea(dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch("plano/areas/:id")
+  updateArea(@Param("id") id: string, @Body() dto: UpsertAreaDto) {
+    return this.salon.updateArea(id, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete("plano/areas/:id")
+  deleteArea(@Param("id") id: string) {
+    return this.salon.deleteArea(id);
   }
 
   // ---------- Sillas / comensales ----------

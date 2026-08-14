@@ -834,3 +834,29 @@ model Comprobante {
   @@index([pedidoId])
   @@index([status])
 }
+
+/// Plano del salón (singleton): imagen de fondo y tamaño del lienzo del editor.
+model SalonPlano {
+  id            String  @id @default("default")
+  imagenUrl     String?
+  ancho         Int     @default(900)
+  alto          Int     @default(520)
+  opacidad      Int     @default(100) // 0..100, opacidad de la imagen de fondo
+  mostrarGrilla Boolean @default(true)
+
+  areas AreaMesas[]
+}
+
+/// Área del salón donde se pueden ubicar mesas (los sectores del plano real).
+model AreaMesas {
+  id      String     @id @default(uuid())
+  planoId String     @default("default")
+  plano   SalonPlano @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  nombre  String     @default("Área")
+  x       Int        @default(20)
+  y       Int        @default(20)
+  ancho   Int        @default(240)
+  alto    Int        @default(180)
+
+  @@index([planoId])
+}
