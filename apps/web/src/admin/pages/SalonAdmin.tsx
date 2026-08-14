@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 import Modal from "../../lib/Modal";
+import ProductoCard from "../../lib/ProductoCard";
 
 interface Zona { id: string; nombre: string }
 interface Silla { id: string; numero: number; nombre: string | null; posX: number; posY: number }
@@ -23,7 +24,7 @@ interface Mesa {
 }
 interface Modifier { id: string; nombre: string; priceDelta: string }
 interface ModGroup { group: { id: string; nombre: string; minSelect: number; maxSelect: number; modifiers: Modifier[] } }
-interface PosProducto { id: string; nombre: string; precio: string; modifierGroups: ModGroup[] }
+interface PosProducto { id: string; nombre: string; precio: string; descripcion: string | null; imagenUrl: string | null; destacado: boolean; modifierGroups: ModGroup[] }
 interface PosCategoria { id: string; nombre: string; productos: PosProducto[] }
 interface CuentaItem {
   id: string;
@@ -617,15 +618,23 @@ export default function SalonAdmin() {
                       </select>
                     </label>
                   )}
-                  <div className="mb-4 max-h-48 overflow-auto rounded-lg border border-crust-100 p-2">
+                  <div className="mb-4 max-h-[26rem] overflow-auto rounded-lg border border-crust-100 p-2">
                     {menu.map((cat) => (
-                      <div key={cat.id} className="mb-2">
-                        <p className="px-1 text-xs font-semibold uppercase text-crust-400">{cat.nombre}</p>
-                        {cat.productos.map((p) => (
-                          <button key={p.id} onClick={() => { setProdSel(p); setMods({}); }} className="flex w-full justify-between rounded px-2 py-1 text-left text-sm hover:bg-crust-50">
-                            <span>{p.nombre}</span><span className="text-crust-500">{formatUYU(p.precio)}</span>
-                          </button>
-                        ))}
+                      <div key={cat.id} className="mb-3">
+                        <p className="mb-1 px-1 text-xs font-semibold uppercase text-crust-400">{cat.nombre}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {cat.productos.map((p) => (
+                            <ProductoCard
+                              key={p.id}
+                              nombre={p.nombre}
+                              precio={p.precio}
+                              descripcion={p.descripcion}
+                              imagenUrl={p.imagenUrl}
+                              destacado={p.destacado}
+                              onClick={() => { setProdSel(p); setMods({}); }}
+                            />
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>

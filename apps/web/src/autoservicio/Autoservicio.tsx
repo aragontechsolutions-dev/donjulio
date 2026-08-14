@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { showToast } from "../lib/toast";
 import { formatUYU } from "../lib/format";
+import ProductoCard from "../lib/ProductoCard";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
 
 interface Modifier { id: string; nombre: string; priceDelta: string }
 interface Grupo { group: { id: string; nombre: string; minSelect: number; maxSelect: number; modifiers: Modifier[] } }
-interface Prod { id: string; nombre: string; precio: string; modifierGroups: Grupo[] }
+interface Prod { id: string; nombre: string; precio: string; descripcion: string | null; imagenUrl: string | null; destacado: boolean; modifierGroups: Grupo[] }
 interface Cat { id: string; nombre: string; productos: Prod[] }
 interface Silla { id: string; numero: number; nombre: string | null }
 interface CuentaItem {
@@ -196,12 +197,17 @@ export default function Autoservicio() {
           {menu.map((cat) => (
             <div key={cat.id}>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-crust-400">{cat.nombre}</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {cat.productos.map((p) => (
-                  <button key={p.id} onClick={() => elegir(p)} className="rounded-xl border border-crust-200 bg-white p-3 text-left active:bg-crust-50">
-                    <span className="block font-medium text-crust-800">{p.nombre}</span>
-                    <span className="text-sm text-crust-500">{formatUYU(p.precio)}</span>
-                  </button>
+                  <ProductoCard
+                    key={p.id}
+                    nombre={p.nombre}
+                    precio={p.precio}
+                    descripcion={p.descripcion}
+                    imagenUrl={p.imagenUrl}
+                    destacado={p.destacado}
+                    onClick={() => elegir(p)}
+                  />
                 ))}
               </div>
             </div>

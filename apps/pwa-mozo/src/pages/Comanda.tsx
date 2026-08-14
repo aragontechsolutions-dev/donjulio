@@ -9,7 +9,7 @@ import type { MesaSel } from "../App";
 
 interface Modifier { id: string; nombre: string; priceDelta: string }
 interface Grupo { group: { id: string; nombre: string; minSelect: number; maxSelect: number; modifiers: Modifier[] } }
-interface Prod { id: string; nombre: string; precio: string; modifierGroups: Grupo[] }
+interface Prod { id: string; nombre: string; precio: string; descripcion: string | null; imagenUrl: string | null; destacado: boolean; modifierGroups: Grupo[] }
 interface Cat { id: string; nombre: string; productos: Prod[] }
 interface Silla { id: string; numero: number; nombre: string | null }
 interface CuentaItem {
@@ -294,11 +294,22 @@ export default function Comanda({
         {menu.map((cat) => (
           <div key={cat.id}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-crust-400">{cat.nombre}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {cat.productos.map((p) => (
-                <button key={p.id} onClick={() => elegir(p)} className="rounded-xl border border-crust-200 bg-white p-3 text-left active:bg-crust-50">
-                  <span className="block font-medium text-crust-800">{p.nombre}</span>
-                  <span className="text-sm text-crust-500">{formatUYU(p.precio)}</span>
+                <button key={p.id} onClick={() => elegir(p)} className="group flex flex-col overflow-hidden rounded-2xl border border-crust-100 bg-white text-left shadow-sm transition-all active:scale-[.98]">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-crust-100">
+                    {p.imagenUrl ? (
+                      <img src={p.imagenUrl} alt={p.nombre} loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center text-4xl text-crust-300">🥐</div>
+                    )}
+                    {p.destacado && <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-crust-700 shadow-sm">★</span>}
+                  </div>
+                  <div className="flex flex-1 flex-col p-2.5">
+                    <span className="text-sm font-semibold leading-tight text-crust-800">{p.nombre}</span>
+                    {p.descripcion && <p className="mt-0.5 line-clamp-2 text-xs text-crust-500">{p.descripcion}</p>}
+                    <span className="mt-auto pt-1.5 text-sm font-bold text-crust-700">{formatUYU(p.precio)}</span>
+                  </div>
                 </button>
               ))}
             </div>
