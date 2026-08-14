@@ -242,7 +242,7 @@ export class SalonService {
     const mesa = await this.mesaByToken(token);
     const cuenta = await this.cuentaMesa(mesa.id).catch(() => null);
     return {
-      mesa: { id: mesa.id, numero: mesa.numero, sillas: mesa.sillas },
+      mesa: { id: mesa.id, numero: mesa.numero, status: mesa.status, sillas: mesa.sillas },
       cuenta,
     };
   }
@@ -551,6 +551,14 @@ export class SalonService {
           this.prisma.mesa.update({
             where: { id: pedido.mesaId },
             data: { status: TableStatus.LIBRE },
+          }),
+        );
+        // Al cerrar la mesa, limpia los nombres de las sillas: el próximo grupo
+        // (autoservicio) arranca de cero y no se acumulan sillas nombradas.
+        ops.push(
+          this.prisma.silla.updateMany({
+            where: { mesaId: pedido.mesaId },
+            data: { nombre: null },
           }),
         );
       }

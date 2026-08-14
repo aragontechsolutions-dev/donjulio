@@ -16,7 +16,7 @@ interface CuentaItem {
   producto: { nombre: string }; modificadores: { nombre: string }[];
 }
 interface Estado {
-  mesa: { id: string; numero: number; sillas: Silla[] };
+  mesa: { id: string; numero: number; status: string; sillas: Silla[] };
   cuenta: { id: string; numero: number; total: string; items: CuentaItem[] } | null;
 }
 interface CartLine { key: string; producto: Prod; modificadorIds: string[]; modLabels: string[]; precio: number; sillaId: string | null }
@@ -64,19 +64,32 @@ export default function Autoservicio() {
     return () => clearInterval(t);
   }, [token]);
 
-  // Reconcilia el comensal guardado con las sillas actuales de la mesa.
+  const resetCliente = () => {
+    setComensalId("");
+    setComensalNombre("");
+    setNombreInput("");
+    setCart([]);
+    setProdSel(null);
+    localStorage.removeItem(STORE_KEY);
+  };
+
+  // Reconcilia el comensal guardado con el estado de la mesa. Si la mesa se
+  // cerró (se pagó todo → sillas sin nombre) o el comensal ya no existe, deja
+  // el tablet como nuevo para el próximo grupo.
   useEffect(() => {
     if (!estado || !comensalId) return;
     const porId = estado.mesa.sillas.find((s) => s.id === comensalId);
-    if (porId) return;
+    if (porId) {
+      // La silla existe pero su nombre fue limpiado (mesa cerrada) → reset.
+      if ((porId.nombre ?? "").trim().toLowerCase() !== comensalNombre.trim().toLowerCase()) resetCliente();
+      return;
+    }
     const porNombre = estado.mesa.sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === comensalNombre.trim().toLowerCase());
     if (porNombre) {
       setComensalId(porNombre.id);
       localStorage.setItem(STORE_KEY, JSON.stringify({ id: porNombre.id, nombre: porNombre.nombre }));
     } else {
-      setComensalId("");
-      setComensalNombre("");
-      localStorage.removeItem(STORE_KEY);
+      resetCliente();
     }
   }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -204,16 +217,16 @@ export default function Autoservicio() {
           <div className="mb-4 rounded-2xl border border-crust-100 bg-white p-4">
             <p className="mb-1 font-display text-lg font-semibold text-crust-800">¡Hola! 👋</p>
             <p className="mb-3 text-sm text-crust-500">Ingresá tu nombre para pedir (así podés dividir la cuenta después).</p>
-            <form onSubmit={(e) => { e.preventDefault(); identificar(nombreInput); }} className="flex gap-2">
+            <form onSubmit={(e) => { e.preventDefault(); identificar(nombreInput); }} className="flex flex-col gap-2 sm:flex-row">
               <input
                 value={nombreInput}
                 onChange={(e) => setNombreInput(e.target.value)}
                 placeholder="Tu nombre"
-                className="flex-1 rounded-xl border border-crust-200 px-3 py-2.5"
+                className="w-full min-w-0 flex-1 rounded-xl border border-crust-200 px-3 py-2.5"
                 autoFocus
               />
-              <button type="submit" disabled={identificando || !nombreInput.trim()} className="rounded-xl bg-crust-600 px-5 py-2.5 font-semibold text-white active:bg-crust-700 disabled:opacity-50">
-                {identificando ? "…" : "Entrar"}
+              <button type="submit" disabled={identificando || !nombreInput.trim()} className="w-full shrink-0 rounded-xl bg-crust-600 px-5 py-2.5 font-semibold text-white active:bg-crust-700 disabled:opacity-50 sm:w-auto">
+                {identificando ? "Entrando…" : "Entrar"}
               </button>
             </form>
             {sillas.filter((s) => s.nombre?.trim()).length > 0 && (
@@ -326,7 +339,7 @@ export default function Autoservicio() {
               ))}
             </div>
             <button onClick={enviar} disabled={enviando} className="w-full rounded-xl bg-crust-600 py-3.5 text-lg font-semibold text-white active:bg-crust-700 disabled:opacity-50">
-              {enviando ? "Enviando…" : `Enviar a cocina · ${formatUYU(cartTotal)}`}
+              {enviando ? "Enviando…" : `Enviar pedido · ${formatUYU(cartTotal)}`}
             </button>
           </div>
         </div>

@@ -25,7 +25,7 @@ export default function Mesas({ onSelect }: { onSelect: (m: MesaSel) => void }) 
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [fromCache, setFromCache] = useState(false);
 
-  useEffect(() => {
+  const load = () =>
     api
       .get<Mesa[]>("/admin/salon/mesas")
       .then((m) => {
@@ -40,6 +40,12 @@ export default function Mesas({ onSelect }: { onSelect: (m: MesaSel) => void }) 
           setFromCache(true);
         }
       });
+
+  useEffect(() => {
+    load();
+    // Tiempo real: refresca la disponibilidad de mesas cada 5s.
+    const t = setInterval(() => { if (navigator.onLine) load(); }, 5000);
+    return () => clearInterval(t);
   }, []);
 
   return (
