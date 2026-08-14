@@ -242,9 +242,35 @@ export class SalonService {
     const mesa = await this.mesaByToken(token);
     const cuenta = await this.cuentaMesa(mesa.id).catch(() => null);
     return {
-      mesa: { id: mesa.id, numero: mesa.numero, status: mesa.status, sillas: mesa.sillas },
+      mesa: {
+        id: mesa.id,
+        numero: mesa.numero,
+        status: mesa.status,
+        pideCuentaAt: mesa.pideCuentaAt,
+        sillas: mesa.sillas,
+      },
       cuenta,
     };
+  }
+
+  /** El cliente avisa desde el autoservicio que quiere pagar. */
+  async pedirCuenta(token: string) {
+    const mesa = await this.mesaByToken(token);
+    await this.prisma.mesa.update({
+      where: { id: mesa.id },
+      data: { pideCuentaAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /** El mozo/cajero marca como atendido el aviso de "pedir la cuenta". */
+  async atenderCuenta(mesaId: string) {
+    const mesa = await this.getMesa(mesaId);
+    await this.prisma.mesa.update({
+      where: { id: mesa.id },
+      data: { pideCuentaAt: null },
+    });
+    return { ok: true };
   }
 
   /** Comanda desde el autoservicio: valida el token y agrega ítems (sin mozo). */
@@ -550,7 +576,7 @@ export class SalonService {
         ops.push(
           this.prisma.mesa.update({
             where: { id: pedido.mesaId },
-            data: { status: TableStatus.LIBRE },
+            data: { status: TableStatus.LIBRE, pideCuentaAt: null },
           }),
         );
         // Al cerrar la mesa, limpia los nombres de las sillas: el próximo grupo

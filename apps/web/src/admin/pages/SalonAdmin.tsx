@@ -18,6 +18,7 @@ interface Mesa {
   posY: number;
   forma: string;
   qrToken: string;
+  pideCuentaAt: string | null;
   zona: { id: string; nombre: string } | null;
   sillas: Silla[];
   pedidoAbierto: { id: string; numero: number; total: number; itemsCount: number; mozo: string | null } | null;
@@ -478,6 +479,11 @@ export default function SalonAdmin() {
                   className={`relative flex flex-col items-center justify-center ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600 ring-offset-1" : ""}`}
                 >
                   <TableIcon forma={m.forma} fill={statusColor(m.status).fill} stroke={statusColor(m.status).stroke} size={TILE} />
+                  {m.pideCuentaAt && (
+                    <span className="absolute -top-1 -right-1 z-20 animate-pulse rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow" title="El cliente pidió la cuenta">
+                      🧾
+                    </span>
+                  )}
                   <div className="relative z-10 flex flex-col items-center justify-center leading-none" style={{ color: statusColor(m.status).text }}>
                     <span className="text-lg font-bold">{m.numero}</span>
                     <span className="text-[9px] font-semibold">👥{m.sillas.length}/{m.capacidad}</span>
@@ -581,6 +587,17 @@ export default function SalonAdmin() {
                 <h3 className="font-display text-lg font-semibold text-crust-800">Mesa {mesaSel?.numero} · #{cuenta.numero}</h3>
                 <span className="text-sm text-crust-500">{cuenta.mozo?.nombre}</span>
               </div>
+              {mesas.find((m) => m.id === mesaSel?.id)?.pideCuentaAt && (
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800">
+                  <span className="font-medium">🧾 El cliente pidió la cuenta</span>
+                  <button
+                    onClick={async () => { await api.post(`/admin/salon/mesas/${mesaSel!.id}/atender-cuenta`).catch(() => {}); loadMesas(); }}
+                    className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+                  >
+                    Atendido
+                  </button>
+                </div>
+              )}
 
               {/* Cuenta agrupada por comensal */}
               <div className="mb-3 max-h-52 space-y-3 overflow-auto text-sm">

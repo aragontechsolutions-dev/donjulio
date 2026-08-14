@@ -31,6 +31,12 @@ export class AutoservicioController {
     return this.salon.identificarComensal(token, dto.nombre);
   }
 
+  /** El cliente avisa al mozo que quiere pagar. */
+  @Post(":token/pedir-cuenta")
+  pedirCuenta(@Param("token") token: string) {
+    return this.salon.pedirCuenta(token);
+  }
+
   @Post(":token/comanda")
   comanda(@Param("token") token: string, @Body() dto: ComandaDto) {
     return this.salon.comandaAutoservicio(token, dto.items, dto.clientTxnId);

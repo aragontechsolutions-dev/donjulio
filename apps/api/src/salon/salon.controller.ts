@@ -75,6 +75,12 @@ export class SalonController {
     return this.salon.rotarToken(id);
   }
 
+  /** Marca como atendido el aviso de "pedir la cuenta" de una mesa. */
+  @Post("mesas/:id/atender-cuenta")
+  atenderCuenta(@Param("id") id: string) {
+    return this.salon.atenderCuenta(id);
+  }
+
   // ---------- Sillas / comensales ----------
   @Roles(UserRole.ADMIN)
   @Post("mesas/:id/sillas")

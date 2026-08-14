@@ -10,6 +10,7 @@ interface Mesa {
   numero: number;
   capacidad: number;
   status: string;
+  pideCuentaAt: string | null;
   pedidoAbierto: { total: number; itemsCount: number; mozo: string | null } | null;
 }
 
@@ -68,8 +69,13 @@ export default function Mesas({ onSelect }: { onSelect: (m: MesaSel) => void }) 
           <button
             key={m.id}
             onClick={() => onSelect({ id: m.id, numero: m.numero })}
-            className={`min-h-[110px] rounded-2xl border-2 p-4 text-left active:scale-95 ${COLOR[m.status] ?? "border-crust-200"}`}
+            className={`relative min-h-[110px] rounded-2xl border-2 p-4 text-left active:scale-95 ${m.pideCuentaAt ? "border-amber-500 bg-amber-50 ring-2 ring-amber-300" : COLOR[m.status] ?? "border-crust-200"}`}
           >
+            {m.pideCuentaAt && (
+              <span className="absolute -top-2 right-2 animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                🧾 PIDE CUENTA
+              </span>
+            )}
             <div className="flex items-center justify-between">
               <span className="font-display text-3xl font-bold text-crust-800">{m.numero}</span>
               <span className="text-xs text-crust-500">👥 {m.capacidad}</span>

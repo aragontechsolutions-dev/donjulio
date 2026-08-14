@@ -569,6 +569,7 @@ model Mesa {
   posY       Int         @default(20)
   forma      String      @default("CUADRADA") // CUADRADA | CIRCULAR
   qrToken    String      @unique @default(uuid()) // token para el autoservicio por mesa (QR/tablet)
+  pideCuentaAt DateTime? // el cliente pidió la cuenta desde el autoservicio (se limpia al cobrar)
 
   pedidos Pedido[]
   sillas  Silla[]

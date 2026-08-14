@@ -16,7 +16,7 @@ interface CuentaItem {
   producto: { nombre: string }; modificadores: { nombre: string }[];
 }
 interface Estado {
-  mesa: { id: string; numero: number; status: string; sillas: Silla[] };
+  mesa: { id: string; numero: number; status: string; pideCuentaAt: string | null; sillas: Silla[] };
   cuenta: { id: string; numero: number; total: string; items: CuentaItem[] } | null;
 }
 interface CartLine { key: string; producto: Prod; modificadorIds: string[]; modLabels: string[]; precio: number; sillaId: string | null }
@@ -50,6 +50,8 @@ export default function Autoservicio() {
   const [nombreInput, setNombreInput] = useState<string>("");
   const [identificando, setIdentificando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [pidiendoCuenta, setPidiendoCuenta] = useState(false);
+  const [despedida, setDespedida] = useState(false);
 
   const STORE_KEY = `auto:${token}:comensal`;
 
@@ -64,13 +66,32 @@ export default function Autoservicio() {
     return () => clearInterval(t);
   }, [token]);
 
-  const resetCliente = () => {
+  /** Limpia el tablet. Con `conDespedida`, muestra el agradecimiento primero. */
+  const resetCliente = (conDespedida = false) => {
     setComensalId("");
     setComensalNombre("");
     setNombreInput("");
     setCart([]);
     setProdSel(null);
     localStorage.removeItem(STORE_KEY);
+    if (conDespedida) {
+      setDespedida(true);
+      setTimeout(() => setDespedida(false), 6000);
+    }
+  };
+
+  const pedirCuenta = async () => {
+    setPidiendoCuenta(true);
+    try {
+      const r = await fetch(`${BASE}/autoservicio/${token}/pedir-cuenta`, { method: "POST" });
+      if (!r.ok) throw new Error();
+      showToast("success", "¡Listo! El mozo ya viene a cobrar 🧾");
+      loadEstado();
+    } catch {
+      showToast("error", "No se pudo avisar. Llamá al mozo, por favor.");
+    } finally {
+      setPidiendoCuenta(false);
+    }
   };
 
   // Reconcilia el comensal guardado con el estado de la mesa. Si la mesa se
@@ -81,7 +102,7 @@ export default function Autoservicio() {
     const porId = estado.mesa.sillas.find((s) => s.id === comensalId);
     if (porId) {
       // La silla existe pero su nombre fue limpiado (mesa cerrada) → reset.
-      if ((porId.nombre ?? "").trim().toLowerCase() !== comensalNombre.trim().toLowerCase()) resetCliente();
+      if ((porId.nombre ?? "").trim().toLowerCase() !== comensalNombre.trim().toLowerCase()) resetCliente(true);
       return;
     }
     const porNombre = estado.mesa.sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === comensalNombre.trim().toLowerCase());
@@ -89,7 +110,7 @@ export default function Autoservicio() {
       setComensalId(porNombre.id);
       localStorage.setItem(STORE_KEY, JSON.stringify({ id: porNombre.id, nombre: porNombre.nombre }));
     } else {
-      resetCliente();
+      resetCliente(true);
     }
   }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -194,6 +215,22 @@ export default function Autoservicio() {
     );
   }
 
+  if (despedida) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-crust-50 p-6 text-center">
+        <div className="animate-[fadeIn_.4s_ease-out]">
+          <p className="text-6xl">👋</p>
+          <h1 className="mt-4 font-display text-3xl font-bold text-crust-800">¡Gracias por tu visita!</h1>
+          <p className="mt-2 text-crust-500">Te esperamos pronto en Don Julio 🥖</p>
+          <button onClick={() => setDespedida(false)} className="mt-6 rounded-xl border border-crust-200 bg-white px-5 py-2.5 text-sm font-semibold text-crust-700">
+            Comenzar nuevo pedido
+          </button>
+        </div>
+        <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}`}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-crust-50 pb-40">
       <header className="sticky top-0 z-20 border-b border-crust-100 bg-white px-4 py-3 shadow-sm">
@@ -272,7 +309,19 @@ export default function Autoservicio() {
                 <span>Total</span><span>{formatUYU(estado.cuenta.total)}</span>
               </p>
             )}
-            <p className="mt-2 text-center text-xs text-crust-400">Para pagar, avisá al mozo. 🙂</p>
+            {estado?.mesa.pideCuentaAt ? (
+              <p className="mt-3 rounded-xl bg-green-100 px-3 py-2.5 text-center text-sm font-medium text-green-800">
+                🧾 Ya avisamos al mozo. Enseguida pasa a cobrar.
+              </p>
+            ) : (
+              <button
+                onClick={pedirCuenta}
+                disabled={pidiendoCuenta}
+                className="mt-3 w-full rounded-xl bg-crust-700 py-3 font-semibold text-white active:bg-crust-800 disabled:opacity-50"
+              >
+                {pidiendoCuenta ? "Avisando…" : "🧾 Pedir la cuenta"}
+              </button>
+            )}
           </div>
         )}
 
