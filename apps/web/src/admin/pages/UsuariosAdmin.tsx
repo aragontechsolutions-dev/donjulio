@@ -7,6 +7,9 @@ interface Usuario {
   email: string;
   nombre: string;
   role: string;
+  localId?: string;
+  numeroEmpleado?: number;
+  pinHash?: boolean;
 }
 
 const ROLES = Object.values(UserRole);
@@ -32,6 +35,25 @@ export default function UsuariosAdmin() {
       await api.post("/admin/usuarios", form);
       setOk(`Usuario ${form.email} creado`);
       setForm({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  /** PIN de 4-6 dígitos para fichar en el tablet del local. */
+  const definirPin = async (u: Usuario) => {
+    if (!u.localId) {
+      setError("Este usuario todavía no inició sesión, así que no tiene ficha local para fichar.");
+      return;
+    }
+    const pin = prompt(`PIN de fichaje para ${u.nombre} (4 a 6 dígitos). Su número de empleado es ${u.numeroEmpleado ?? "—"}:`);
+    if (!pin) return;
+    setError(null);
+    setOk(null);
+    try {
+      await api.post(`/admin/usuarios/${u.localId}/pin`, { pin });
+      setOk(`PIN actualizado. ${u.nombre} ficha con el número ${u.numeroEmpleado} y ese PIN.`);
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -97,6 +119,7 @@ export default function UsuariosAdmin() {
         <table className="w-full text-sm">
           <thead className="bg-crust-50 text-left text-crust-600">
             <tr>
+              <th className="px-4 py-3 text-center">N°</th>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Rol</th>
@@ -106,6 +129,11 @@ export default function UsuariosAdmin() {
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id} className="border-t border-crust-50">
+                <td className="px-4 py-3 text-center">
+                  <span className="inline-grid h-7 w-7 place-items-center rounded-full bg-crust-100 text-xs font-bold text-crust-700" title="Número de empleado para fichar">
+                    {u.numeroEmpleado ?? "—"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 font-medium text-crust-800">{u.nombre}</td>
                 <td className="px-4 py-3 text-crust-500">{u.email}</td>
                 <td className="px-4 py-3">
@@ -114,13 +142,16 @@ export default function UsuariosAdmin() {
                   </select>
                 </td>
                 <td className="px-4 py-3 text-right">
+                  <button onClick={() => definirPin(u)} className={`mr-2 rounded-lg border px-3 py-1.5 text-sm ${u.pinHash ? "border-crust-200 text-crust-700 hover:bg-crust-100" : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>
+                    {u.pinHash ? "Cambiar PIN" : "Asignar PIN"}
+                  </button>
                   <button onClick={() => resetear(u)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1.5 text-sm text-crust-700 hover:bg-crust-100">Resetear contraseña</button>
                   <button onClick={() => eliminar(u)} className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
                 </td>
               </tr>
             ))}
             {usuarios.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-crust-400">No hay usuarios.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-crust-400">No hay usuarios.</td></tr>
             )}
           </tbody>
         </table>

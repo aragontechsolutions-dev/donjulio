@@ -189,6 +189,9 @@ model Usuario {
   nombre       String
   role         UserRole @default(CAJERO)
   activo       Boolean  @default(true)
+  // Fichaje en el tablet del local: número correlativo + PIN de 4 dígitos.
+  numeroEmpleado Int    @unique @default(autoincrement())
+  pinHash        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -930,4 +933,10 @@ model Reserva {
   @@index([fechaHora])
   @@index([status])
   @@index([mesaId])
+}
+
+/// Tablet de fichaje del local (singleton): token del dispositivo.
+model KioscoFichaje {
+  id    String @id @default("default")
+  token String @unique @default(uuid())
 }

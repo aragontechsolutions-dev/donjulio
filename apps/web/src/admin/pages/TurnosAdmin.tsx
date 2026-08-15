@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { api } from "../../lib/api";
+import { showToast } from "../../lib/toast";
 
 interface UsuarioRef { id: string; nombre: string; role: string }
 interface Turno { id: string; inicio: string; fin: string | null; horas: number | null; usuario: UsuarioRef }
@@ -15,20 +17,28 @@ const desdeHace = (iso: string) => {
 };
 
 export default function TurnosAdmin() {
-  const [mio, setMio] = useState<TurnoAbierto | null>(null);
   const [enTurno, setEnTurno] = useState<TurnoAbierto[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [dias, setDias] = useState(14);
+  const [kiosco, setKiosco] = useState<{ token: string } | null>(null);
+  const [qr, setQr] = useState("");
 
+  const loadKiosco = () => api.get<{ token: string }>("/admin/turnos/kiosco").then(setKiosco).catch(() => {});
   const load = () => {
-    api.get<TurnoAbierto | null>("/admin/turnos/actual").then(setMio).catch(() => {});
     api.get<TurnoAbierto[]>("/admin/turnos/en-turno").then(setEnTurno).catch(() => {});
     api.get<Turno[]>(`/admin/turnos?dias=${dias}`).then(setTurnos).catch(() => {});
   };
   useEffect(load, [dias]);
+  useEffect(() => { loadKiosco(); }, []);
 
-  const fichar = async (accion: "entrada" | "salida") => {
-    try { await api.post(`/admin/turnos/${accion}`); load(); } catch { /* toast del api */ }
+  const kioscoUrl = kiosco ? `${window.location.origin}/fichaje/${kiosco.token}` : "";
+  useEffect(() => {
+    if (kioscoUrl) QRCode.toDataURL(kioscoUrl, { width: 200, margin: 1 }).then(setQr).catch(() => setQr(""));
+  }, [kioscoUrl]);
+
+  const rotarKiosco = async () => {
+    if (!confirm("¿Generar un enlace nuevo? El tablet actual dejará de funcionar hasta que lo vuelvas a abrir.")) return;
+    try { await api.post("/admin/turnos/kiosco/rotar"); loadKiosco(); } catch { /* toast */ }
   };
 
   // Horas por persona en el período consultado.
@@ -47,27 +57,25 @@ export default function TurnosAdmin() {
       <h1 className="mb-1 font-display text-2xl font-bold text-crust-800">Turnos</h1>
       <p className="mb-4 text-sm text-crust-500">Fichaje de entrada y salida del personal.</p>
 
-      {/* Mi turno */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
-        <div>
-          <p className="text-sm text-crust-500">Mi turno</p>
-          {mio ? (
-            <p className="font-semibold text-green-700">
-              En turno desde las {hora(mio.inicio)} · {desdeHace(mio.inicio)}
-            </p>
-          ) : (
-            <p className="font-semibold text-crust-600">No estás fichado</p>
-          )}
+      {/* Tablet de fichaje */}
+      <div className="mb-6 flex flex-wrap items-center gap-5 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+        {qr && <img src={qr} alt="QR del tablet de fichaje" className="h-28 w-28 rounded-lg" />}
+        <div className="min-w-[240px] flex-1">
+          <h3 className="font-semibold text-crust-800">Tablet de fichaje</h3>
+          <p className="mb-2 text-sm text-crust-500">
+            Abrí este enlace en el tablet del local. El personal ficha con su <b>número de empleado</b> y
+            su <b>PIN</b>, sin necesidad de tener cuenta ni de iniciar sesión.
+          </p>
+          <p className="break-all rounded-lg bg-crust-50 px-2 py-1 text-xs text-crust-500">{kioscoUrl}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button onClick={() => { navigator.clipboard?.writeText(kioscoUrl); showToast("success", "Enlace copiado ✓"); }} className="rounded-lg bg-crust-100 px-3 py-1.5 text-xs font-semibold text-crust-700 hover:bg-crust-200">Copiar enlace</button>
+            <a href={kioscoUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-crust-100 px-3 py-1.5 text-xs font-semibold text-crust-700 hover:bg-crust-200">Abrir</a>
+            <button onClick={rotarKiosco} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">Regenerar</button>
+          </div>
+          <p className="mt-2 text-xs text-crust-400">
+            El número y el PIN de cada persona se gestionan en <b>Usuarios</b>.
+          </p>
         </div>
-        {mio ? (
-          <button onClick={() => fichar("salida")} className="rounded-lg bg-crust-800 px-5 py-2.5 font-semibold text-white hover:bg-crust-900">
-            Fichar salida
-          </button>
-        ) : (
-          <button onClick={() => fichar("entrada")} className="rounded-lg bg-green-600 px-5 py-2.5 font-semibold text-white hover:bg-green-700">
-            Fichar entrada
-          </button>
-        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

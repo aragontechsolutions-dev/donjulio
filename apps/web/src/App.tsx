@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import LandingPage from "./landing/LandingPage";
 import Autoservicio from "./autoservicio/Autoservicio";
+import Fichaje from "./fichaje/Fichaje";
 import AdminLogin from "./admin/AdminLogin";
 import AdminLayout from "./admin/AdminLayout";
 import Dashboard from "./admin/pages/Dashboard";
@@ -44,6 +45,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/mesa/:token" element={<Autoservicio />} />
+      <Route path="/fichaje/:token" element={<Fichaje />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route
         path="/admin"

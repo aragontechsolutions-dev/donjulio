@@ -21,10 +21,21 @@ import {
   IsString,
   Min,
 } from "class-validator";
+import { randomUUID } from "node:crypto";
+import * as bcrypt from "bcryptjs";
 import { AuthUser, ReservaStatus, TableStatus, UserRole } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { CurrentUser, Roles } from "../auth/decorators";
+import { CurrentUser, Public, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
+
+class FicharKioscoDto {
+  @IsInt() @Min(1) numeroEmpleado!: number;
+  @IsString() pin!: string;
+}
+
+class SetPinDto {
+  @IsString() pin!: string;
+}
 
 class CreateReservaDto {
   @IsString() nombre!: string;
@@ -99,6 +110,68 @@ export class StaffService {
       orderBy: { inicio: "asc" },
       include: { usuario: { select: { id: true, nombre: true, role: true } } },
     });
+  }
+
+  // ───────────────────── Kiosco de fichaje (tablet) ─────────────────────
+  /** Config del kiosco (singleton). La crea la primera vez. */
+  async getKiosco() {
+    const k = await this.prisma.kioscoFichaje.findUnique({ where: { id: "default" } });
+    return k ?? this.prisma.kioscoFichaje.create({ data: { id: "default" } });
+  }
+
+  /** Invalida el token anterior del tablet. */
+  async rotarKiosco() {
+    await this.getKiosco();
+    return this.prisma.kioscoFichaje.update({
+      where: { id: "default" },
+      data: { token: randomUUID() },
+    });
+  }
+
+  private async validarKiosco(token: string) {
+    const k = await this.prisma.kioscoFichaje.findUnique({ where: { token } });
+    if (!k) throw new NotFoundException("Dispositivo de fichaje no autorizado");
+    return k;
+  }
+
+  /**
+   * Fichaje desde el tablet: número de empleado + PIN. Alterna entrada/salida
+   * según si la persona tiene un turno abierto.
+   */
+  async ficharKiosco(token: string, numeroEmpleado: number, pin: string) {
+    await this.validarKiosco(token);
+    const usuario = await this.prisma.usuario.findUnique({ where: { numeroEmpleado } });
+    // Mensaje genérico: no revela si el número existe.
+    const invalido = new BadRequestException("Número o PIN incorrecto.");
+    if (!usuario || !usuario.activo || !usuario.pinHash) throw invalido;
+    const ok = await bcrypt.compare(pin, usuario.pinHash);
+    if (!ok) throw invalido;
+
+    const abierto = await this.turnoActual(usuario.id);
+    if (abierto) {
+      const t = await this.prisma.shift.update({
+        where: { id: abierto.id },
+        data: { fin: new Date() },
+      });
+      const horas = Math.round(((t.fin!.getTime() - t.inicio.getTime()) / 3600000) * 100) / 100;
+      return { accion: "salida" as const, nombre: usuario.nombre, hora: t.fin, horas };
+    }
+    const t = await this.prisma.shift.create({ data: { usuarioId: usuario.id } });
+    return { accion: "entrada" as const, nombre: usuario.nombre, hora: t.inicio, horas: null };
+  }
+
+  /** Define o cambia el PIN de fichaje de un usuario (4 a 6 dígitos). */
+  async setPin(usuarioId: string, pin: string) {
+    if (!/^\d{4,6}$/.test(pin)) {
+      throw new BadRequestException("El PIN debe tener entre 4 y 6 dígitos.");
+    }
+    const u = await this.prisma.usuario.findUnique({ where: { id: usuarioId } });
+    if (!u) throw new NotFoundException("Usuario no encontrado");
+    await this.prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { pinHash: await bcrypt.hash(pin, 10) },
+    });
+    return { ok: true, numeroEmpleado: u.numeroEmpleado };
   }
 
   // ───────────────────────────── Reservas ─────────────────────────────
@@ -239,6 +312,25 @@ class StaffController {
     return this.svc.listTurnos(dias ? Number(dias) : 14);
   }
 
+  // ---- Kiosco de fichaje (admin) ----
+  @Roles(UserRole.ADMIN)
+  @Get("turnos/kiosco")
+  kiosco() {
+    return this.svc.getKiosco();
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post("turnos/kiosco/rotar")
+  rotarKiosco() {
+    return this.svc.rotarKiosco();
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post("usuarios/:id/pin")
+  setPin(@Param("id") id: string, @Body() dto: SetPinDto) {
+    return this.svc.setPin(id, dto.pin);
+  }
+
   // ---- Reservas ----
   @Get("reservas")
   listReservas(@Query("fecha") fecha?: string, @Query("status") status?: ReservaStatus) {
@@ -262,8 +354,20 @@ class StaffController {
   }
 }
 
+/** Endpoint público del tablet de fichaje, validado por el token del kiosco. */
+@Public()
+@Controller("fichaje")
+class FichajeController {
+  constructor(private readonly svc: StaffService) {}
+
+  @Post(":token")
+  fichar(@Param("token") token: string, @Body() dto: FicharKioscoDto) {
+    return this.svc.ficharKiosco(token, dto.numeroEmpleado, dto.pin);
+  }
+}
+
 @Module({
-  controllers: [StaffController],
+  controllers: [StaffController, FichajeController],
   providers: [StaffService],
   exports: [StaffService],
 })

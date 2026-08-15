@@ -46,6 +46,11 @@ interface UsuarioView {
   email: string;
   nombre: string;
   role: string;
+  /** Id en la tabla local (para PIN/fichaje); en modo local coincide con id. */
+  localId?: string;
+  numeroEmpleado?: number;
+  /** Sólo indica si tiene PIN definido; nunca se expone el hash. */
+  pinHash?: boolean;
 }
 
 @Injectable()
@@ -73,15 +78,32 @@ export class UsersService {
     if (this.provider === "supabase") {
       const { data, error } = await this.sb().auth.admin.listUsers({ page: 1, perPage: 200 });
       if (error) throw error;
-      return data.users.map((u) => ({
-        id: u.id,
-        email: u.email ?? "",
-        nombre: (u.user_metadata?.nombre as string) ?? u.email ?? "",
-        role: (u.app_metadata?.role as string) ?? "CAJERO",
-      }));
+      // Los datos de fichaje (número y PIN) viven en la tabla local: se cruzan por email.
+      const locales = await this.prisma.usuario.findMany();
+      const porEmail = new Map(locales.map((l) => [l.email.toLowerCase(), l]));
+      return data.users.map((u) => {
+        const local = porEmail.get((u.email ?? "").toLowerCase());
+        return {
+          id: u.id,
+          email: u.email ?? "",
+          nombre: (u.user_metadata?.nombre as string) ?? u.email ?? "",
+          role: (u.app_metadata?.role as string) ?? "CAJERO",
+          localId: local?.id,
+          numeroEmpleado: local?.numeroEmpleado,
+          pinHash: !!local?.pinHash,
+        };
+      });
     }
     const users = await this.prisma.usuario.findMany({ orderBy: { nombre: "asc" } });
-    return users.map((u) => ({ id: u.id, email: u.email, nombre: u.nombre, role: u.role }));
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      nombre: u.nombre,
+      role: u.role,
+      localId: u.id,
+      numeroEmpleado: u.numeroEmpleado,
+      pinHash: !!u.pinHash,
+    }));
   }
 
   async create(dto: CreateUsuarioDto): Promise<UsuarioView> {
