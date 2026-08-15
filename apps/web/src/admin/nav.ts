@@ -36,9 +36,12 @@ export const NAV: NavItem[] = [
   { to: "/admin/usuarios", label: "Usuarios", icon: "👤", roles: [ADMIN] },
 ];
 
-/** Secciones visibles para un rol. */
-export const navFor = (role?: string): NavItem[] =>
-  NAV.filter((i) => !!role && i.roles.includes(role as UserRole));
+/** Secciones visibles para un rol (tolerante al formato del rol recibido). */
+export const navFor = (role?: string): NavItem[] => {
+  const r = (role ?? "").trim().toUpperCase();
+  if (!r) return [];
+  return NAV.filter((i) => i.roles.some((x) => x === r));
+};
 
 /** Primera sección disponible: a dónde mandar a quien no ve el Dashboard. */
 export const homeFor = (role?: string): string => navFor(role)[0]?.to ?? "/admin";

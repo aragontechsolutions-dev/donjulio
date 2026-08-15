@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { showToast } from "../lib/toast";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -8,7 +10,8 @@ import { supabase } from "../lib/supabase";
  * se limpia el flag must_change_password en su metadata.
  */
 export default function ChangePassword() {
-  const { logout, refresh } = useAuth();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +30,11 @@ export default function ChangePassword() {
         data: { must_change_password: false },
       });
       if (error) throw new Error(error.message);
-      await refresh(); // el flag ya está en false → entra al panel
+      // Se cierra la sesión y se vuelve al login: así el próximo ingreso usa
+      // un token nuevo, sin el flag de cambio obligatorio.
+      showToast("success", "Contraseña cambiada correctamente. Ingresá con la nueva.");
+      await logout();
+      navigate("/admin/login", { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {
