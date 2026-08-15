@@ -6,6 +6,7 @@ import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 import Modal from "../../lib/Modal";
 import ProductoCard from "../../lib/ProductoCard";
+import { useAuth } from "../../lib/auth";
 
 interface Zona { id: string; nombre: string }
 interface Area { id: string; nombre: string; x: number; y: number; ancho: number; alto: number }
@@ -108,6 +109,9 @@ function QrMesa({ url }: { url: string }) {
 }
 
 export default function SalonAdmin() {
+  const { user } = useAuth();
+  // Sólo el admin edita el plano del salón; el resto opera las mesas.
+  const esAdmin = (user?.role ?? "").toUpperCase() === "ADMIN";
   const [mode, setMode] = useState<"operar" | "editar">("operar");
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
@@ -512,6 +516,7 @@ export default function SalonAdmin() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-crust-800">Salón / Mesas</h1>
+        {esAdmin && (
         <div className="flex rounded-full bg-crust-100 p-1">
           {(["operar", "editar"] as const).map((m) => (
             <button
@@ -523,6 +528,7 @@ export default function SalonAdmin() {
             </button>
           ))}
         </div>
+        )}
       </div>
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

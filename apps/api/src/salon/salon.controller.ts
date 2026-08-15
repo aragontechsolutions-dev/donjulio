@@ -120,6 +120,7 @@ export class SalonController {
     return this.salon.addSilla(id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Patch("sillas/:id")
   updateSilla(@Param("id") id: string, @Body() dto: UpdateSillaDto) {
     return this.salon.updateSilla(id, dto);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
+import { useAuth } from "../../lib/auth";
 
 interface UsuarioRef { id: string; nombre: string; role: string }
 interface Turno { id: string; inicio: string; fin: string | null; horas: number | null; usuario: UsuarioRef }
@@ -17,6 +18,9 @@ const desdeHace = (iso: string, ahora: number) => {
 };
 
 export default function TurnosAdmin() {
+  const { user } = useAuth();
+  // El enlace y el QR del tablet de fichaje son sólo del admin.
+  const esAdmin = (user?.role ?? "").toUpperCase() === "ADMIN";
   const [enTurno, setEnTurno] = useState<TurnoAbierto[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [dias, setDias] = useState(14);
@@ -34,7 +38,7 @@ export default function TurnosAdmin() {
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [dias]);
-  useEffect(() => { loadKiosco(); }, []);
+  useEffect(() => { if (esAdmin) loadKiosco(); }, [esAdmin]);
 
   // Reloj para que "desde hace X" avance solo mientras la pantalla está abierta.
   const [ahora, setAhora] = useState(Date.now());
@@ -69,7 +73,8 @@ export default function TurnosAdmin() {
       <h1 className="mb-1 font-display text-2xl font-bold text-crust-800">Turnos</h1>
       <p className="mb-4 text-sm text-crust-500">Fichaje de entrada y salida del personal.</p>
 
-      {/* Tablet de fichaje */}
+      {/* Tablet de fichaje (sólo admin) */}
+      {esAdmin && (
       <div className="mb-6 flex flex-wrap items-center gap-5 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
         {qr && <img src={qr} alt="QR del tablet de fichaje" className="h-28 w-28 rounded-lg" />}
         <div className="min-w-[240px] flex-1">
@@ -89,6 +94,7 @@ export default function TurnosAdmin() {
           </p>
         </div>
       </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* En turno ahora */}
