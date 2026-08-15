@@ -6,6 +6,7 @@ const NAV = [
   { to: "/admin/salon", label: "Salón / Mesas", icon: "🍽️" },
   { to: "/admin/kds", label: "Cocina (KDS)", icon: "🔔" },
   { to: "/admin/pedidos", label: "Pedidos", icon: "🧾" },
+  { to: "/admin/encargos", label: "Encargos", icon: "🎂" },
   { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳" },
   { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },
   { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦" },

@@ -17,6 +17,7 @@ import { MermasModule } from "./mermas/mermas.module";
 import { CashModule } from "./cash/cash.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SalonModule } from "./salon/salon.module";
+import { CustomOrdersModule } from "./custom-orders/custom-orders.module";
 import { AutoservicioModule } from "./autoservicio/autoservicio.module";
 import { KdsModule } from "./kds/kds.module";
 import { StorageModule } from "./integrations/storage/storage.module";
@@ -45,6 +46,7 @@ import { HealthController } from "./health.controller";
     ReportsModule,
     SalonModule,
     AutoservicioModule,
+    CustomOrdersModule,
     KdsModule,
     StorageModule,
     UsersModule,

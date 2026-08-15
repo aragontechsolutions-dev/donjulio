@@ -6,6 +6,7 @@ import AdminLayout from "./admin/AdminLayout";
 import Dashboard from "./admin/pages/Dashboard";
 import ProductosAdmin from "./admin/pages/ProductosAdmin";
 import PedidosAdmin from "./admin/pages/PedidosAdmin";
+import EncargosAdmin from "./admin/pages/EncargosAdmin";
 import PromocionesAdmin from "./admin/pages/PromocionesAdmin";
 import CmsAdmin from "./admin/pages/CmsAdmin";
 import InsumosAdmin from "./admin/pages/InsumosAdmin";
@@ -52,6 +53,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="productos" element={<ProductosAdmin />} />
         <Route path="pedidos" element={<PedidosAdmin />} />
+        <Route path="encargos" element={<EncargosAdmin />} />
         <Route path="promociones" element={<PromocionesAdmin />} />
         <Route path="cms" element={<CmsAdmin />} />
         <Route path="insumos" element={<InsumosAdmin />} />
