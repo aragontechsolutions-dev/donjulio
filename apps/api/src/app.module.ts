@@ -18,6 +18,7 @@ import { CashModule } from "./cash/cash.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SalonModule } from "./salon/salon.module";
 import { CustomOrdersModule } from "./custom-orders/custom-orders.module";
+import { StaffModule } from "./staff/staff.module";
 import { AutoservicioModule } from "./autoservicio/autoservicio.module";
 import { KdsModule } from "./kds/kds.module";
 import { StorageModule } from "./integrations/storage/storage.module";
@@ -47,6 +48,7 @@ import { HealthController } from "./health.controller";
     SalonModule,
     AutoservicioModule,
     CustomOrdersModule,
+    StaffModule,
     KdsModule,
     StorageModule,
     UsersModule,

@@ -7,6 +7,7 @@ const NAV = [
   { to: "/admin/kds", label: "Cocina (KDS)", icon: "🔔" },
   { to: "/admin/pedidos", label: "Pedidos", icon: "🧾" },
   { to: "/admin/encargos", label: "Encargos", icon: "🎂" },
+  { to: "/admin/reservas", label: "Reservas", icon: "📅" },
   { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳" },
   { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },
   { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦" },
@@ -17,6 +18,7 @@ const NAV = [
   { to: "/admin/productos", label: "Productos", icon: "🥖" },
   { to: "/admin/promociones", label: "Promociones", icon: "🏷️" },
   { to: "/admin/cms", label: "Contenido web", icon: "✏️" },
+  { to: "/admin/turnos", label: "Turnos", icon: "⏱️" },
   { to: "/admin/usuarios", label: "Usuarios", icon: "👤" },
 ];
 

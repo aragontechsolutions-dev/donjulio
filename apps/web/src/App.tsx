@@ -18,6 +18,8 @@ import CajaAdmin from "./admin/pages/CajaAdmin";
 import ReportesAdmin from "./admin/pages/ReportesAdmin";
 import SalonAdmin from "./admin/pages/SalonAdmin";
 import KdsAdmin from "./admin/pages/KdsAdmin";
+import ReservasAdmin from "./admin/pages/ReservasAdmin";
+import TurnosAdmin from "./admin/pages/TurnosAdmin";
 import UsuariosAdmin from "./admin/pages/UsuariosAdmin";
 import ChangePassword from "./admin/ChangePassword";
 import { useAuth } from "./lib/auth";
@@ -66,6 +68,8 @@ export default function App() {
         <Route path="reportes" element={<ReportesAdmin />} />
         <Route path="salon" element={<SalonAdmin />} />
         <Route path="kds" element={<KdsAdmin />} />
+        <Route path="reservas" element={<ReservasAdmin />} />
+        <Route path="turnos" element={<TurnosAdmin />} />
         <Route path="usuarios" element={<UsuariosAdmin />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

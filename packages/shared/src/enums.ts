@@ -191,3 +191,12 @@ export enum CustomOrderStatus {
   ENTREGADO = "ENTREGADO",
   CANCELADO = "CANCELADO",
 }
+
+/** Estado de una reserva de mesa. */
+export enum ReservaStatus {
+  PENDIENTE = "PENDIENTE",
+  CONFIRMADA = "CONFIRMADA",
+  SENTADA = "SENTADA",
+  CANCELADA = "CANCELADA",
+  NO_SHOW = "NO_SHOW",
+}

@@ -166,6 +166,14 @@ enum CustomOrderStatus {
   CANCELADO
 }
 
+enum ReservaStatus {
+  PENDIENTE
+  CONFIRMADA
+  SENTADA
+  CANCELADA
+  NO_SHOW
+}
+
 enum PromoTipoDescuento {
   PORCENTAJE
   MONTO_FIJO
@@ -578,8 +586,9 @@ model Mesa {
   qrToken    String      @unique @default(uuid()) // token para el autoservicio por mesa (QR/tablet)
   pideCuentaAt DateTime? // el cliente pidió la cuenta desde el autoservicio (se limpia al cobrar)
 
-  pedidos Pedido[]
-  sillas  Silla[]
+  pedidos  Pedido[]
+  sillas   Silla[]
+  reservas Reserva[]
 
   @@unique([numero])
   @@index([zonaId])
@@ -902,4 +911,23 @@ model RotuladoProducto {
   contieneCafeina      Boolean @default(false)
 
   updatedAt DateTime @updatedAt
+}
+
+/// Reserva de mesa (por teléfono, web o mostrador).
+model Reserva {
+  id        String        @id @default(uuid())
+  mesaId    String?
+  mesa      Mesa?         @relation(fields: [mesaId], references: [id])
+  nombre    String
+  telefono  String?
+  personas  Int           @default(2)
+  fechaHora DateTime
+  status    ReservaStatus @default(PENDIENTE)
+  notas     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([fechaHora])
+  @@index([status])
+  @@index([mesaId])
 }
