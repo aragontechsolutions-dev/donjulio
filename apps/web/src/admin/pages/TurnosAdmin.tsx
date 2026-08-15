@@ -9,9 +9,9 @@ interface TurnoAbierto { id: string; inicio: string; usuario?: UsuarioRef }
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-UY", { weekday: "short", day: "2-digit", month: "2-digit" });
 const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }) : "—");
-/** Duración legible desde el inicio hasta ahora. */
-const desdeHace = (iso: string) => {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+/** Duración legible desde el inicio hasta `ahora`. */
+const desdeHace = (iso: string, ahora: number) => {
+  const min = Math.max(0, Math.floor((ahora - new Date(iso).getTime()) / 60000));
   const h = Math.floor(min / 60);
   return h > 0 ? `${h} h ${min % 60} min` : `${min} min`;
 };
@@ -28,8 +28,20 @@ export default function TurnosAdmin() {
     api.get<TurnoAbierto[]>("/admin/turnos/en-turno").then(setEnTurno).catch(() => {});
     api.get<Turno[]>(`/admin/turnos?dias=${dias}`).then(setTurnos).catch(() => {});
   };
-  useEffect(load, [dias]);
+  // Tiempo real: refresca entradas y salidas cada 5s (sin recargar la página).
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [dias]);
   useEffect(() => { loadKiosco(); }, []);
+
+  // Reloj para que "desde hace X" avance solo mientras la pantalla está abierta.
+  const [ahora, setAhora] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, []);
 
   const kioscoUrl = kiosco ? `${window.location.origin}/fichaje/${kiosco.token}` : "";
   useEffect(() => {
@@ -85,11 +97,15 @@ export default function TurnosAdmin() {
           <ul className="space-y-2 text-sm">
             {enTurno.map((t) => (
               <li key={t.id} className="flex items-center justify-between border-b border-crust-50 pb-2">
-                <span className="text-crust-800">
+                <span className="flex items-center gap-2 text-crust-800">
+                  <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-green-500" aria-hidden />
                   {t.usuario?.nombre}
-                  <span className="ml-2 text-xs text-crust-400">{t.usuario?.role}</span>
+                  <span className="text-xs text-crust-400">{t.usuario?.role}</span>
                 </span>
-                <span className="text-xs text-crust-500">desde {hora(t.inicio)}</span>
+                <span className="text-right text-xs text-crust-500">
+                  desde {hora(t.inicio)}
+                  <span className="block text-crust-400">{desdeHace(t.inicio, ahora)}</span>
+                </span>
               </li>
             ))}
             {enTurno.length === 0 && <li className="text-crust-400">Nadie fichado en este momento.</li>}
