@@ -11,6 +11,7 @@ const NAV = [
   { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },
   { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦" },
   { to: "/admin/mermas", label: "Mermas", icon: "🗑️" },
+  { to: "/admin/trazabilidad", label: "Trazabilidad", icon: "🔎" },
   { to: "/admin/caja", label: "Caja", icon: "💵" },
   { to: "/admin/reportes", label: "Reportes", icon: "📈" },
   { to: "/admin/productos", label: "Productos", icon: "🥖" },

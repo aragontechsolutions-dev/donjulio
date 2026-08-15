@@ -419,6 +419,8 @@ model InsumoLote {
   costoUnitario Decimal   @db.Decimal(12, 4)
   recibidoAt    DateTime  @default(now())
 
+  movimientos MovimientoStock[]
+
   @@index([insumoId])
   @@index([vencimiento])
 }
@@ -431,6 +433,9 @@ model MovimientoStock {
   cantidad          Decimal           @db.Decimal(12, 3)
   costoUnitario     Decimal           @db.Decimal(12, 4) @default(0)
   motivo            String?
+  // Lote de insumo consumido/ingresado (trazabilidad).
+  insumoLoteId      String?
+  insumoLote        InsumoLote?       @relation(fields: [insumoLoteId], references: [id])
   ordenProduccionId String?
   ordenProduccion   OrdenProduccion?  @relation(fields: [ordenProduccionId], references: [id])
   usuarioId         String?
@@ -438,6 +443,7 @@ model MovimientoStock {
   createdAt         DateTime          @default(now())
 
   @@index([insumoId])
+  @@index([insumoLoteId])
   @@index([ordenProduccionId])
   @@index([createdAt])
 }

@@ -83,4 +83,25 @@ export class InventoryController {
   alertasVencimiento(@Query("dias") dias?: string) {
     return this.inv.alertasVencimiento(dias ? Number(dias) : 7);
   }
+
+  // ---------- Trazabilidad de lote ----------
+  @Get("trazabilidad/lotes-producidos")
+  lotesProducidos(@Query("q") q?: string) {
+    return this.inv.listLotesProducidos(q);
+  }
+
+  @Get("trazabilidad/lotes-insumo")
+  lotesInsumo(@Query("q") q?: string) {
+    return this.inv.listLotesInsumo(q);
+  }
+
+  @Get("trazabilidad/producido/:id")
+  trazaProducido(@Param("id") id: string) {
+    return this.inv.trazaLoteProducido(id);
+  }
+
+  @Get("trazabilidad/insumo/:id")
+  trazaInsumo(@Param("id") id: string) {
+    return this.inv.trazaLoteInsumo(id);
+  }
 }

@@ -140,18 +140,15 @@ export class ProductionService {
     return this.prisma.$transaction(async (tx) => {
       for (const iid of insumoIds) {
         const insumo = insumos.find((i) => i.id === iid);
-        await this.inventory.applyMovement(
-          iid,
-          StockMovementType.SALIDA,
-          -(bom.get(iid) ?? 0),
-          {
-            costoUnitario: num(insumo?.costoUnitario),
-            motivo: `Producción orden ${orden.id.slice(0, 8)}`,
-            ordenProduccionId: orden.id,
-            usuarioId,
-            tx,
-          },
-        );
+        // Consumo por FEFO: descuenta de los lotes que vencen antes y deja
+        // registrado qué lote se usó (trazabilidad).
+        await this.inventory.consumirFefo(iid, bom.get(iid) ?? 0, {
+          costoUnitario: num(insumo?.costoUnitario),
+          motivo: `Producción orden ${orden.id.slice(0, 8)}`,
+          ordenProduccionId: orden.id,
+          usuarioId,
+          tx,
+        });
       }
       return tx.ordenProduccion.update({
         where: { id: orden.id },

@@ -13,6 +13,7 @@ import InsumosAdmin from "./admin/pages/InsumosAdmin";
 import RecetasAdmin from "./admin/pages/RecetasAdmin";
 import ProduccionAdmin from "./admin/pages/ProduccionAdmin";
 import MermasAdmin from "./admin/pages/MermasAdmin";
+import TrazabilidadAdmin from "./admin/pages/TrazabilidadAdmin";
 import CajaAdmin from "./admin/pages/CajaAdmin";
 import ReportesAdmin from "./admin/pages/ReportesAdmin";
 import SalonAdmin from "./admin/pages/SalonAdmin";
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="recetas" element={<RecetasAdmin />} />
         <Route path="produccion" element={<ProduccionAdmin />} />
         <Route path="mermas" element={<MermasAdmin />} />
+        <Route path="trazabilidad" element={<TrazabilidadAdmin />} />
         <Route path="caja" element={<CajaAdmin />} />
         <Route path="reportes" element={<ReportesAdmin />} />
         <Route path="salon" element={<SalonAdmin />} />
