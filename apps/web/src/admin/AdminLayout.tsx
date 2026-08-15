@@ -1,30 +1,18 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-
-const NAV = [
-  { to: "/admin", label: "Dashboard", icon: "📊", end: true },
-  { to: "/admin/salon", label: "Salón / Mesas", icon: "🍽️" },
-  { to: "/admin/kds", label: "Cocina (KDS)", icon: "🔔" },
-  { to: "/admin/pedidos", label: "Pedidos", icon: "🧾" },
-  { to: "/admin/encargos", label: "Encargos", icon: "🎂" },
-  { to: "/admin/reservas", label: "Reservas", icon: "📅" },
-  { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳" },
-  { to: "/admin/recetas", label: "Recetas y costos", icon: "📖" },
-  { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦" },
-  { to: "/admin/mermas", label: "Mermas", icon: "🗑️" },
-  { to: "/admin/trazabilidad", label: "Trazabilidad", icon: "🔎" },
-  { to: "/admin/caja", label: "Caja", icon: "💵" },
-  { to: "/admin/reportes", label: "Reportes", icon: "📈" },
-  { to: "/admin/productos", label: "Productos", icon: "🥖" },
-  { to: "/admin/promociones", label: "Promociones", icon: "🏷️" },
-  { to: "/admin/cms", label: "Contenido web", icon: "✏️" },
-  { to: "/admin/turnos", label: "Turnos", icon: "⏱️" },
-  { to: "/admin/usuarios", label: "Usuarios", icon: "👤" },
-];
+import { homeFor, navFor } from "./nav";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
+  // Cada rol ve sólo las secciones que la API le permite.
+  const nav = navFor(user?.role);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  // Acceso directo por URL a una sección sin permiso → a su primera sección.
+  const permitida =
+    pathname === "/admin" || nav.some((i) => i.to !== "/admin" && pathname.startsWith(i.to));
+  if (user && !permitida) return <Navigate to={homeFor(user.role)} replace />;
 
   return (
     <div className="flex min-h-screen bg-crust-50">
@@ -33,7 +21,7 @@ export default function AdminLayout() {
           <span>🥖</span> Don Julio
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

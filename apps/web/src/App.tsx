@@ -24,6 +24,7 @@ import TurnosAdmin from "./admin/pages/TurnosAdmin";
 import UsuariosAdmin from "./admin/pages/UsuariosAdmin";
 import ChangePassword from "./admin/ChangePassword";
 import { useAuth } from "./lib/auth";
+import { homeFor, navFor } from "./admin/nav";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -38,6 +39,14 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   // Fuerza el cambio de contraseña en el primer login / tras un reset.
   if (user.mustChangePassword) return <ChangePassword />;
   return children;
+}
+
+/** El Dashboard es sólo de admin: al resto se lo lleva a su primera sección. */
+function AdminHome() {
+  const { user } = useAuth();
+  const puedeDashboard = navFor(user?.role).some((i) => i.to === "/admin");
+  if (puedeDashboard) return <Dashboard />;
+  return <Navigate to={homeFor(user?.role)} replace />;
 }
 
 export default function App() {
@@ -55,7 +64,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<AdminHome />} />
         <Route path="productos" element={<ProductosAdmin />} />
         <Route path="pedidos" element={<PedidosAdmin />} />
         <Route path="encargos" element={<EncargosAdmin />} />
