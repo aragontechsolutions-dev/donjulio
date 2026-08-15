@@ -46,7 +46,7 @@ export default function LandingPage() {
         <Nosotros contenido={data.contenido} />
         <Productos categorias={menu} loading={menuLoading} />
         <Promociones promos={promos} />
-        <Galeria contenido={data.contenido} />
+        <Galeria contenido={data.contenido} fotos={data.galeria} />
         <Testimonios items={data.testimonios} />
         <Contacto contacto={data.contacto} horarios={data.horarios} />
       </main>

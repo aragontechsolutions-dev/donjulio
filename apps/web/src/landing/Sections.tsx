@@ -2,6 +2,7 @@ import { formatUYU, DIAS } from "../lib/format";
 import { scrollToSection } from "../lib/useScrollSpy";
 import type {
   Contacto,
+  GaleriaItem,
   Horario,
   LandingData,
   MenuCategoria,
@@ -193,8 +194,15 @@ export function Promociones({ promos }: { promos: Promocion[] }) {
   );
 }
 
-export function Galeria({ contenido }: { contenido: Record<string, string> }) {
-  const emojis = ["🥖", "🥐", "🍞", "🎂", "🧁", "☕"];
+export function Galeria({
+  contenido,
+  fotos,
+}: {
+  contenido: Record<string, string>;
+  fotos: GaleriaItem[];
+}) {
+  // Sin fotos cargadas la sección no se muestra (evita un bloque vacío).
+  if (fotos.length === 0) return null;
   return (
     <section id="galeria" className="bg-crust-50 py-20">
       <div className="mx-auto max-w-6xl px-4">
@@ -203,20 +211,31 @@ export function Galeria({ contenido }: { contenido: Record<string, string> }) {
         </h2>
         <div className="mx-auto mt-3 mb-12 h-1 w-16 rounded-full bg-crust-400" />
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {emojis.map((e, i) => (
-            <div
-              key={i}
-              className="grid aspect-square place-items-center rounded-2xl bg-crust-100 text-6xl"
+          {fotos.map((f, i) => (
+            <figure
+              key={f.id}
+              style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+              className="group relative aspect-square animate-[cardIn_.5s_ease-out_both] overflow-hidden rounded-2xl bg-crust-100 shadow-sm"
             >
-              {e}
-            </div>
+              <img
+                src={f.imagenUrl}
+                alt={f.titulo ?? "Foto de Don Julio"}
+                loading="lazy"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              {f.titulo && (
+                <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 text-sm font-medium text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                  {f.titulo}
+                </figcaption>
+              )}
+            </figure>
           ))}
         </div>
-        <p className="mt-6 text-center text-sm text-crust-500">
-          {contenido["galeria.nota"] ??
-            "Las fotos reales se cargan desde el panel (Supabase Storage)."}
-        </p>
+        {contenido["galeria.nota"] && (
+          <p className="mt-6 text-center text-sm text-crust-500">{contenido["galeria.nota"]}</p>
+        )}
       </div>
+      <style>{`@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}`}</style>
     </section>
   );
 }
