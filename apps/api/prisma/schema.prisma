@@ -250,6 +250,7 @@ model Producto {
   updatedAt        DateTime @updatedAt
 
   receta          Receta?
+  rotulado        RotuladoProducto?
   variantes       ProductVariant[]
   modifierGroups  ProductModifierGroup[]
   promociones     Promocion[]
@@ -859,4 +860,40 @@ model AreaMesas {
   alto    Int        @default(180)
 
   @@index([planoId])
+}
+
+/// Rotulado frontal y ficha nutricional de un producto (Decreto 272/018 y modificativos).
+/// Los valores nutricionales se declaran por 100 g (sólidos) o 100 ml (líquidos).
+model RotuladoProducto {
+  id         String   @id @default(uuid())
+  productoId String   @unique
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  porcion      String? // ej. "1 unidad (60 g)"
+  ingredientes String? // lista de ingredientes en orden decreciente
+  alergenos    String? // ej. "Contiene gluten, leche, huevo"
+  esLiquido    Boolean @default(false) // define los umbrales aplicables
+
+  // Ficha nutricional por 100 g / 100 ml
+  energiaKcal     Decimal? @db.Decimal(10, 2)
+  proteinas       Decimal? @db.Decimal(10, 2)
+  carbohidratos   Decimal? @db.Decimal(10, 2)
+  azucares        Decimal? @db.Decimal(10, 2)
+  grasasTotales   Decimal? @db.Decimal(10, 2)
+  grasasSaturadas Decimal? @db.Decimal(10, 2)
+  grasasTrans     Decimal? @db.Decimal(10, 2)
+  fibra           Decimal? @db.Decimal(10, 2)
+  sodioMg         Decimal? @db.Decimal(10, 2)
+
+  // Sellos frontales. Se sugieren desde los valores, pero pueden fijarse a mano.
+  autoOctogonos       Boolean @default(true)
+  excesoAzucares      Boolean @default(false)
+  excesoSodio         Boolean @default(false)
+  excesoGrasas        Boolean @default(false)
+  excesoGrasasSat     Boolean @default(false)
+  // Leyendas precautorias
+  contieneEdulcorantes Boolean @default(false)
+  contieneCafeina      Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
 }

@@ -1,5 +1,6 @@
 import { formatUYU, DIAS } from "../lib/format";
 import { scrollToSection } from "../lib/useScrollSpy";
+import Octogonos from "../lib/Octogonos";
 import type {
   Contacto,
   GaleriaItem,
@@ -140,16 +141,23 @@ export function Productos({
                             ★ Destacado
                           </span>
                         )}
+                        {/* Sellos frontales (Decreto 272/018) */}
+                        {p.rotulado && (
+                          <Octogonos flags={p.rotulado} size={38} className="absolute bottom-2 left-2" />
+                        )}
                       </div>
                       {/* Nombre, descripción y precio debajo */}
                       <div className="flex flex-1 flex-col p-5">
                         <h4 className="font-semibold text-crust-900">{p.nombre}</h4>
                         {p.descripcion && (
-                          <p className="mt-1 mb-4 flex-1 text-sm text-crust-600">
+                          <p className="mt-1 flex-1 text-sm text-crust-600">
                             {p.descripcion}
                           </p>
                         )}
-                        <p className="mt-auto text-lg font-bold text-crust-700">
+                        {p.rotulado?.alergenos && (
+                          <p className="mt-2 text-xs text-crust-400">⚠ {p.rotulado.alergenos}</p>
+                        )}
+                        <p className="mt-4 text-lg font-bold text-crust-700">
                           {formatUYU(p.precio)}
                         </p>
                       </div>

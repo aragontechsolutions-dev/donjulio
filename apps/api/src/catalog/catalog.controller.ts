@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from "@nestjs/common";
 import { UserRole } from "@donjulio/shared";
@@ -17,6 +18,7 @@ import {
   CreateProductoDto,
   UpdateCategoriaDto,
   UpdateProductoDto,
+  UpsertRotuladoDto,
 } from "./catalog.dto";
 
 @Controller()
@@ -88,5 +90,18 @@ export class CatalogController {
   @Delete("admin/productos/:id")
   removeProducto(@Param("id") id: string) {
     return this.catalog.removeProducto(id);
+  }
+
+  // -------- Rotulado frontal (Decreto 272/018) --------
+  @Get("admin/productos/:id/rotulado")
+  getRotulado(@Param("id") id: string) {
+    return this.catalog.getRotulado(id);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.PRODUCCION)
+  @Put("admin/productos/:id/rotulado")
+  upsertRotulado(@Param("id") id: string, @Body() dto: UpsertRotuladoDto) {
+    return this.catalog.upsertRotulado(id, dto);
   }
 }

@@ -1,3 +1,11 @@
+export interface RotuladoPublic {
+  excesoAzucares: boolean;
+  excesoSodio: boolean;
+  excesoGrasas: boolean;
+  excesoGrasasSat: boolean;
+  alergenos: string | null;
+}
+
 export interface MenuProducto {
   id: string;
   nombre: string;
@@ -5,6 +13,7 @@ export interface MenuProducto {
   precio: string;
   imagenUrl: string | null;
   destacado: boolean;
+  rotulado?: RotuladoPublic | null;
 }
 
 export interface MenuCategoria {

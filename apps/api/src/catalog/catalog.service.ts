@@ -1,11 +1,18 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { calcularOctogonos } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateCategoriaDto,
   CreateProductoDto,
   UpdateCategoriaDto,
   UpdateProductoDto,
+  UpsertRotuladoDto,
 } from "./catalog.dto";
+
+/** Decimal de Prisma → número (o null) para los cálculos de rotulado. */
+const num = (d: Prisma.Decimal | number | null | undefined): number | null =>
+  d == null ? null : typeof d === "number" ? d : Number(d);
 
 @Injectable()
 export class CatalogService {
@@ -20,6 +27,18 @@ export class CatalogService {
         productos: {
           where: { disponible: true },
           orderBy: { nombre: "asc" },
+          // Sellos frontales para mostrarlos en la carta pública.
+          include: {
+            rotulado: {
+              select: {
+                excesoAzucares: true,
+                excesoSodio: true,
+                excesoGrasas: true,
+                excesoGrasasSat: true,
+                alergenos: true,
+              },
+            },
+          },
         },
       },
     });
@@ -71,6 +90,55 @@ export class CatalogService {
   async removeProducto(id: string) {
     await this.ensureProducto(id);
     return this.prisma.producto.delete({ where: { id } });
+  }
+
+  // ---- Rotulado frontal (Decreto 272/018) ----
+  async getRotulado(productoId: string) {
+    await this.ensureProducto(productoId);
+    return this.prisma.rotuladoProducto.findUnique({ where: { productoId } });
+  }
+
+  /**
+   * Crea o actualiza el rotulado. Con `autoOctogonos` (por defecto) los sellos
+   * se derivan de los valores nutricionales declarados; si se desactiva, se
+   * respetan los que se marquen a mano.
+   */
+  async upsertRotulado(productoId: string, dto: UpsertRotuladoDto) {
+    await this.ensureProducto(productoId);
+    const actual = await this.prisma.rotuladoProducto.findUnique({ where: { productoId } });
+    const data = { ...actual, ...dto };
+
+    let sellos = {
+      excesoAzucares: data.excesoAzucares ?? false,
+      excesoSodio: data.excesoSodio ?? false,
+      excesoGrasas: data.excesoGrasas ?? false,
+      excesoGrasasSat: data.excesoGrasasSat ?? false,
+    };
+    if (data.autoOctogonos !== false) {
+      sellos = calcularOctogonos(
+        {
+          azucares: num(data.azucares),
+          sodioMg: num(data.sodioMg),
+          grasasTotales: num(data.grasasTotales),
+          grasasSaturadas: num(data.grasasSaturadas),
+        },
+        data.esLiquido ?? false,
+      );
+    }
+    const payload = { ...dto, ...sellos };
+
+    const rotulado = await this.prisma.rotuladoProducto.upsert({
+      where: { productoId },
+      create: { productoId, ...payload },
+      update: payload,
+    });
+
+    // Mantiene sincronizado el flag del producto (se usa en la web y el POS).
+    const requiereOctogono =
+      sellos.excesoAzucares || sellos.excesoSodio || sellos.excesoGrasas || sellos.excesoGrasasSat;
+    await this.prisma.producto.update({ where: { id: productoId }, data: { requiereOctogono } });
+
+    return rotulado;
   }
 
   private async ensureCategoria(id: string) {
