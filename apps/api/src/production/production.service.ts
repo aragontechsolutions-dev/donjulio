@@ -24,12 +24,28 @@ export class ProductionService {
   list() {
     return this.prisma.ordenProduccion.findMany({
       orderBy: { createdAt: "desc" },
-      include: { receta: true, lotes: true },
+      // El producto de la receta: sin él, terminar la orden no genera lote.
+      include: {
+        receta: { include: { producto: { select: { id: true, nombre: true } } } },
+        lotes: true,
+      },
       take: 200,
     });
   }
 
-  create(dto: CreateOrdenDto) {
+  async create(dto: CreateOrdenDto) {
+    const receta = await this.prisma.receta.findUnique({
+      where: { id: dto.recetaId },
+      select: { isSubRecipe: true, nombre: true },
+    });
+    if (!receta) throw new NotFoundException("La receta elegida no existe.");
+    // Una sub-receta no produce nada registrable: consumiría insumos y no
+    // dejaría ni lote de producto ni stock. Se produce la receta que la usa.
+    if (receta.isSubRecipe) {
+      throw new BadRequestException(
+        `“${receta.nombre}” es una sub-receta: producila dentro de la receta que la usa.`,
+      );
+    }
     return this.prisma.ordenProduccion.create({
       data: {
         recetaId: dto.recetaId,
@@ -38,7 +54,7 @@ export class ProductionService {
           ? new Date(dto.planificadaPara)
           : null,
       },
-      include: { receta: true },
+      include: { receta: { include: { producto: { select: { id: true, nombre: true } } } } },
     });
   }
 
@@ -173,6 +189,8 @@ export class ProductionService {
       : null;
 
     return this.prisma.$transaction(async (tx) => {
+      // Sin producto asociado no hay dónde registrar lo producido: la orden se
+      // cierra igual, pero no genera lote ni trazabilidad.
       if (receta?.productoId) {
         await tx.productionLot.create({
           data: {
