@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FOOD_COST_OBJETIVO, RecipeCost, UnitOfMeasure } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
+import Buscador, { type OpcionBuscador } from "../../lib/Buscador";
 
 interface Receta {
   id: string;
@@ -13,7 +14,13 @@ interface Receta {
   producto: { nombre: string } | null;
 }
 interface Insumo { id: string; nombre: string; unidad: string }
-interface ProductoRef { id: string; nombre: string }
+interface ProductoRef {
+  id: string;
+  nombre: string;
+  precio: string;
+  esReventa: boolean;
+  receta?: { id: string; nombre: string } | null;
+}
 
 const UNIDADES = Object.values(UnitOfMeasure);
 
@@ -52,6 +59,56 @@ export default function RecetasAdmin() {
     api.get<ProductoRef[]>("/admin/productos").then(setProductos).catch(() => {});
   };
   useEffect(load, []);
+
+  /**
+   * Productos asociables. Los que ya tienen receta o son de reventa se
+   * muestran bloqueados con el motivo, en vez de esconderlos: así se entiende
+   * por qué no aparecen, que es la duda típica al asociar.
+   */
+  const opcionesProducto = useMemo<OpcionBuscador[]>(
+    () =>
+      productos.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        detalle: formatUYU(p.precio),
+        bloqueado: p.esReventa || !!p.receta,
+        motivo: p.esReventa ? "es de reventa" : p.receta ? `ya tiene “${p.receta.nombre}”` : undefined,
+      })),
+    [productos],
+  );
+
+  /** Insumos del stock y sub-recetas, en una sola lista agrupada. */
+  const opcionesIngrediente = useMemo<OpcionBuscador[]>(
+    () => [
+      ...insumos.map((i) => ({
+        id: `insumo:${i.id}`,
+        nombre: i.nombre,
+        detalle: i.unidad,
+        grupo: "Insumos",
+      })),
+      ...recetas
+        .filter((r) => r.isSubRecipe)
+        .map((r) => ({
+          id: `receta:${r.id}`,
+          nombre: r.nombre,
+          detalle: `${Number(r.yieldQty)} ${r.yieldUnit}`,
+          grupo: "Sub-recetas",
+        })),
+    ],
+    [insumos, recetas],
+  );
+
+  /**
+   * Unidad con la que conviene arrancar al elegir un ingrediente: la del
+   * insumo o el rendimiento de la sub-receta. Igual se puede cambiar, porque
+   * el backend convierte.
+   */
+  const unidadSugerida = (ref: string): string | undefined => {
+    const [tipo, id] = ref.split(":");
+    if (tipo === "insumo") return insumos.find((i) => i.id === id)?.unidad;
+    if (tipo === "receta") return recetas.find((r) => r.id === id)?.yieldUnit;
+    return undefined;
+  };
 
   const costear = async (id: string) => {
     setCost(null);
@@ -132,10 +189,14 @@ export default function RecetasAdmin() {
               {!form.isSubRecipe && (
                 <label className="block sm:col-span-2">
                   <span className="mb-1 block text-sm font-medium text-crust-700">Producto que se vende <span className="font-normal text-crust-400">(opcional)</span></span>
-                  <select value={form.productoId} onChange={(e) => setForm({ ...form, productoId: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
-                    <option value="">— sin asociar —</option>
-                    {productos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
+                  <Buscador
+                    opciones={opcionesProducto}
+                    valorId={form.productoId}
+                    onSelect={(id) => setForm({ ...form, productoId: id })}
+                    placeholder="Buscar producto por nombre…"
+                    opcionVacia="— sin asociar —"
+                    sinResultados="Ningún producto coincide. Crealo en Productos."
+                  />
                   <span className="mt-1 block text-xs text-crust-400">Asocialo para comparar el costo con el precio de venta y ver el <b>food cost</b> (objetivo {FOOD_COST_OBJETIVO.min}–{FOOD_COST_OBJETIVO.max}%).</span>
                 </label>
               )}
@@ -150,7 +211,10 @@ export default function RecetasAdmin() {
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-crust-700">Rendimiento (cantidad)</span>
                 <div className="flex gap-2">
-                  <input type="number" step="0.01" min="0.0001" value={form.yieldQty} onChange={(e) => setForm({ ...form, yieldQty: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
+                  {/* step="any": con step="0.01" y min="0.0001" el navegador
+                      consideraba inválido cualquier valor redondo (1, 24…) y
+                      bloqueaba el guardado sin mostrar nada. */}
+                  <input type="number" step="any" min="0.0001" value={form.yieldQty} onChange={(e) => setForm({ ...form, yieldQty: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
                   <select value={form.yieldUnit} onChange={(e) => setForm({ ...form, yieldUnit: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
                     {UNIDADES.map((u) => <option key={u}>{u}</option>)}
                   </select>
@@ -175,15 +239,13 @@ export default function RecetasAdmin() {
                 <div key={idx} className="flex flex-wrap items-end gap-2">
                   <label className="min-w-[180px] flex-1">
                     {idx === 0 && <span className="mb-1 block text-xs font-medium text-crust-600">Insumo o sub-receta</span>}
-                    <select value={ing.ref} onChange={(e) => setIngs(ings.map((x, i) => i === idx ? { ...x, ref: e.target.value } : x))} className="w-full rounded-lg border border-crust-200 px-3 py-2">
-                      <option value="">— elegir —</option>
-                      <optgroup label="Insumos">
-                        {insumos.map((i) => <option key={i.id} value={`insumo:${i.id}`}>{i.nombre} ({i.unidad})</option>)}
-                      </optgroup>
-                      <optgroup label="Sub-recetas">
-                        {recetas.filter((r) => r.isSubRecipe).map((r) => <option key={r.id} value={`receta:${r.id}`}>{r.nombre}</option>)}
-                      </optgroup>
-                    </select>
+                    <Buscador
+                      opciones={opcionesIngrediente}
+                      valorId={ing.ref}
+                      onSelect={(ref) => setIngs(ings.map((x, i) => (i === idx ? { ...x, ref, unidad: unidadSugerida(ref) ?? x.unidad } : x)))}
+                      placeholder="Buscar insumo o sub-receta…"
+                      sinResultados="Nada coincide. Cargalo en Insumos, o creá la sub-receta."
+                    />
                   </label>
                   <label className="w-28">
                     {idx === 0 && <span className="mb-1 block text-xs font-medium text-crust-600">Cantidad</span>}
@@ -237,7 +299,7 @@ export default function RecetasAdmin() {
         <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="bg-crust-50 text-left text-crust-600">
-              <tr><th className="px-4 py-3">Receta</th><th className="px-4 py-3">Rendimiento</th><th className="px-4 py-3"></th></tr>
+              <tr><th className="px-4 py-3">Receta</th><th className="px-4 py-3">Producto asociado</th><th className="px-4 py-3">Rendimiento</th><th className="px-4 py-3"></th></tr>
             </thead>
             <tbody>
               {recetas.map((r) => (
@@ -246,13 +308,24 @@ export default function RecetasAdmin() {
                     {r.nombre}
                     {r.isSubRecipe && <span className="ml-2 rounded-full bg-crust-100 px-2 py-0.5 text-xs text-crust-600">sub-receta</span>}
                   </td>
+                  <td className="px-4 py-3 text-sm">
+                    {r.producto ? (
+                      <span className="text-crust-700">{r.producto.nombre}</span>
+                    ) : r.isSubRecipe ? (
+                      <span className="text-crust-400">—</span>
+                    ) : (
+                      <span className="text-amber-600" title="Sin producto no se puede calcular el food cost">
+                        sin asociar
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-crust-500">{Number(r.yieldQty)} {r.yieldUnit}</td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => costear(r.id)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Costear</button>
                   </td>
                 </tr>
               ))}
-              {recetas.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-crust-400">No hay recetas.</td></tr>}
+              {recetas.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-crust-400">Todavía no cargaste recetas.</td></tr>}
             </tbody>
           </table>
         </div>

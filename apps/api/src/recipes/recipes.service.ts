@@ -42,8 +42,9 @@ export class RecipesService {
     return r;
   }
 
-  create(dto: CreateRecetaDto) {
+  async create(dto: CreateRecetaDto) {
     this.validateIngredientes(dto);
+    await this.validarProducto(dto);
     return this.prisma.receta.create({
       data: {
         nombre: dto.nombre,
@@ -71,6 +72,7 @@ export class RecipesService {
   async update(id: string, dto: UpdateRecetaDto) {
     await this.get(id);
     this.validateIngredientes(dto);
+    await this.validarProducto(dto, id);
     // Reemplaza los ingredientes por completo.
     return this.prisma.$transaction(async (tx) => {
       await tx.recetaIngrediente.deleteMany({ where: { recetaId: id } });
@@ -102,6 +104,35 @@ export class RecipesService {
 
   remove(id: string) {
     return this.prisma.receta.delete({ where: { id } });
+  }
+
+  /**
+   * Valida la asociación con el producto que se vende. `Receta.productoId` es
+   * único: sin esto, asociar un producto que ya tiene receta explota con un
+   * error de base que no dice nada.
+   */
+  private async validarProducto(dto: CreateRecetaDto, recetaId?: string) {
+    if (!dto.productoId) return;
+    if (dto.isSubRecipe) {
+      throw new BadRequestException(
+        "Una sub-receta no se vende sola: no puede asociarse a un producto.",
+      );
+    }
+    const producto = await this.prisma.producto.findUnique({
+      where: { id: dto.productoId },
+      select: { nombre: true, esReventa: true, receta: { select: { id: true, nombre: true } } },
+    });
+    if (!producto) throw new NotFoundException("El producto elegido no existe.");
+    if (producto.esReventa) {
+      throw new BadRequestException(
+        `“${producto.nombre}” está marcado como reventa: su costo sale del precio de compra, no de una receta.`,
+      );
+    }
+    if (producto.receta && producto.receta.id !== recetaId) {
+      throw new BadRequestException(
+        `“${producto.nombre}” ya tiene la receta “${producto.receta.nombre}”. Editá esa receta o elegí otro producto.`,
+      );
+    }
   }
 
   private validateIngredientes(dto: CreateRecetaDto) {

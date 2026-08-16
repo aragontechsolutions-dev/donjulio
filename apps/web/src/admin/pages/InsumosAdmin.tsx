@@ -5,7 +5,7 @@ import { formatUYU } from "../../lib/format";
 import { showToast } from "../../lib/toast";
 import { useDebounced } from "../../lib/useDebounced";
 import Modal from "../../lib/Modal";
-import BuscadorInsumo from "../../lib/BuscadorInsumo";
+import Buscador from "../../lib/Buscador";
 
 interface Insumo {
   id: string;
@@ -489,11 +489,18 @@ export default function InsumosAdmin() {
                     return (
                       <tr key={l.key} className="align-top">
                         <td className="py-1 pr-2">
-                          <BuscadorInsumo
-                            opciones={opciones}
+                          <Buscador
+                            opciones={opciones.map((o) => ({
+                              id: o.id,
+                              nombre: o.nombre,
+                              detalle: `${Number(o.stockActual)} ${o.unidad}`,
+                              bloqueado: yaElegidos.has(o.id),
+                              motivo: "ya está en el remito",
+                            }))}
                             valorId={l.insumoId}
-                            excluidos={yaElegidos}
                             onSelect={(id) => setLinea(l.key, { insumoId: id })}
+                            placeholder="Buscar insumo…"
+                            sinResultados="Ningún insumo coincide."
                           />
                         </td>
                         <td className="py-1 pr-2">
