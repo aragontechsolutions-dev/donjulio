@@ -26,10 +26,16 @@ import {
 } from "class-validator";
 import { randomUUID } from "node:crypto";
 import * as bcrypt from "bcryptjs";
+import { Throttle } from "@nestjs/throttler";
 import { AuthUser, ReservaStatus, TableStatus, UserRole } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser, Public, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
+
+/** Intentos fallidos de PIN por número de empleado (defensa contra fuerza bruta). */
+const intentosPin = new Map<string, { fallos: number; hasta: number }>();
+const numeroEmpteadoKey = (n: number) => `emp:${n}`;
+const MAX_FALLOS_PIN = 5;
 
 class FicharKioscoDto {
   @IsInt() @Min(1) numeroEmpleado!: number;
@@ -249,12 +255,28 @@ export class StaffService {
     const kiosco = await this.validarKiosco(token);
     await this.autorizarDispositivo(kiosco, deviceId, deviceNombre);
 
+    // Bloqueo temporal tras varios PIN fallidos para el mismo número.
+    const bloqueo = intentosPin.get(numeroEmpteadoKey(numeroEmpleado));
+    if (bloqueo && bloqueo.hasta > Date.now()) {
+      const seg = Math.ceil((bloqueo.hasta - Date.now()) / 1000);
+      throw new ForbiddenException(`Demasiados intentos. Esperá ${seg} s.`);
+    }
+
     const usuario = await this.prisma.usuario.findUnique({ where: { numeroEmpleado } });
-    // Mensaje genérico: no revela si el número existe.
-    const invalido = new BadRequestException("Número o PIN incorrecto.");
-    if (!usuario || !usuario.activo || !usuario.pinHash) throw invalido;
-    const ok = await bcrypt.compare(pin, usuario.pinHash);
-    if (!ok) throw invalido;
+    // Registra el fallo y responde siempre igual: no revela si el número existe.
+    const fallar = (): never => {
+      const k = numeroEmpteadoKey(numeroEmpleado);
+      const fallos = (intentosPin.get(k)?.fallos ?? 0) + 1;
+      intentosPin.set(k, {
+        fallos,
+        // A partir del 5º fallo seguido, 60 s de espera.
+        hasta: fallos >= MAX_FALLOS_PIN ? Date.now() + 60_000 : 0,
+      });
+      throw new BadRequestException("Número o PIN incorrecto.");
+    };
+    if (!usuario || !usuario.activo || !usuario.pinHash) return fallar();
+    if (!(await bcrypt.compare(pin, usuario.pinHash))) return fallar();
+    intentosPin.delete(numeroEmpteadoKey(numeroEmpleado));
 
     const ahora = new Date();
     const horario = await this.horarioDelDia(usuario.id, ahora);
@@ -567,6 +589,8 @@ class StaffController {
 class FichajeController {
   constructor(private readonly svc: StaffService) {}
 
+  // Un PIN de 4 dígitos es adivinable por fuerza bruta: se limita el ritmo.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post(":token")
   fichar(@Param("token") token: string, @Body() dto: FicharKioscoDto) {
     return this.svc.ficharKiosco(token, dto.numeroEmpleado, dto.pin, dto.deviceId, dto.deviceNombre);

@@ -33,7 +33,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         ? config.get<string>("SUPABASE_JWT_SECRET") ||
           config.get<string>("JWT_SECRET") ||
           "supabase-mode-unused"
-        : config.get<string>("JWT_SECRET", "dev-secret");
+        : config.get<string>("JWT_SECRET") || "dev-secret-solo-desarrollo";
+    if (
+      provider !== "supabase" &&
+      process.env.NODE_ENV === "production" &&
+      (!config.get<string>("JWT_SECRET") || (config.get<string>("JWT_SECRET") ?? "").length < 16)
+    ) {
+      throw new Error("JWT_SECRET no está configurado en producción.");
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,

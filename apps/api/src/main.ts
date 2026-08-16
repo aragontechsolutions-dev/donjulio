@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import helmet from "helmet";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -14,6 +15,15 @@ async function bootstrap() {
 
   // Sirve las imágenes subidas en modo Storage "local" (en prod se usa Supabase).
   app.useStaticAssets(join(process.cwd(), "uploads"), { prefix: "/uploads/" });
+
+  // Cabeceras de seguridad. crossOriginResourcePolicy en "cross-origin" para
+  // que las imágenes servidas en modo Storage local se puedan mostrar en la web.
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      contentSecurityPolicy: false, // la API no sirve HTML
+    }),
+  );
 
   app.setGlobalPrefix("api");
 
@@ -38,7 +48,8 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: false,
+      // Rechaza propiedades no declaradas en el DTO en vez de ignorarlas.
+      forbidNonWhitelisted: true,
     }),
   );
 

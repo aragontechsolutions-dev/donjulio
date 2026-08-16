@@ -24,6 +24,7 @@ import { AutoservicioModule } from "./autoservicio/autoservicio.module";
 import { KdsModule } from "./kds/kds.module";
 import { StorageModule } from "./integrations/storage/storage.module";
 import { UsersModule } from "./users/users.module";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -32,6 +33,8 @@ import { HealthController } from "./health.controller";
     // Render/producción las variables ya vienen del entorno; los archivos
     // faltantes se ignoran sin error.
     ConfigModule.forRoot({ isGlobal: true, envFilePath: [".env", "../../.env"] }),
+    // Límite global de peticiones por IP (defensa ante abuso y fuerza bruta).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     AuthModule,
     CatalogModule,
@@ -57,6 +60,8 @@ import { HealthController } from "./health.controller";
   ],
   controllers: [HealthController],
   providers: [
+    // El rate limit corre antes que la autenticación.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     // JWT global: todas las rutas requieren token salvo las marcadas @Public().
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
