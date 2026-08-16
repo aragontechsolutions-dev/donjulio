@@ -25,7 +25,7 @@ export default function MermasAdmin() {
 
   const load = () => {
     api.get<Merma[]>("/admin/mermas").then(setMermas).catch(() => {});
-    api.get<Insumo[]>("/admin/inventario/insumos").then(setInsumos).catch(() => {});
+    api.get<Insumo[]>("/admin/inventario/insumos/opciones").then(setInsumos).catch(() => {});
     api.get<Producto[]>("/admin/productos").then(setProductos).catch(() => {});
   };
   useEffect(load, []);

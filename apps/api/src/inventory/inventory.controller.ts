@@ -13,8 +13,10 @@ import { CurrentUser, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
 import { InventoryService } from "./inventory.service";
 import {
+  BulkEntryDto,
   CreateInsumoDto,
   CreateProveedorDto,
+  ListInsumosQueryDto,
   StockAdjustDto,
   StockEntryDto,
   UpdateInsumoDto,
@@ -36,9 +38,16 @@ export class InventoryController {
     return this.inv.createProveedor(dto);
   }
 
+  /** Lista liviana y completa, para los selectores de recetas y mermas.
+   *  Va antes que las rutas con :id para que "opciones" no se lea como un id. */
+  @Get("insumos/opciones")
+  listInsumosOpciones() {
+    return this.inv.listInsumosOpciones();
+  }
+
   @Get("insumos")
-  listInsumos() {
-    return this.inv.listInsumos();
+  listInsumos(@Query() query: ListInsumosQueryDto) {
+    return this.inv.listInsumos(query);
   }
 
   @Post("insumos")
@@ -54,6 +63,12 @@ export class InventoryController {
   @Get("insumos/:id/movimientos")
   movimientos(@Param("id") id: string) {
     return this.inv.movimientos(id);
+  }
+
+  /** Recepción de varios insumos de una vez (remito completo). */
+  @Post("entradas")
+  entradas(@Body() dto: BulkEntryDto, @CurrentUser() user: AuthUser) {
+    return this.inv.registrarEntradas(dto, user.id);
   }
 
   @Post("insumos/:id/entrada")

@@ -43,7 +43,17 @@ function successMsg(method: string): string {
 // No notificar en endpoints de autenticación (el flujo de login navega solo).
 const isAuthPath = (path: string) => path.startsWith("/auth");
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/** Opciones propias del cliente, además de las de fetch. */
+interface RequestOpts {
+  /** No mostrar el toast de éxito genérico: la pantalla muestra el suyo. */
+  sinToast?: boolean;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  opts: RequestOpts = {},
+): Promise<T> {
   const token = tokenStore.get();
   const method = (options.method ?? "GET").toUpperCase();
   const isMutation = method !== "GET";
@@ -79,15 +89,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, finalMsg);
   }
 
-  if (isMutation && !isAuthPath(path)) showToast("success", successMsg(method));
+  if (isMutation && !isAuthPath(path) && !opts.sinToast) {
+    showToast("success", successMsg(method));
+  }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) }),
+  post: <T>(path: string, body?: unknown, opts?: RequestOpts) =>
+    request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) }, opts),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
   put: <T>(path: string, body?: unknown) =>

@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { StockMovementType } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import {
+  BulkEntryDto,
   CreateInsumoDto,
   CreateProveedorDto,
+  INSUMOS_POR_PAGINA,
+  ListInsumosQueryDto,
   StockAdjustDto,
   StockEntryDto,
   UpdateInsumoDto,
@@ -12,6 +15,20 @@ import {
 
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
   d == null ? 0 : typeof d === "number" ? d : d.toNumber();
+
+// Nadie escribe los acentos al buscar: "azucar" tiene que encontrar "Azúcar".
+// Postgres no ignora acentos con ILIKE, así que se los saca de los dos lados
+// con translate(). Se usa esto en vez de la extensión `unaccent` para no
+// depender de que esté instalada en la base.
+const ACENTOS = "áàäâãéèëêíìïîóòöôõúùüûñç";
+const SIN_ACENTOS = "aaaaaeeeeiiiiooooouuuunc";
+
+/** Minúsculas y sin acentos, igual que hace el `translate` del SQL. */
+const plano = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** Escapa los comodines de LIKE para que se busquen como texto literal. */
+const escaparLike = (s: string) => s.replace(/([\\%_])/g, "\\$1");
 
 @Injectable()
 export class InventoryService {
@@ -27,10 +44,61 @@ export class InventoryService {
   }
 
   // ---------- Insumos ----------
-  listInsumos() {
-    return this.prisma.insumo.findMany({
+  /**
+   * Listado paginado con búsqueda por nombre. El panel lo llama en cada tecla,
+   * así que devuelve sólo la página pedida y el total para armar el paginador.
+   */
+  async listInsumos(query: ListInsumosQueryDto = {}) {
+    const perPage = query.perPage ?? INSUMOS_POR_PAGINA[0];
+    const q = query.q?.trim();
+    const where: Prisma.InsumoWhereInput = q
+      ? { id: { in: await this.buscarIds(q) } }
+      : {};
+
+    const total = await this.prisma.insumo.count({ where });
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    // Si se borran insumos o se filtra estando en la página 7, no dejar al
+    // panel mirando una página que ya no existe.
+    const page = Math.min(Math.max(1, query.page ?? 1), totalPages);
+
+    const items = await this.prisma.insumo.findMany({
+      where,
       orderBy: { nombre: "asc" },
       include: { proveedor: true },
+      skip: (page - 1) * perPage,
+      take: perPage,
+    });
+
+    return { items, total, page, perPage, totalPages };
+  }
+
+  /**
+   * Ids de los insumos cuyo nombre contiene `q`, ignorando mayúsculas y
+   * acentos. Devuelve ids y no filas para poder seguir paginando con Prisma.
+   */
+  private async buscarIds(q: string): Promise<string[]> {
+    const patron = `%${escaparLike(plano(q))}%`;
+    const filas = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Insumo"
+      WHERE translate(lower(nombre), ${ACENTOS}, ${SIN_ACENTOS}) LIKE ${patron} ESCAPE '\\'
+    `;
+    return filas.map((f) => f.id);
+  }
+
+  /**
+   * Lista completa y liviana, para los selectores de recetas y mermas, que
+   * necesitan todos los insumos y no paginan.
+   */
+  listInsumosOpciones() {
+    return this.prisma.insumo.findMany({
+      orderBy: { nombre: "asc" },
+      select: {
+        id: true,
+        nombre: true,
+        unidad: true,
+        costoUnitario: true,
+        stockActual: true,
+      },
     });
   }
 
@@ -153,6 +221,54 @@ export class InventoryService {
         tx,
       });
     });
+  }
+
+  /**
+   * Recepción de varios insumos de una sola vez (el remito de un proveedor).
+   *
+   * Valida todo antes de tocar nada: si un insumo no existe o viene repetido,
+   * no se aplica ninguna línea. Así el remito entra completo o no entra, sin
+   * dejar el stock a medio cargar.
+   */
+  async registrarEntradas(dto: BulkEntryDto, usuarioId?: string) {
+    const ids = dto.items.map((i) => i.insumoId);
+    const repetidos = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (repetidos.length > 0) {
+      throw new BadRequestException(
+        "Hay insumos repetidos en la lista. Juntá las cantidades en una sola línea.",
+      );
+    }
+
+    const insumos = await this.prisma.insumo.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, nombre: true, costoUnitario: true },
+    });
+    const porId = new Map(insumos.map((i) => [i.id, i]));
+    const faltantes = ids.filter((id) => !porId.has(id));
+    if (faltantes.length > 0) {
+      throw new NotFoundException(
+        `No se encontraron ${faltantes.length} de los insumos seleccionados. Recargá la página.`,
+      );
+    }
+
+    for (const item of dto.items) {
+      await this.registrarEntrada(
+        item.insumoId,
+        {
+          cantidad: item.cantidad,
+          costoUnitario: item.costoUnitario,
+          lote: item.lote,
+          vencimiento: item.vencimiento,
+          motivo: dto.motivo,
+        },
+        usuarioId,
+      );
+    }
+
+    return {
+      aplicados: dto.items.length,
+      insumos: dto.items.map((i) => porId.get(i.insumoId)!.nombre),
+    };
   }
 
   async ajustarStock(insumoId: string, dto: StockAdjustDto, usuarioId?: string) {

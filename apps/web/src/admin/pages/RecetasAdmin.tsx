@@ -48,7 +48,7 @@ export default function RecetasAdmin() {
 
   const load = () => {
     api.get<Receta[]>("/admin/recetas").then(setRecetas).catch(() => {});
-    api.get<Insumo[]>("/admin/inventario/insumos").then(setInsumos).catch(() => {});
+    api.get<Insumo[]>("/admin/inventario/insumos/opciones").then(setInsumos).catch(() => {});
     api.get<ProductoRef[]>("/admin/productos").then(setProductos).catch(() => {});
   };
   useEffect(load, []);

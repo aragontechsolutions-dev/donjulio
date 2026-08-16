@@ -1,12 +1,22 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { UnitOfMeasure } from "@donjulio/shared";
+
+/** Opciones de "insumos por página" que ofrece el panel. */
+export const INSUMOS_POR_PAGINA = [10, 20, 50, 100] as const;
 
 export class CreateProveedorDto {
   @IsString() nombre!: string;
@@ -50,4 +60,35 @@ export class StockAdjustDto {
 
 export class ExpiryQueryDto {
   @IsOptional() @IsInt() dias?: number;
+}
+
+/** Listado paginado de insumos, con búsqueda por nombre. */
+export class ListInsumosQueryDto {
+  /** Texto libre; filtra por nombre sin distinguir mayúsculas ni acentos. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+
+  @IsOptional() @Type(() => Number) @IsInt() @IsIn([...INSUMOS_POR_PAGINA]) perPage?: number;
+}
+
+/** Una línea de la entrada múltiple (un insumo del remito). */
+export class BulkEntryItemDto {
+  @IsString() insumoId!: string;
+  @IsNumber() @Min(0.0001) cantidad!: number;
+  @IsOptional() @IsNumber() @Min(0) costoUnitario?: number;
+  @IsOptional() @IsString() @MaxLength(60) lote?: string;
+  @IsOptional() @IsString() vencimiento?: string;
+}
+
+/** Recepción de varios insumos de una sola vez (un remito de proveedor). */
+export class BulkEntryDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => BulkEntryItemDto)
+  items!: BulkEntryItemDto[];
+
+  @IsOptional() @IsString() @MaxLength(200) motivo?: string;
 }
