@@ -1,5 +1,7 @@
+import { useCallback } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { useIdleLogout } from "../lib/useIdleLogout";
 import { homeFor, navFor } from "./nav";
 
 export default function AdminLayout() {
@@ -8,6 +10,13 @@ export default function AdminLayout() {
   const nav = navFor(user?.role);
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
+  // Cierre de sesión por inactividad, según la política del rol.
+  const salir = useCallback(() => {
+    logout();
+    navigate("/admin/login", { replace: true });
+  }, [logout, navigate]);
+  const { restante } = useIdleLogout(salir, !!user);
 
   // Acceso directo por URL a una sección sin permiso → a su primera sección.
   const permitida =
@@ -55,6 +64,11 @@ export default function AdminLayout() {
       </aside>
 
       <main className="flex-1 overflow-auto p-8">
+        {restante != null && (
+          <div className="mb-4 rounded-xl bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-800">
+            Tu sesión se cerrará por inactividad en {restante} s. Movés el mouse o tocás una tecla para seguir.
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

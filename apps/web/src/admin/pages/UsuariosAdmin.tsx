@@ -14,8 +14,25 @@ interface Usuario {
 
 const ROLES = Object.values(UserRole);
 
+interface SesionCfg {
+  adminMin: number;
+  cajeroMin: number;
+  produccionMin: number;
+  mozoMin: number;
+  deliveryMin: number;
+}
+const CAMPOS_SESION: { k: keyof SesionCfg; label: string }[] = [
+  { k: "adminMin", label: "Admin" },
+  { k: "cajeroMin", label: "Cajero" },
+  { k: "produccionMin", label: "Producción" },
+  { k: "mozoMin", label: "Mozo" },
+  { k: "deliveryMin", label: "Delivery" },
+];
+
 export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [sesion, setSesion] = useState<SesionCfg | null>(null);
+  const [savingSesion, setSavingSesion] = useState(false);
   const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -25,7 +42,23 @@ export default function UsuariosAdmin() {
 
   useEffect(() => {
     load();
+    api.get<SesionCfg>("/admin/config/sesion").then(setSesion).catch(() => {});
   }, []);
+
+  const guardarSesion = async () => {
+    if (!sesion) return;
+    setSavingSesion(true);
+    setError(null);
+    setOk(null);
+    try {
+      await api.patch("/admin/config/sesion", sesion);
+      setOk("Política de sesión guardada. Se aplica al volver a iniciar sesión.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingSesion(false);
+    }
+  };
 
   const crear = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +189,40 @@ export default function UsuariosAdmin() {
           </tbody>
         </table>
       </div>
+
+      {/* Cierre de sesión por inactividad */}
+      {sesion && (
+        <div className="mt-8 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+          <h2 className="font-display text-lg font-semibold text-crust-800">Cierre de sesión por inactividad</h2>
+          <p className="mb-4 text-sm text-crust-500">
+            Minutos sin actividad antes de cerrar la sesión automáticamente, por rol.
+            Usá <b>0</b> para que no se cierre nunca (útil en el tablet de mozos o la pantalla de cocina).
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {CAMPOS_SESION.map(({ k, label }) => (
+              <label key={k} className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">{label}</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={0} max={1440}
+                    value={sesion[k]}
+                    onChange={(e) => setSesion({ ...sesion, [k]: Number(e.target.value) })}
+                    className="w-20 rounded-lg border border-crust-200 px-2 py-1.5"
+                  />
+                  <span className="text-xs text-crust-400">min</span>
+                </div>
+                {sesion[k] === 0 && <span className="mt-1 block text-xs text-crust-400">sin cierre</span>}
+              </label>
+            ))}
+          </div>
+          <button onClick={guardarSesion} disabled={savingSesion} className="mt-4 rounded-lg bg-crust-600 px-5 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+            {savingSesion ? "Guardando…" : "Guardar política"}
+          </button>
+          <p className="mt-2 text-xs text-crust-400">
+            Además, la sesión ya no sobrevive al cierre de la ventana: al volver a abrir el panel hay que iniciar sesión.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

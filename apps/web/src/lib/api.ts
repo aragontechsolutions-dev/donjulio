@@ -5,10 +5,15 @@ const BASE_URL =
 
 const TOKEN_KEY = "donjulio_token";
 
+// sessionStorage: el token vive mientras la pestaña esté abierta. Al cerrar
+// la ventana la sesión se pierde y hay que volver a iniciar sesión.
 export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => sessionStorage.getItem(TOKEN_KEY),
+  set: (t: string) => sessionStorage.setItem(TOKEN_KEY, t),
+  clear: () => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY); // limpia sesiones viejas persistidas
+  },
 };
 
 export class ApiError extends Error {

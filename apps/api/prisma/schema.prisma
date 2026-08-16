@@ -940,3 +940,14 @@ model KioscoFichaje {
   id    String @id @default("default")
   token String @unique @default(uuid())
 }
+
+/// Política de sesión por rol (singleton): minutos de inactividad antes de
+/// cerrar sesión automáticamente. 0 = sin cierre automático.
+model SesionConfig {
+  id            String @id @default("default")
+  adminMin      Int    @default(5)
+  cajeroMin     Int    @default(30)
+  produccionMin Int    @default(30)
+  mozoMin       Int    @default(0)
+  deliveryMin   Int    @default(0)
+}

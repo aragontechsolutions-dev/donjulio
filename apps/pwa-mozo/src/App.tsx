@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./lib/auth";
 import { api } from "./lib/api";
 import { flushOutbox, onConnectivityChange } from "./lib/sync";
+import { useIdleLogout } from "./lib/useIdleLogout";
 import { outboxAll } from "./lib/db";
 import Login from "./pages/Login";
 import Mesas from "./pages/Mesas";
@@ -14,7 +15,9 @@ export interface MesaSel {
 }
 
 export default function App() {
-  const { user, ready } = useAuth();
+  const { user, ready, logout } = useAuth();
+  // Cierre por inactividad según la política del rol (0 = desactivado).
+  useIdleLogout(logout, !!user);
   const [mesa, setMesa] = useState<MesaSel | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
   const [pendientes, setPendientes] = useState(0);
