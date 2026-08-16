@@ -73,10 +73,11 @@ export class RecipesService {
     await this.get(id);
     this.validateIngredientes(dto);
     await this.validarProducto(dto, id);
-    // Reemplaza los ingredientes por completo.
-    return this.prisma.$transaction(async (tx) => {
-      await tx.recetaIngrediente.deleteMany({ where: { recetaId: id } });
-      return tx.receta.update({
+    // Reemplaza los ingredientes por completo. Va como transacción por lotes:
+    // las interactivas fallan contra el pooler de Supabase.
+    const [, receta] = await this.prisma.$transaction([
+      this.prisma.recetaIngrediente.deleteMany({ where: { recetaId: id } }),
+      this.prisma.receta.update({
         where: { id },
         data: {
           nombre: dto.nombre,
@@ -98,8 +99,9 @@ export class RecipesService {
           },
         },
         include: { ingredientes: true },
-      });
-    });
+      }),
+    ]);
+    return receta;
   }
 
   remove(id: string) {

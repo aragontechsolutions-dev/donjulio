@@ -112,10 +112,49 @@ export class InventoryService {
   }
 
   // ---------- Movimientos de stock ----------
+  //
+  // El pooler de Supabase (pgbouncer en modo transacción) no mantiene la misma
+  // conexión entre idas y vueltas, así que las transacciones interactivas
+  // (`$transaction(async tx => …)`) fallan con "Transaction not found". Por eso
+  // los helpers arman las operaciones y el llamador las aplica todas juntas con
+  // `$transaction([...])`, que viaja en un solo request.
+
+  /** Operaciones de un movimiento: el registro y el ajuste de `stockActual`. */
+  private opsMovimiento(
+    insumoId: string,
+    tipo: StockMovementType,
+    delta: number,
+    opts: {
+      costoUnitario?: number;
+      motivo?: string;
+      ordenProduccionId?: string;
+      insumoLoteId?: string;
+      usuarioId?: string;
+    } = {},
+  ): Prisma.PrismaPromise<unknown>[] {
+    return [
+      this.prisma.movimientoStock.create({
+        data: {
+          insumoId,
+          tipo,
+          cantidad: Math.abs(delta),
+          costoUnitario: opts.costoUnitario ?? 0,
+          motivo: opts.motivo,
+          ordenProduccionId: opts.ordenProduccionId,
+          insumoLoteId: opts.insumoLoteId,
+          usuarioId: opts.usuarioId,
+        },
+      }),
+      this.prisma.insumo.update({
+        where: { id: insumoId },
+        data: { stockActual: { increment: delta } },
+      }),
+    ];
+  }
+
   /**
-   * Aplica un movimiento y actualiza `stockActual` de forma atómica.
-   * `delta` es el cambio neto (positivo entra, negativo sale).
-   * Usado por producción (SALIDA) y mermas (MERMA) además de las entradas.
+   * Aplica un movimiento suelto (mermas, ajustes). `delta` es el cambio neto:
+   * positivo entra, negativo sale.
    */
   async applyMovement(
     insumoId: string,
@@ -127,33 +166,62 @@ export class InventoryService {
       ordenProduccionId?: string;
       insumoLoteId?: string;
       usuarioId?: string;
-      tx?: Prisma.TransactionClient;
     } = {},
   ) {
-    const db = opts.tx ?? this.prisma;
-    await db.movimientoStock.create({
-      data: {
-        insumoId,
-        tipo,
-        cantidad: Math.abs(delta),
-        costoUnitario: opts.costoUnitario ?? 0,
-        motivo: opts.motivo,
-        ordenProduccionId: opts.ordenProduccionId,
-        insumoLoteId: opts.insumoLoteId,
-        usuarioId: opts.usuarioId,
-      },
-    });
-    return db.insumo.update({
-      where: { id: insumoId },
-      data: { stockActual: { increment: delta } },
-    });
+    const [, insumo] = await this.prisma.$transaction(
+      this.opsMovimiento(insumoId, tipo, delta, opts),
+    );
+    return insumo;
   }
 
   /**
-   * Consume un insumo descontando de sus lotes por FEFO (primero el que vence
-   * antes), generando un movimiento por lote para poder trazarlo después.
-   * Si no hay lotes cargados, hace un único movimiento sin lote.
+   * Planifica el consumo de un insumo por FEFO (primero el que vence antes),
+   * con un movimiento por lote para poder trazarlo. Lee los lotes y devuelve
+   * las operaciones; no toca la base hasta que el llamador las aplique.
+   *
+   * Si no hay lotes cargados (o no alcanzan), el resto sale sin lote.
    */
+  async opsConsumirFefo(
+    insumoId: string,
+    cantidad: number,
+    opts: {
+      costoUnitario?: number;
+      motivo?: string;
+      ordenProduccionId?: string;
+      usuarioId?: string;
+    } = {},
+  ): Promise<Prisma.PrismaPromise<unknown>[]> {
+    const lotes = await this.prisma.insumoLote.findMany({
+      where: { insumoId, cantidad: { gt: 0 } },
+      orderBy: [{ vencimiento: "asc" }, { recibidoAt: "asc" }],
+    });
+
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    let restante = cantidad;
+    for (const lote of lotes) {
+      if (restante <= 0.0001) break;
+      const toma = Math.min(restante, num(lote.cantidad));
+      ops.push(
+        this.prisma.insumoLote.update({
+          where: { id: lote.id },
+          data: { cantidad: { decrement: toma } },
+        }),
+        ...this.opsMovimiento(insumoId, StockMovementType.SALIDA, -toma, {
+          ...opts,
+          costoUnitario: opts.costoUnitario ?? num(lote.costoUnitario),
+          insumoLoteId: lote.id,
+        }),
+      );
+      restante -= toma;
+    }
+
+    if (restante > 0.0001) {
+      ops.push(...this.opsMovimiento(insumoId, StockMovementType.SALIDA, -restante, opts));
+    }
+    return ops;
+  }
+
+  /** Consume por FEFO de inmediato, cuando no hay más operaciones que juntar. */
   async consumirFefo(
     insumoId: string,
     cantidad: number,
@@ -162,65 +230,56 @@ export class InventoryService {
       motivo?: string;
       ordenProduccionId?: string;
       usuarioId?: string;
-      tx?: Prisma.TransactionClient;
     } = {},
   ) {
-    const db = opts.tx ?? this.prisma;
-    const lotes = await db.insumoLote.findMany({
-      where: { insumoId, cantidad: { gt: 0 } },
-      orderBy: [{ vencimiento: "asc" }, { recibidoAt: "asc" }],
-    });
-
-    let restante = cantidad;
-    for (const lote of lotes) {
-      if (restante <= 0.0001) break;
-      const toma = Math.min(restante, num(lote.cantidad));
-      await db.insumoLote.update({
-        where: { id: lote.id },
-        data: { cantidad: { decrement: toma } },
-      });
-      await this.applyMovement(insumoId, StockMovementType.SALIDA, -toma, {
-        ...opts,
-        costoUnitario: opts.costoUnitario ?? num(lote.costoUnitario),
-        insumoLoteId: lote.id,
-      });
-      restante -= toma;
-    }
-
-    // Sin lotes suficientes (o sin lotes cargados): el resto sale sin lote.
-    if (restante > 0.0001) {
-      await this.applyMovement(insumoId, StockMovementType.SALIDA, -restante, opts);
-    }
+    await this.prisma.$transaction(await this.opsConsumirFefo(insumoId, cantidad, opts));
   }
 
-  async registrarEntrada(insumoId: string, dto: StockEntryDto, usuarioId?: string) {
-    const insumo = await this.ensureInsumo(insumoId);
-    return this.prisma.$transaction(async (tx) => {
-      // Actualiza costo unitario si vino con la compra.
-      if (dto.costoUnitario != null) {
-        await tx.insumo.update({
+  /** Operaciones de una entrada de stock, para juntarlas con otras. */
+  private opsEntrada(
+    insumoId: string,
+    dto: StockEntryDto,
+    costoActual: number,
+    usuarioId?: string,
+  ): Prisma.PrismaPromise<unknown>[] {
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    // Actualiza costo unitario si vino con la compra.
+    if (dto.costoUnitario != null) {
+      ops.push(
+        this.prisma.insumo.update({
           where: { id: insumoId },
           data: { costoUnitario: dto.costoUnitario },
-        });
-      }
-      if (dto.lote) {
-        await tx.insumoLote.create({
+        }),
+      );
+    }
+    if (dto.lote) {
+      ops.push(
+        this.prisma.insumoLote.create({
           data: {
             insumoId,
             lote: dto.lote,
             cantidad: dto.cantidad,
             vencimiento: dto.vencimiento ? new Date(dto.vencimiento) : null,
-            costoUnitario: dto.costoUnitario ?? num(insumo.costoUnitario),
+            costoUnitario: dto.costoUnitario ?? costoActual,
           },
-        });
-      }
-      return this.applyMovement(insumoId, StockMovementType.ENTRADA, dto.cantidad, {
-        costoUnitario: dto.costoUnitario ?? num(insumo.costoUnitario),
+        }),
+      );
+    }
+    ops.push(
+      ...this.opsMovimiento(insumoId, StockMovementType.ENTRADA, dto.cantidad, {
+        costoUnitario: dto.costoUnitario ?? costoActual,
         motivo: dto.motivo ?? "Compra/recepción",
         usuarioId,
-        tx,
-      });
-    });
+      }),
+    );
+    return ops;
+  }
+
+  async registrarEntrada(insumoId: string, dto: StockEntryDto, usuarioId?: string) {
+    const insumo = await this.ensureInsumo(insumoId);
+    const ops = this.opsEntrada(insumoId, dto, num(insumo.costoUnitario), usuarioId);
+    const res = await this.prisma.$transaction(ops);
+    return res[res.length - 1];
   }
 
   /**
@@ -251,8 +310,10 @@ export class InventoryService {
       );
     }
 
-    for (const item of dto.items) {
-      await this.registrarEntrada(
+    // Todas las líneas del remito en una sola transacción: o entra completo o
+    // no entra, sin quedar a medias si algo falla en el medio.
+    const ops = dto.items.flatMap((item) =>
+      this.opsEntrada(
         item.insumoId,
         {
           cantidad: item.cantidad,
@@ -261,9 +322,11 @@ export class InventoryService {
           vencimiento: item.vencimiento,
           motivo: dto.motivo,
         },
+        num(porId.get(item.insumoId)!.costoUnitario),
         usuarioId,
-      );
-    }
+      ),
+    );
+    await this.prisma.$transaction(ops);
 
     return {
       aplicados: dto.items.length,

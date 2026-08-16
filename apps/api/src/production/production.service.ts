@@ -153,28 +153,36 @@ export class ProductionService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      for (const iid of insumoIds) {
-        const insumo = insumos.find((i) => i.id === iid);
-        // Consumo por FEFO: descuenta de los lotes que vencen antes y deja
-        // registrado qué lote se usó (trazabilidad).
-        await this.inventory.consumirFefo(iid, bom.get(iid) ?? 0, {
+    // Todo el descuento en una sola transacción por lotes. Las interactivas
+    // (`$transaction(async tx => …)`) fallan contra el pooler de Supabase con
+    // "Transaction not found", porque no garantiza la misma conexión entre
+    // idas y vueltas.
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    for (const iid of insumoIds) {
+      const insumo = insumos.find((i) => i.id === iid);
+      // Consumo por FEFO: descuenta de los lotes que vencen antes y deja
+      // registrado qué lote se usó (trazabilidad).
+      ops.push(
+        ...(await this.inventory.opsConsumirFefo(iid, bom.get(iid) ?? 0, {
           costoUnitario: num(insumo?.costoUnitario),
           motivo: `Producción orden ${orden.id.slice(0, 8)}`,
           ordenProduccionId: orden.id,
           usuarioId,
-          tx,
-        });
-      }
-      return tx.ordenProduccion.update({
+        })),
+      );
+    }
+    ops.push(
+      this.prisma.ordenProduccion.update({
         where: { id: orden.id },
         data: {
           status: ProductionOrderStatus.EN_PROCESO,
           iniciadaAt: new Date(),
         },
         include: { receta: true },
-      });
-    });
+      }),
+    );
+    const res = await this.prisma.$transaction(ops);
+    return res[res.length - 1];
   }
 
   private async terminar(
@@ -188,11 +196,12 @@ export class ProductionService {
       ? new Date(Date.now() + dto.diasVencimiento * 86400000)
       : null;
 
-    return this.prisma.$transaction(async (tx) => {
-      // Sin producto asociado no hay dónde registrar lo producido: la orden se
-      // cierra igual, pero no genera lote ni trazabilidad.
-      if (receta?.productoId) {
-        await tx.productionLot.create({
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    // Sin producto asociado no hay dónde registrar lo producido: la orden se
+    // cierra igual, pero no genera lote ni trazabilidad.
+    if (receta?.productoId) {
+      ops.push(
+        this.prisma.productionLot.create({
           data: {
             ordenProduccionId: orden.id,
             productoId: receta.productoId,
@@ -200,17 +209,21 @@ export class ProductionService {
             qty: num(receta.yieldQty) * num(orden.cantidadLotes),
             expiresAt,
           },
-        });
-      }
-      return tx.ordenProduccion.update({
+        }),
+      );
+    }
+    ops.push(
+      this.prisma.ordenProduccion.update({
         where: { id: orden.id },
         data: {
           status: ProductionOrderStatus.TERMINADA,
           terminadaAt: new Date(),
         },
         include: { receta: true, lotes: true },
-      });
-    });
+      }),
+    );
+    const res = await this.prisma.$transaction(ops);
+    return res[res.length - 1];
   }
 
   private async getOrden(id: string) {
