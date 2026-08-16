@@ -48,6 +48,8 @@ export class CreateProductoDto {
   @IsOptional() @IsBoolean() esReventa?: boolean;
   /** Sólo para reventa: lo que cuesta comprarlo. */
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
+  /** Si se vende de lo producido: bloquea la venta cuando no hay stock. */
+  @IsOptional() @IsBoolean() controlaStock?: boolean;
 }
 
 export class UpdateProductoDto {
@@ -62,6 +64,7 @@ export class UpdateProductoDto {
   @IsOptional() @IsEnum(IvaRate) ivaRate?: IvaRate;
   @IsOptional() @IsBoolean() esReventa?: boolean;
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
+  @IsOptional() @IsBoolean() controlaStock?: boolean;
 }
 
 /** Rotulado frontal y ficha nutricional (Decreto 272/018). */

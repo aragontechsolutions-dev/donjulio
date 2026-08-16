@@ -440,6 +440,10 @@ export class SalonService {
         },
       });
     });
+    // Lo que se vende de lo producido se descuenta de sus lotes por FEFO, en
+    // la misma transacción que la comanda. `priceItems` ya validó que alcance.
+    ops.push(...(await this.orders.opsDescontarStockVendido(items)));
+
     ops.push(
       this.prisma.pedido.update({
         where: { id: pedidoId },

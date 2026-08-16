@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { calcularOctogonos, ProductoCosteo } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RecipesService } from "../recipes/recipes.service";
+import { InventoryService } from "../inventory/inventory.service";
 import {
   CreateCategoriaDto,
   CreateProductoDto,
@@ -36,6 +37,7 @@ export class CatalogService {
   constructor(
     private prisma: PrismaService,
     private recipes: RecipesService,
+    private inventory: InventoryService,
   ) {}
 
   // ---- Catálogo público (menú agrupado por categoría) ----
@@ -104,8 +106,8 @@ export class CatalogService {
   }
 
   // ---- Productos (admin) ----
-  listProductos() {
-    return this.prisma.producto.findMany({
+  async listProductos() {
+    const productos = await this.prisma.producto.findMany({
       orderBy: { nombre: "asc" },
       include: {
         categoria: true,
@@ -113,6 +115,14 @@ export class CatalogService {
         receta: { select: { id: true, nombre: true } },
       },
     });
+    // Unidades producidas sin vender, para los que se venden de lo horneado.
+    const stock = await this.inventory.stockProductos(
+      productos.filter((p) => p.controlaStock).map((p) => p.id),
+    );
+    return productos.map((p) => ({
+      ...p,
+      stockProducido: p.controlaStock ? (stock.get(p.id) ?? 0) : null,
+    }));
   }
 
   async createProducto(dto: CreateProductoDto) {

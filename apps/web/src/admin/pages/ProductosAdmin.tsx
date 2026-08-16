@@ -37,6 +37,9 @@ interface Producto {
   requiereOctogono: boolean;
   esReventa: boolean;
   costoCompra: string | null;
+  controlaStock: boolean;
+  /** Unidades producidas sin vender. null si el producto no controla stock. */
+  stockProducido: number | null;
   ivaRate: string;
   categoriaId: string;
   categoria?: { nombre: string };
@@ -85,6 +88,7 @@ interface ProductoForm {
   precio: string;
   esReventa: boolean;
   costoCompra: string;
+  controlaStock: boolean;
   ivaRate: string;
   disponible: boolean;
   destacado: boolean;
@@ -92,7 +96,7 @@ interface ProductoForm {
 
 const FORM_VACIO: ProductoForm = {
   nombre: "", categoriaId: "", descripcion: "", precio: "",
-  esReventa: false, costoCompra: "", ivaRate: IvaRate.MINIMA,
+  esReventa: false, costoCompra: "", controlaStock: false, ivaRate: IvaRate.MINIMA,
   disponible: true, destacado: false,
 };
 
@@ -197,6 +201,7 @@ export default function ProductosAdmin() {
       precio: String(Number(p.precio)),
       esReventa: p.esReventa,
       costoCompra: p.costoCompra != null ? String(Number(p.costoCompra)) : "",
+      controlaStock: p.controlaStock,
       ivaRate: p.ivaRate,
       disponible: p.disponible,
       destacado: p.destacado,
@@ -223,6 +228,7 @@ export default function ProductosAdmin() {
       precio,
       esReventa: form.esReventa,
       costoCompra: form.esReventa && form.costoCompra !== "" ? Number(form.costoCompra) : null,
+      controlaStock: form.controlaStock,
       ivaRate: form.ivaRate,
       disponible: form.disponible,
       destacado: form.destacado,
@@ -443,6 +449,7 @@ export default function ProductosAdmin() {
                   Food cost
                 </th>
                 <th className="px-4 py-3 text-right">Margen</th>
+                <th className="px-4 py-3 text-right" title="Unidades producidas sin vender">Stock</th>
                 <th className="px-4 py-3 text-center">Disp.</th>
                 <th className="px-4 py-3 text-center">Dest.</th>
                 <th className="px-4 py-3 text-center">Acciones</th>
@@ -499,6 +506,22 @@ export default function ProductosAdmin() {
                     <td className="px-4 py-3 text-right tabular-nums text-crust-600">
                       {c?.margen != null ? formatUYU(c.margen) : "—"}
                     </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {p.stockProducido == null ? (
+                        <span className="text-crust-300" title="Se prepara al momento">—</span>
+                      ) : (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            p.stockProducido > 0
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                          title={p.stockProducido > 0 ? "Producido sin vender" : "Sin stock: no se puede vender"}
+                        >
+                          {p.stockProducido}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => toggle(p, "disponible")}
@@ -552,7 +575,7 @@ export default function ProductosAdmin() {
 
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-14 text-center">
+                  <td colSpan={11} className="px-4 py-14 text-center">
                     {cargando ? (
                       <span className="text-crust-400">Cargando…</span>
                     ) : productos.length > 0 ? (
@@ -693,10 +716,39 @@ export default function ProductosAdmin() {
                 </label>
               </div>
 
+              {!form.esReventa && (
+                <label className="mt-3 flex items-start gap-2 rounded-lg border border-crust-100 bg-crust-50 p-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={form.controlaStock}
+                    onChange={(e) => setForm({ ...form, controlaStock: e.target.checked })}
+                  />
+                  <span>
+                    <b className="block text-sm text-crust-800">Se vende de lo producido</b>
+                    <span className="text-xs text-crust-500">
+                      La venta descuenta de las tandas producidas y se bloquea si no hay stock.
+                      Marcalo para el pan y la pastelería que horneás por tanda; dejalo sin marcar
+                      para lo que se prepara al momento (café, tostados).
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {editando !== "nuevo" && !form.esReventa && !editando.receta && (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   Todavía no tiene receta asociada, así que no se puede calcular su food cost. Creala
                   en <b>Recetas y costos</b> eligiendo este producto.
+                </p>
+              )}
+
+              {editando !== "nuevo" && form.controlaStock && (
+                <p className="mt-3 text-xs text-crust-500">
+                  Stock producido ahora:{" "}
+                  <b className={editando.stockProducido ? "text-crust-800" : "text-red-600"}>
+                    {editando.stockProducido ?? 0} unidades
+                  </b>
+                  . Se repone terminando una orden en <b>Producción</b>.
                 </p>
               )}
             </fieldset>

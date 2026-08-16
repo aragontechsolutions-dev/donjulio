@@ -18,6 +18,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsService } from "../integrations/payments/payments.service";
 import { BillingService } from "../integrations/billing/billing.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { CheckoutDto, CartItemDto } from "./orders.dto";
 
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
@@ -32,6 +33,7 @@ export class OrdersService {
     @Inject(forwardRef(() => PaymentsService))
     private readonly payments: PaymentsService,
     private readonly billing: BillingService,
+    private readonly inventory: InventoryService,
   ) {}
 
   /**
@@ -61,38 +63,43 @@ export class OrdersService {
       clienteId = cliente.id;
     }
 
-    const pedido = await this.prisma.pedido.create({
-      data: {
-        channel: dto.channel,
-        orderType: dto.orderType,
-        status: OrderStatus.PENDIENTE_PAGO,
-        clienteId,
-        subtotal,
-        total: subtotal,
-        notas: dto.notas,
-        items: {
-          create: items.map((i) => ({
-            productoId: i.productoId,
-            productVariantId: i.productVariantId,
-            stationId: i.stationId,
-            cantidad: i.cantidad,
-            precioUnitario: i.precioUnitario,
-            subtotal: i.subtotal,
-            notas: i.notas,
-            modificadores: {
-              create: i.modificadores.map((m) => ({
-                modifierId: m.id,
-                nombre: m.nombre,
-                priceDelta: m.priceDelta,
-              })),
-            },
-          })),
+    // El pedido y el descuento de lo producido van juntos, para que no quede
+    // una venta registrada sin bajar el stock (ni al revés).
+    const [pedido] = await this.prisma.$transaction([
+      this.prisma.pedido.create({
+        data: {
+          channel: dto.channel,
+          orderType: dto.orderType,
+          status: OrderStatus.PENDIENTE_PAGO,
+          clienteId,
+          subtotal,
+          total: subtotal,
+          notas: dto.notas,
+          items: {
+            create: items.map((i) => ({
+              productoId: i.productoId,
+              productVariantId: i.productVariantId,
+              stationId: i.stationId,
+              cantidad: i.cantidad,
+              precioUnitario: i.precioUnitario,
+              subtotal: i.subtotal,
+              notas: i.notas,
+              modificadores: {
+                create: i.modificadores.map((m) => ({
+                  modifierId: m.id,
+                  nombre: m.nombre,
+                  priceDelta: m.priceDelta,
+                })),
+              },
+            })),
+          },
+          eventos: {
+            create: { toState: OrderStatus.PENDIENTE_PAGO },
+          },
         },
-        eventos: {
-          create: { toState: OrderStatus.PENDIENTE_PAGO },
-        },
-      },
-    });
+      }),
+      ...(await this.opsDescontarStockVendido(items)),
+    ]);
 
     // Intento de pago.
     const idempotencyKey = `order-${pedido.id}`;
@@ -195,7 +202,10 @@ export class OrdersService {
         })),
       });
     } catch (e) {
-      this.logger.error(`No se pudo emitir CFE para pedido ${pedidoId}`, e as Error);
+      this.logger.error(
+        `No se pudo emitir CFE para pedido ${pedidoId}`,
+        e as Error,
+      );
     }
   }
 
@@ -254,17 +264,55 @@ export class OrdersService {
   }
 
   /** Calcula precios de cada línea (producto + variante + modificadores). */
+  /**
+   * Valida y valoriza un carrito. Es el único paso por el que pasan todas las
+   * ventas (salón, autoservicio, PWA y web), así que acá se concentran las
+   * validaciones: que el producto exista, esté disponible y —si se vende de lo
+   * producido— que haya stock horneado suficiente.
+   */
   async priceItems(cart: CartItemDto[]) {
     const productoIds = [...new Set(cart.map((i) => i.productoId))];
     const productos = await this.prisma.producto.findMany({
       where: { id: { in: productoIds } },
       include: { variantes: true },
     });
+
+    // Stock producido, sólo de los que lo controlan.
+    const conControl = productos
+      .filter((p) => p.controlaStock)
+      .map((p) => p.id);
+    const stock = conControl.length
+      ? await this.inventory.stockProductos(conControl)
+      : new Map<string, number>();
+
+    // Se acumula por producto: dos líneas del mismo pan tienen que sumar
+    // contra el mismo stock, no validarse por separado.
+    const pedidoPorProducto = new Map<string, number>();
+    for (const ci of cart) {
+      pedidoPorProducto.set(
+        ci.productoId,
+        (pedidoPorProducto.get(ci.productoId) ?? 0) + ci.cantidad,
+      );
+    }
+    for (const [pid, pedida] of pedidoPorProducto) {
+      const producto = productos.find((p) => p.id === pid);
+      if (!producto?.controlaStock) continue;
+      const hay = stock.get(pid) ?? 0;
+      if (hay < pedida - 0.0001) {
+        throw new BadRequestException(
+          hay <= 0
+            ? `No hay “${producto.nombre}” disponible: todavía no se produjo. Planificá una producción o marcalo como no disponible.`
+            : `Sólo quedan ${hay} de “${producto.nombre}” y se pidieron ${pedida}.`,
+        );
+      }
+    }
     const modifierIds = [
       ...new Set(cart.flatMap((i) => i.modificadorIds ?? [])),
     ];
     const modifiers = modifierIds.length
-      ? await this.prisma.modifier.findMany({ where: { id: { in: modifierIds } } })
+      ? await this.prisma.modifier.findMany({
+          where: { id: { in: modifierIds } },
+        })
       : [];
 
     let subtotal = 0;
@@ -274,7 +322,9 @@ export class OrdersService {
         throw new BadRequestException(`Producto inexistente: ${ci.productoId}`);
       }
       if (!producto.disponible) {
-        throw new BadRequestException(`Producto no disponible: ${producto.nombre}`);
+        throw new BadRequestException(
+          `Producto no disponible: ${producto.nombre}`,
+        );
       }
       const variante = ci.productVariantId
         ? producto.variantes.find((v) => v.id === ci.productVariantId)
@@ -308,5 +358,36 @@ export class OrdersService {
     });
 
     return { items, subtotal: Math.round(subtotal * 100) / 100 };
+  }
+
+  /**
+   * Operaciones para descontar de los lotes producidos lo que se acaba de
+   * vender. Sólo afecta a los productos que controlan stock; el resto se
+   * prepara al momento y no tiene lotes que descontar.
+   */
+  async opsDescontarStockVendido(
+    items: { productoId: string; cantidad: number }[],
+  ): Promise<Prisma.PrismaPromise<unknown>[]> {
+    const porProducto = new Map<string, number>();
+    for (const it of items) {
+      porProducto.set(
+        it.productoId,
+        (porProducto.get(it.productoId) ?? 0) + it.cantidad,
+      );
+    }
+    const conControl = await this.prisma.producto.findMany({
+      where: { id: { in: [...porProducto.keys()] }, controlaStock: true },
+      select: { id: true },
+    });
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    for (const { id } of conControl) {
+      ops.push(
+        ...(await this.inventory.opsDescontarProducto(
+          id,
+          porProducto.get(id) ?? 0,
+        )),
+      );
+    }
+    return ops;
   }
 }

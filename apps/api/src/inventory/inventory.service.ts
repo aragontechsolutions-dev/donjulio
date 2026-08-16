@@ -351,6 +351,61 @@ export class InventoryService {
     });
   }
 
+  // ---------- Stock de producto terminado ----------
+  //
+  // Lo producido vive en `ProductionLot`, igual que los insumos viven en
+  // `InsumoLote`: producir suma un lote y vender lo descuenta. El disponible
+  // de un producto es la suma de sus lotes.
+
+  /** Unidades disponibles por producto. Sólo devuelve los que tienen lotes. */
+  async stockProductos(productoIds?: string[]): Promise<Map<string, number>> {
+    const filas = await this.prisma.productionLot.groupBy({
+      by: ["productoId"],
+      where: {
+        productoId: productoIds ? { in: productoIds } : { not: null },
+        qty: { gt: 0 },
+      },
+      _sum: { qty: true },
+    });
+    return new Map(
+      filas
+        .filter((f): f is typeof f & { productoId: string } => f.productoId != null)
+        .map((f) => [f.productoId, num(f._sum.qty)]),
+    );
+  }
+
+  /**
+   * Planifica el descuento de `cantidad` unidades de un producto por FEFO
+   * (primero el lote que vence antes). Devuelve las operaciones para aplicar
+   * junto con el resto de la venta, en una sola transacción.
+   *
+   * Si no alcanza, descuenta lo que hay: quien llama ya validó el stock, y
+   * bloquear acá dejaría la venta a medio registrar.
+   */
+  async opsDescontarProducto(
+    productoId: string,
+    cantidad: number,
+  ): Promise<Prisma.PrismaPromise<unknown>[]> {
+    const lotes = await this.prisma.productionLot.findMany({
+      where: { productoId, qty: { gt: 0 } },
+      orderBy: [{ expiresAt: "asc" }, { producedAt: "asc" }],
+    });
+    const ops: Prisma.PrismaPromise<unknown>[] = [];
+    let restante = cantidad;
+    for (const lote of lotes) {
+      if (restante <= 0.0001) break;
+      const toma = Math.min(restante, num(lote.qty));
+      ops.push(
+        this.prisma.productionLot.update({
+          where: { id: lote.id },
+          data: { qty: { decrement: toma } },
+        }),
+      );
+      restante -= toma;
+    }
+    return ops;
+  }
+
   // ---------- Alertas ----------
   /** Insumos en o por debajo del punto de reorden. */
   async alertasReorden() {
