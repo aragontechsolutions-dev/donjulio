@@ -5,6 +5,7 @@ import { formatUYU } from "../../lib/format";
 import { showToast } from "../../lib/toast";
 import { useDebounced } from "../../lib/useDebounced";
 import Modal from "../../lib/Modal";
+import BuscadorInsumo from "../../lib/BuscadorInsumo";
 
 interface Insumo {
   id: string;
@@ -488,22 +489,12 @@ export default function InsumosAdmin() {
                     return (
                       <tr key={l.key} className="align-top">
                         <td className="py-1 pr-2">
-                          <select
-                            value={l.insumoId}
-                            onChange={(e) => setLinea(l.key, { insumoId: e.target.value })}
-                            className="w-full rounded-lg border border-crust-200 px-2 py-2"
-                          >
-                            <option value="">Elegí un insumo…</option>
-                            {opciones.map((o) => (
-                              <option
-                                key={o.id}
-                                value={o.id}
-                                disabled={o.id !== l.insumoId && yaElegidos.has(o.id)}
-                              >
-                                {o.nombre}
-                              </option>
-                            ))}
-                          </select>
+                          <BuscadorInsumo
+                            opciones={opciones}
+                            valorId={l.insumoId}
+                            excluidos={yaElegidos}
+                            onSelect={(id) => setLinea(l.key, { insumoId: id })}
+                          />
                         </td>
                         <td className="py-1 pr-2">
                           <div className="flex items-center gap-1">
