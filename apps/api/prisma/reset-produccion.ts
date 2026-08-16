@@ -53,8 +53,26 @@ const OTROS_USUARIOS: Prisma.UsuarioWhereInput = {
   NOT: { email: { equals: EMAIL, mode: "insensitive" } },
 };
 
+/**
+ * Host y nombre de la base, sin credenciales. Es la comprobación más
+ * importante antes de borrar: que no apunte al Postgres local por error.
+ */
+function destino(): string {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return "⚠ DATABASE_URL no está definida";
+  try {
+    const u = new URL(raw);
+    const nombre = u.pathname.replace(/^\//, "") || "(sin nombre)";
+    const local = /^(localhost|127\.0\.0\.1|::1|db|postgres)$/i.test(u.hostname);
+    return `${u.hostname}:${u.port || "5432"}/${nombre}${local ? "   ← ¡base LOCAL, no Supabase!" : ""}`;
+  } catch {
+    return "(no se pudo leer DATABASE_URL)";
+  }
+}
+
 async function main() {
   console.log(`\n${EJECUTAR ? "🔥 BORRADO REAL" : "🔎 SIMULACIÓN (no se borra nada)"}`);
+  console.log(`   Base de datos:       ${destino()}`);
   console.log(`   Usuario a conservar: ${EMAIL}`);
   if (CONSERVAR_WEB) console.log("   Se conserva la configuración del sitio.\n");
   else console.log("");
