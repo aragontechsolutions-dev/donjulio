@@ -71,6 +71,12 @@ export class CatalogController {
     return this.catalog.listProductos();
   }
 
+  /** Costo, food cost y margen de cada producto (receta o costo de compra). */
+  @Get("admin/productos/costeo")
+  costeoProductos() {
+    return this.catalog.costeoProductos();
+  }
+
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.PRODUCCION)
   @Post("admin/productos")

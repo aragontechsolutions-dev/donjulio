@@ -216,6 +216,61 @@ export class RecipesService {
   }
 
   /**
+   * Costo unitario de todas las recetas, resuelto en memoria.
+   *
+   * `cost()` va a la base por cada receta y sub-receta; costear el catálogo
+   * entero así serían cientos de consultas. Acá se traen todas de una vez y la
+   * recursión se hace sobre el mapa. Devuelve recetaId → costo por unidad.
+   */
+  async costoUnitarioDeTodas(): Promise<Map<string, number>> {
+    const recetas = await this.prisma.receta.findMany({
+      include: { ingredientes: { include: { insumo: true } } },
+    });
+    const porId = new Map(recetas.map((r) => [r.id, r]));
+    const resueltas = new Map<string, number>();
+
+    const resolver = (id: string, camino: Set<string>): number => {
+      const ya = resueltas.get(id);
+      if (ya !== undefined) return ya;
+      // Un ciclo en el BOM no debe colgar el listado: se cuenta como 0.
+      if (camino.has(id)) return 0;
+      const receta = porId.get(id);
+      if (!receta) return 0;
+
+      camino.add(id);
+      let material = 0;
+      for (const ing of receta.ingredientes) {
+        if (ing.insumoId && ing.insumo) {
+          const qty = convertUnit(
+            num(ing.cantidad),
+            ing.unidad as UnitOfMeasure,
+            ing.insumo.unidad as UnitOfMeasure,
+          );
+          material += qty * num(ing.insumo.costoUnitario);
+        } else if (ing.subRecetaId) {
+          const sub = porId.get(ing.subRecetaId);
+          const costoSub = resolver(ing.subRecetaId, camino);
+          const qty = sub
+            ? convertUnit(num(ing.cantidad), ing.unidad as UnitOfMeasure, sub.yieldUnit as UnitOfMeasure)
+            : num(ing.cantidad);
+          material += qty * costoSub;
+        }
+      }
+      camino.delete(id);
+
+      const mermaPct = num(receta.mermaPct);
+      const factor = mermaPct > 0 ? 1 / (1 - Math.min(mermaPct, 95) / 100) : 1;
+      const total = material * factor + num(receta.manoObraCosto) + num(receta.overheadCosto);
+      const unitario = round2(total / (num(receta.yieldQty) || 1));
+      resueltas.set(id, unitario);
+      return unitario;
+    };
+
+    for (const r of recetas) resolver(r.id, new Set());
+    return resueltas;
+  }
+
+  /**
    * Explota el BOM a insumos hoja para producir `multiplier` lotes de la receta.
    * Devuelve cantidades en la unidad de cada insumo (lista para descontar stock).
    */

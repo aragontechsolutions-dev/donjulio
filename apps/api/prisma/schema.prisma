@@ -255,6 +255,9 @@ model Producto {
   disponible       Boolean  @default(true)
   ivaRate          IvaRate  @default(MINIMA)
   esReventa        Boolean  @default(false) // reventa (embotellados) vs elaborado
+  /// Cuánto cuesta comprarlo, sólo para productos de reventa. Los elaborados
+  /// sacan su costo de la receta asociada.
+  costoCompra      Decimal? @db.Decimal(12, 4)
   requiereOctogono Boolean  @default(false) // Decreto 272/018 (rotulado frontal)
   stationId        String?
   station          Station? @relation(fields: [stationId], references: [id])
