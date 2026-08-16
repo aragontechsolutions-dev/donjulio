@@ -45,6 +45,9 @@ export interface Contacto {
   instagram: string | null;
   facebook: string | null;
   mapsUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  mapZoom: number | null;
 }
 
 export interface GaleriaItem {

@@ -224,9 +224,11 @@ async function main() {
       whatsapp: "+598 99 000 000",
       email: "hola@donjulio.uy",
       instagram: "@panaderiadonjulio",
-      mapsUrl: "https://maps.google.com/?q=Maldonado+Uruguay",
-      lat: -34.9,
-      lng: -54.95,
+      // Sin mapsUrl: la web genera las indicaciones hasta el pin. El admin puede
+      // pegar el link de la ficha de Google desde Panel → Contenido web.
+      lat: -34.9089,
+      lng: -54.9581,
+      mapZoom: 16,
     },
   });
 

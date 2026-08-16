@@ -7,6 +7,7 @@ const LINKS = [
   { id: "productos", label: "Productos" },
   { id: "promociones", label: "Promociones" },
   { id: "galeria", label: "Galería" },
+  { id: "ubicacion", label: "Cómo llegar" },
   { id: "contacto", label: "Contacto" },
 ];
 

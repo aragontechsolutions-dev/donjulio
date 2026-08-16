@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import LandingPage from "./landing/LandingPage";
 import Autoservicio from "./autoservicio/Autoservicio";
 import Fichaje from "./fichaje/Fichaje";
@@ -41,6 +41,22 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+/**
+ * Bloquea el acceso escribiendo la URL a mano: si la sección no está en el
+ * menú del rol, se redirige a su primera sección disponible. El menú (`nav.ts`)
+ * es la única fuente de verdad, y la API vuelve a validar el rol igual.
+ */
+function RequireSection({ children }: { children: JSX.Element }) {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const base = "/" + pathname.split("/").filter(Boolean).slice(0, 2).join("/");
+  if (base === "/admin") return children; // el índice ya resuelve por rol
+  if (!navFor(user?.role).some((i) => i.to === base)) {
+    return <Navigate to={homeFor(user?.role)} replace />;
+  }
+  return children;
+}
+
 /** El Dashboard es sólo de admin: al resto se lo lleva a su primera sección. */
 function AdminHome() {
   const { user } = useAuth();
@@ -60,7 +76,9 @@ export default function App() {
         path="/admin"
         element={
           <RequireAuth>
-            <AdminLayout />
+            <RequireSection>
+              <AdminLayout />
+            </RequireSection>
           </RequireAuth>
         }
       >

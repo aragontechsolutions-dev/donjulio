@@ -10,6 +10,7 @@ import {
   Productos,
   Promociones,
   Testimonios,
+  Ubicacion,
 } from "./Sections";
 import type { LandingData, MenuCategoria, Promocion } from "./types";
 
@@ -48,6 +49,7 @@ export default function LandingPage() {
         <Promociones promos={promos} />
         <Galeria contenido={data.contenido} fotos={data.galeria} />
         <Testimonios items={data.testimonios} />
+        <Ubicacion contacto={data.contacto} />
         <Contacto contacto={data.contacto} horarios={data.horarios} />
       </main>
       <Footer />

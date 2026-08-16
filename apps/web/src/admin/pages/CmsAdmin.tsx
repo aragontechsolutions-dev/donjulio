@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import type { LandingData } from "../../landing/types";
+import UbicacionLocal from "../UbicacionLocal";
 
 const CAMPOS = [
   { clave: "hero.titulo", label: "Título del Hero" },
@@ -80,7 +81,7 @@ export default function CmsAdmin() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <h1 className="mb-2 font-display text-2xl font-bold text-crust-800">
         Contenido de la web
       </h1>
@@ -129,6 +130,8 @@ export default function CmsAdmin() {
           </div>
         ))}
       </div>
+
+      <UbicacionLocal />
 
       {/* Galería de fotos */}
       <div className="mt-8 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">

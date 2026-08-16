@@ -385,6 +385,8 @@ model ConfigContacto {
   mapsUrl    String?
   lat        Float?
   lng        Float?
+  /// Nivel de zoom con el que se muestra el mapa público (1 = mundo, 19 = calle).
+  mapZoom    Int?
   updatedAt  DateTime @updatedAt
 }
 

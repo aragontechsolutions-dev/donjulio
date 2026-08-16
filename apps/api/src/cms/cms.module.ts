@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,7 +13,17 @@ import {
   Put,
   UseGuards,
 } from "@nestjs/common";
-import { IsBoolean, IsInt, IsOptional, IsString } from "class-validator";
+import {
+  IsBoolean,
+  IsInt,
+  IsLatitude,
+  IsLongitude,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
 import { UserRole } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { Public, Roles } from "../auth/decorators";
@@ -28,6 +39,24 @@ class UpdateGaleriaDto {
   @IsOptional() @IsString() titulo?: string | null;
   @IsOptional() @IsInt() orden?: number;
   @IsOptional() @IsBoolean() activa?: boolean;
+}
+
+/**
+ * Datos de contacto y ubicación del local. Los campos de texto admiten `null`
+ * para poder borrarlos desde el panel; `lat`/`lng` sólo se aceptan como par
+ * (ver `updateContacto`) para no dejar una ubicación a medias.
+ */
+class UpdateContactoDto {
+  @IsOptional() @IsString() @MaxLength(200) direccion?: string | null;
+  @IsOptional() @IsString() @MaxLength(50) telefono?: string | null;
+  @IsOptional() @IsString() @MaxLength(50) whatsapp?: string | null;
+  @IsOptional() @IsString() @MaxLength(120) email?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) instagram?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) facebook?: string | null;
+  @IsOptional() @IsString() @MaxLength(500) mapsUrl?: string | null;
+  @IsOptional() @IsLatitude() lat?: number | null;
+  @IsOptional() @IsLongitude() lng?: number | null;
+  @IsOptional() @IsInt() @Min(1) @Max(19) mapZoom?: number | null;
 }
 
 @Injectable()
@@ -54,7 +83,28 @@ class CmsService {
     const contenidoMap = Object.fromEntries(
       contenido.map((c) => [c.clave, c.valor]),
     );
-    return { contenido: contenidoMap, galeria, testimonios, horarios, contacto };
+    // Se exponen sólo los campos que la landing necesita (no el id ni updatedAt).
+    const contactoPublico = contacto
+      ? {
+          direccion: contacto.direccion,
+          telefono: contacto.telefono,
+          whatsapp: contacto.whatsapp,
+          email: contacto.email,
+          instagram: contacto.instagram,
+          facebook: contacto.facebook,
+          mapsUrl: contacto.mapsUrl,
+          lat: contacto.lat,
+          lng: contacto.lng,
+          mapZoom: contacto.mapZoom,
+        }
+      : null;
+    return {
+      contenido: contenidoMap,
+      galeria,
+      testimonios,
+      horarios,
+      contacto: contactoPublico,
+    };
   }
 
   /** Upsert de un bloque de texto del CMS por clave. */
@@ -92,16 +142,28 @@ class CmsService {
     return { ok: true };
   }
 
-  updateContacto(data: Record<string, unknown>) {
-    return this.prisma.configContacto.findFirst().then((existing) => {
-      if (existing) {
-        return this.prisma.configContacto.update({
-          where: { id: existing.id },
-          data,
-        });
-      }
-      return this.prisma.configContacto.create({ data });
-    });
+  async updateContacto(dto: UpdateContactoDto) {
+    // La coordenada es un par: o vienen las dos, o ninguna. Enviar sólo una
+    // dejaría el mapa apuntando a un punto inventado.
+    const tieneLat = dto.lat !== undefined;
+    const tieneLng = dto.lng !== undefined;
+    if (tieneLat !== tieneLng) {
+      throw new BadRequestException(
+        "Enviá latitud y longitud juntas para mover la ubicación.",
+      );
+    }
+    // Descarta las claves ausentes para no pisar con `undefined` lo ya guardado.
+    const data = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    );
+    const existing = await this.prisma.configContacto.findFirst();
+    if (existing) {
+      return this.prisma.configContacto.update({
+        where: { id: existing.id },
+        data,
+      });
+    }
+    return this.prisma.configContacto.create({ data });
   }
 }
 
@@ -125,8 +187,8 @@ class CmsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Put("contacto")
-  updateContacto(@Body() body: Record<string, unknown>) {
-    return this.svc.updateContacto(body);
+  updateContacto(@Body() dto: UpdateContactoDto) {
+    return this.svc.updateContacto(dto);
   }
 
   // ---------- Galería (admin) ----------

@@ -1,6 +1,7 @@
 import { formatUYU, DIAS } from "../lib/format";
 import { scrollToSection } from "../lib/useScrollSpy";
 import Octogonos from "../lib/Octogonos";
+import Mapa from "../lib/MapaLazy";
 import type {
   Contacto,
   GaleriaItem,
@@ -37,7 +38,7 @@ export function Hero({ contenido }: { contenido: Record<string, string> }) {
               Ver productos
             </button>
             <button
-              onClick={() => scrollToSection("contacto")}
+              onClick={() => scrollToSection("ubicacion")}
               className="rounded-full border border-crust-300 px-6 py-3 font-semibold text-crust-700 transition-colors hover:bg-crust-100"
             >
               Cómo llegar
@@ -276,6 +277,73 @@ export function Testimonios({ items }: { items: Testimonio[] }) {
   );
 }
 
+/** URL de indicaciones "desde donde estés" hasta el local. */
+export function comoLlegarUrl(contacto: Contacto | null): string | null {
+  if (!contacto) return null;
+  if (contacto.mapsUrl) return contacto.mapsUrl;
+  if (contacto.lat != null && contacto.lng != null) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${contacto.lat},${contacto.lng}`;
+  }
+  if (contacto.direccion) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      contacto.direccion,
+    )}`;
+  }
+  return null;
+}
+
+export function Ubicacion({ contacto }: { contacto: Contacto | null }) {
+  const tieneCoords = contacto?.lat != null && contacto?.lng != null;
+  const url = comoLlegarUrl(contacto);
+
+  return (
+    <section id="ubicacion" className="mx-auto max-w-6xl px-4 py-20">
+      <h2 className="text-center font-display text-3xl font-bold text-crust-800 md:text-4xl">
+        Dónde estamos
+      </h2>
+      <div className="mx-auto mt-3 mb-4 h-1 w-16 rounded-full bg-crust-400" />
+      {contacto?.direccion && (
+        <p className="mb-8 text-center text-lg text-crust-600">
+          📍 {contacto.direccion}
+        </p>
+      )}
+
+      {tieneCoords ? (
+        <div className="overflow-hidden rounded-2xl border border-crust-100 shadow-sm">
+          <Mapa
+            lat={contacto!.lat!}
+            lng={contacto!.lng!}
+            zoom={contacto!.mapZoom ?? 16}
+            className="h-[380px] w-full md:h-[440px]"
+          />
+        </div>
+      ) : (
+        <div className="grid h-48 place-items-center rounded-2xl border border-dashed border-crust-200 bg-crust-50 text-center text-crust-400">
+          <p className="px-6 text-sm">
+            Estamos cargando la ubicación exacta del local.
+            <br />
+            Mientras tanto, escribinos y te indicamos cómo llegar.
+          </p>
+        </div>
+      )}
+
+      {url && (
+        <div className="mt-6 flex justify-center">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-crust-600 px-6 py-3 font-semibold text-white shadow-md transition-transform hover:scale-105"
+          >
+            <span aria-hidden>🧭</span>
+            Abrir indicaciones en Google Maps
+          </a>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function Contacto({
   contacto,
   horarios,
@@ -293,7 +361,15 @@ export function Contacto({
           <div className="mt-3 mb-8 h-1 w-16 rounded-full bg-crust-400" />
           <ul className="space-y-3 text-crust-100">
             {contacto?.direccion && (
-              <li>📍 {contacto.direccion}</li>
+              <li>
+                📍{" "}
+                <button
+                  onClick={() => scrollToSection("ubicacion")}
+                  className="underline decoration-crust-400 underline-offset-4 hover:text-white"
+                >
+                  {contacto.direccion}
+                </button>
+              </li>
             )}
             {contacto?.telefono && <li>📞 {contacto.telefono}</li>}
             {contacto?.whatsapp && <li>💬 WhatsApp: {contacto.whatsapp}</li>}
