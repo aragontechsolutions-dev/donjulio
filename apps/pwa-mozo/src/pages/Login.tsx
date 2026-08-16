@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth";
 
 export default function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("mozo@donjulio.uy");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,7 +53,6 @@ export default function Login() {
         >
           {loading ? "Ingresando…" : "Ingresar"}
         </button>
-        <p className="mt-4 text-center text-xs text-crust-400">Demo: mozo@donjulio.uy / donjulio123</p>
       </form>
     </div>
   );

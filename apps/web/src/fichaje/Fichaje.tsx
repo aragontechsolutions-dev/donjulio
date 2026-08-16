@@ -8,9 +8,26 @@ interface Resultado {
   nombre: string;
   hora: string;
   horas: number | null;
+  minutosTarde?: number | null;
+  minutosAntes?: number | null;
 }
 
 const TECLAS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "borrar", "0", "ok"];
+
+/**
+ * Identificador estable de este dispositivo. Los navegadores no exponen la MAC,
+ * así que se genera un id propio y se guarda en el tablet; el admin autoriza
+ * ese id desde el panel y sólo ese dispositivo puede fichar.
+ */
+const DEVICE_KEY = "donjulio_device_id";
+function deviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
 
 export default function Fichaje() {
   const { token = "" } = useParams();
@@ -48,7 +65,12 @@ export default function Fichaje() {
       const r = await fetch(`${BASE}/fichaje/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numeroEmpleado: Number(numeroFinal), pin: pinFinal }),
+        body: JSON.stringify({
+          numeroEmpleado: Number(numeroFinal),
+          pin: pinFinal,
+          deviceId: deviceId(),
+          deviceNombre: navigator.userAgent.slice(0, 80),
+        }),
       });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body?.message ?? "No se pudo registrar el fichaje.");
@@ -93,6 +115,16 @@ export default function Fichaje() {
             {new Date(ok.hora).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}
           </p>
           {ok.horas != null && <p className="mt-1 text-lg opacity-90">Trabajaste {ok.horas} h. ¡Buen descanso!</p>}
+          {!!ok.minutosTarde && (
+            <p className="mt-3 inline-block rounded-xl bg-white/20 px-4 py-2 text-lg">
+              Llegaste {ok.minutosTarde} min tarde
+            </p>
+          )}
+          {!!ok.minutosAntes && (
+            <p className="mt-3 inline-block rounded-xl bg-white/20 px-4 py-2 text-lg">
+              Saliste {ok.minutosAntes} min antes del horario
+            </p>
+          )}
           <button onClick={() => { setOk(null); reiniciar(); }} className="mt-8 rounded-xl bg-white/20 px-6 py-3 font-semibold">
             Listo
           </button>

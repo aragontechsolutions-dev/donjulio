@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 export default function AdminLogin() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@donjulio.uy");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,10 +81,6 @@ export default function AdminLogin() {
         >
           {loading ? "Ingresando…" : "Ingresar"}
         </button>
-
-        <p className="mt-4 text-center text-xs text-crust-400">
-          Demo: admin@donjulio.uy / donjulio123
-        </p>
       </form>
     </div>
   );

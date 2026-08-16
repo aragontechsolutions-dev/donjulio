@@ -205,6 +205,7 @@ model Usuario {
   cajasCerradas     CashSession[]     @relation("CajaCerradaPor")
   movimientosCaja   CashMovement[]
   turnos            Shift[]
+  horarios          HorarioTrabajo[]
   propinas          Propina[]
 }
 
@@ -790,6 +791,11 @@ model Shift {
   usuario   Usuario   @relation(fields: [usuarioId], references: [id])
   inicio    DateTime  @default(now())
   fin       DateTime?
+  /// Comparación con el horario previsto (minutos; null = sin horario cargado).
+  minutosTarde  Int?
+  minutosAntes  Int?
+  horarioInicio String?
+  horarioFin    String?
 
   @@index([usuarioId])
 }
@@ -935,10 +941,32 @@ model Reserva {
   @@index([mesaId])
 }
 
-/// Tablet de fichaje del local (singleton): token del dispositivo.
+/// Tablet de fichaje del local (singleton): token del enlace, dispositivo
+/// autorizado y tolerancia de horario.
 model KioscoFichaje {
   id    String @id @default("default")
   token String @unique @default(uuid())
+  /// Identificador del único tablet autorizado a fichar (null = ninguno).
+  deviceId       String?
+  deviceNombre   String?
+  deviceUltimoUso DateTime?
+  /// Ventana para vincular un tablet nuevo; vencida, no se acepta ninguno.
+  vinculacionHasta DateTime?
+  /// Minutos de gracia para llegadas tarde / salidas tempranas.
+  toleranciaMin  Int     @default(10)
+}
+
+/// Horario semanal previsto de un trabajador (para detectar tarde/temprano).
+model HorarioTrabajo {
+  id         String  @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  diaSemana  Int     // 0 = domingo … 6 = sábado
+  horaInicio String  // "08:00"
+  horaFin    String  // "16:00"
+
+  @@unique([usuarioId, diaSemana])
+  @@index([usuarioId])
 }
 
 /// Política de sesión por rol (singleton): minutos de inactividad antes de
