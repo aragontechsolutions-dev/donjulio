@@ -64,7 +64,7 @@ export default function PedidosAdmin() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-crust-600 px-3 py-1 text-sm font-medium text-white">
+                <span className="rounded-full bg-dj-terracota px-3 py-1 text-sm font-medium text-white">
                   {p.status}
                 </span>
                 {opciones.length > 0 && (

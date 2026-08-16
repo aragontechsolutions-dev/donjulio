@@ -113,7 +113,7 @@ export default function PromocionesAdmin() {
         )}
         <button
           type="submit"
-          className="rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 sm:col-span-2"
+          className="rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre sm:col-span-2"
         >
           Crear promoción
         </button>

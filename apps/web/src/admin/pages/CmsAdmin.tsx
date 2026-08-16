@@ -119,7 +119,7 @@ export default function CmsAdmin() {
             <div className="mt-3 flex items-center gap-3">
               <button
                 onClick={() => guardar(c.clave)}
-                className="rounded-lg bg-crust-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-crust-700"
+                className="rounded-lg bg-dj-terracota px-4 py-1.5 text-sm font-semibold text-white hover:bg-dj-cobre"
               >
                 Guardar
               </button>
@@ -141,7 +141,7 @@ export default function CmsAdmin() {
           Si no hay ninguna activa, la sección no aparece.
         </p>
 
-        <label className="inline-block cursor-pointer rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">
+        <label className="inline-block cursor-pointer rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
           {subiendo ? "Subiendo…" : "+ Subir fotos"}
           <input
             type="file"

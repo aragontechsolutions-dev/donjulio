@@ -176,7 +176,7 @@ export default function InsumosAdmin() {
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-4">
-          <button className="rounded-lg bg-crust-600 px-5 py-2 font-semibold text-white hover:bg-crust-700">Agregar insumo</button>
+          <button className="rounded-lg bg-dj-terracota px-5 py-2 font-semibold text-white hover:bg-dj-cobre">Agregar insumo</button>
         </div>
       </form>
 
@@ -266,7 +266,7 @@ export default function InsumosAdmin() {
               </label>
             </div>
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
                 {saving ? "Guardando…" : "Registrar entrada"}
               </button>
               <button type="button" onClick={cerrarModal} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>
@@ -305,7 +305,7 @@ export default function InsumosAdmin() {
               />
             </label>
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
                 {saving ? "Guardando…" : "Aplicar ajuste"}
               </button>
               <button type="button" onClick={cerrarModal} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>

@@ -74,11 +74,11 @@ export default function KdsAdmin() {
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
-        <button onClick={() => setStationId("")} className={`rounded-full px-4 py-1.5 text-sm font-medium ${stationId === "" ? "bg-crust-600 text-white" : "bg-crust-100 text-crust-700"}`}>
+        <button onClick={() => setStationId("")} className={`rounded-full px-4 py-1.5 text-sm font-medium ${stationId === "" ? "bg-dj-terracota text-white" : "bg-crust-100 text-crust-700"}`}>
           Todas
         </button>
         {stations.map((s) => (
-          <button key={s.id} onClick={() => setStationId(s.id)} className={`rounded-full px-4 py-1.5 text-sm font-medium ${stationId === s.id ? "bg-crust-600 text-white" : "bg-crust-100 text-crust-700"}`}>
+          <button key={s.id} onClick={() => setStationId(s.id)} className={`rounded-full px-4 py-1.5 text-sm font-medium ${stationId === s.id ? "bg-dj-terracota text-white" : "bg-crust-100 text-crust-700"}`}>
             {s.nombre}
           </button>
         ))}
@@ -108,7 +108,7 @@ export default function KdsAdmin() {
                 <div className="mt-3 flex items-center justify-between">
                   <span className="rounded-full bg-crust-100 px-2 py-0.5 text-xs font-semibold text-crust-600">{it.status}</span>
                   {next && (
-                    <button onClick={() => avanzar(it.id, next.status)} className="rounded-lg bg-crust-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-crust-700">
+                    <button onClick={() => avanzar(it.id, next.status)} className="rounded-lg bg-dj-terracota px-3 py-1.5 text-sm font-semibold text-white hover:bg-dj-cobre">
                       {next.label}
                     </button>
                   )}

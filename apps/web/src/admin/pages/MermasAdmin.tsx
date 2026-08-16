@@ -63,7 +63,7 @@ export default function MermasAdmin() {
         </select>
         <input type="number" step="0.01" placeholder="Cantidad" value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: Number(e.target.value) })} className="w-28 rounded-lg border border-crust-200 px-3 py-2" />
         <input type="number" step="0.01" placeholder="Costo (opc.)" value={form.costo} onChange={(e) => setForm({ ...form, costo: e.target.value })} className="w-32 rounded-lg border border-crust-200 px-3 py-2" />
-        <button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Registrar</button>
+        <button className="rounded-lg bg-dj-terracota px-4 py-2 font-semibold text-white hover:bg-dj-cobre">Registrar</button>
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">

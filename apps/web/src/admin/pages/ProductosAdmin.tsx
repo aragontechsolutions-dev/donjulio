@@ -221,7 +221,7 @@ export default function ProductosAdmin() {
                     onClick={() => toggle(p, "destacado")}
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       p.destacado
-                        ? "bg-crust-600 text-white"
+                        ? "bg-dj-terracota text-white"
                         : "bg-crust-100 text-crust-500"
                     }`}
                   >
@@ -354,7 +354,7 @@ export default function ProductosAdmin() {
             </p>
 
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={savingRot} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+              <button type="submit" disabled={savingRot} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
                 {savingRot ? "Guardando…" : "Guardar rotulado"}
               </button>
               <button type="button" onClick={() => setRotDe(null)} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>

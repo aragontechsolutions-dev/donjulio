@@ -165,7 +165,7 @@ export default function CajaAdmin() {
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
           <label className="mb-3 block text-sm font-medium text-crust-700">Fondo inicial</label>
           <input type="number" value={openFloat} onChange={(e) => setOpenFloat(Number(e.target.value))} className="mb-4 w-full rounded-lg border border-crust-200 px-3 py-2" />
-          <button onClick={abrir} className="w-full rounded-lg bg-crust-600 py-2.5 font-semibold text-white hover:bg-crust-700">Abrir caja</button>
+          <button onClick={abrir} className="w-full rounded-lg bg-dj-terracota py-2.5 font-semibold text-white hover:bg-dj-cobre">Abrir caja</button>
         </div>
       </div>
     );
@@ -250,7 +250,7 @@ export default function CajaAdmin() {
 
           <input placeholder="Referencia (opcional)" value={mov.referencia} onChange={(e) => setMov({ ...mov, referencia: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
           {formError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{formError}</p>}
-          <button disabled={!montoNum || (esVentaEfectivo && mov.recibido !== "" && vuelto < 0)} className="w-full rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:cursor-not-allowed disabled:opacity-50">
+          <button disabled={!montoNum || (esVentaEfectivo && mov.recibido !== "" && vuelto < 0)} className="w-full rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:cursor-not-allowed disabled:opacity-50">
             Agregar movimiento
           </button>
         </form>

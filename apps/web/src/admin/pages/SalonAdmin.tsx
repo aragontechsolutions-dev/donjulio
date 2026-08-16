@@ -92,8 +92,8 @@ function ChairIcon({ color, size }: { color: string; size: number }) {
 const METODOS: { m: PaymentMethod; label: string; cls: string }[] = [
   { m: PaymentMethod.EFECTIVO, label: "Efectivo", cls: "bg-green-600 hover:bg-green-700" },
   { m: PaymentMethod.MERCADO_PAGO_QR, label: "QR / MP", cls: "bg-sky-600 hover:bg-sky-700" },
-  { m: PaymentMethod.DEBITO, label: "Débito", cls: "bg-crust-600 hover:bg-crust-700" },
-  { m: PaymentMethod.CREDITO, label: "Crédito", cls: "bg-crust-600 hover:bg-crust-700" },
+  { m: PaymentMethod.DEBITO, label: "Débito", cls: "bg-dj-terracota hover:bg-dj-cobre" },
+  { m: PaymentMethod.CREDITO, label: "Crédito", cls: "bg-dj-terracota hover:bg-dj-cobre" },
 ];
 
 /** Iniciales para mostrar sobre la silla cuando tiene cliente asignado. */
@@ -522,7 +522,7 @@ export default function SalonAdmin() {
             <button
               key={m}
               onClick={() => { setMode(m); setCuenta(null); setMesaSel(null); setEditSel(null); }}
-              className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize ${mode === m ? "bg-crust-600 text-white" : "text-crust-700"}`}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize ${mode === m ? "bg-dj-terracota text-white" : "text-crust-700"}`}
             >
               {m === "operar" ? "Operar" : "Editar salón"}
             </button>
@@ -535,7 +535,7 @@ export default function SalonAdmin() {
       {mode === "editar" && (
         <div className="mb-3 space-y-2">
           <div className="flex flex-wrap gap-2">
-            <button onClick={agregarMesa} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">+ Agregar mesa</button>
+            <button onClick={agregarMesa} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">+ Agregar mesa</button>
             <button onClick={abrirNuevaZona} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Nueva zona</button>
             <button onClick={agregarArea} className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">+ Área para mesas</button>
             <label className="cursor-pointer rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100">
@@ -607,7 +607,7 @@ export default function SalonAdmin() {
                 key={a.id}
                 onPointerDown={(e) => startDragArea(e, a)}
                 style={{ left: a.x, top: a.y, width: a.ancho, height: a.alto, position: "absolute" }}
-                className={`rounded-lg border-2 border-dashed ${mode === "editar" ? "cursor-move touch-none border-crust-500 bg-crust-500/10" : "pointer-events-none border-crust-300/60"}`}
+                className={`rounded-lg border-2 border-dashed ${mode === "editar" ? "cursor-move touch-none border-crust-500 bg-dj-terracota/10" : "pointer-events-none border-crust-300/60"}`}
               >
                 {mode === "editar" && (
                   <>
@@ -621,7 +621,7 @@ export default function SalonAdmin() {
                     </button>
                     <span
                       onPointerDown={(e) => startDragArea(e, a, true)}
-                      className="absolute -bottom-1 -right-1 h-4 w-4 cursor-se-resize touch-none rounded-sm border-2 border-white bg-crust-600"
+                      className="absolute -bottom-1 -right-1 h-4 w-4 cursor-se-resize touch-none rounded-sm border-2 border-white bg-dj-terracota"
                       title="Redimensionar"
                     />
                   </>
@@ -656,7 +656,7 @@ export default function SalonAdmin() {
                   onPointerDown={(e) => startDragMesa(e, m)}
                   onClick={() => { if (mode === "operar") abrirCuenta(m); else setEditSel(m); }}
                   style={{ left: m.posX, top: m.posY, width: TILE, height: TILE, position: "absolute" }}
-                  className={`relative flex flex-col items-center justify-center ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-crust-600 ring-offset-1" : ""}`}
+                  className={`relative flex flex-col items-center justify-center ${m.forma === "CIRCULAR" ? "rounded-full" : "rounded-xl"} ${mode === "editar" ? "cursor-move touch-none" : "cursor-pointer"} ${editSel?.id === m.id ? "ring-2 ring-dj-terracota ring-offset-1" : ""}`}
                 >
                   <TableIcon forma={m.forma} fill={statusColor(m.status).fill} stroke={statusColor(m.status).stroke} size={TILE} />
                   {m.pideCuentaAt && (
@@ -706,7 +706,7 @@ export default function SalonAdmin() {
                   </select>
                 </label>
                 <div className="flex gap-2 pt-1">
-                  <button onClick={guardarMesa} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700">Guardar</button>
+                  <button onClick={guardarMesa} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre">Guardar</button>
                   <button onClick={eliminarMesa} className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
                 </div>
 
@@ -856,7 +856,7 @@ export default function SalonAdmin() {
                   ))}
                   <p className="mb-2 text-xs text-crust-500">Comensal: <b>{comensalSel ? (cuenta.mesa?.sillas.find((s) => s.id === comensalSel)?.nombre?.trim() || `Silla ${cuenta.mesa?.sillas.find((s) => s.id === comensalSel)?.numero}`) : "Sin asignar"}</b></p>
                   <div className="mt-2 flex gap-2">
-                    <button onClick={agregar} className="flex-1 rounded-lg bg-crust-600 py-1.5 text-sm font-semibold text-white hover:bg-crust-700">Agregar</button>
+                    <button onClick={agregar} className="flex-1 rounded-lg bg-dj-terracota py-1.5 text-sm font-semibold text-white hover:bg-dj-cobre">Agregar</button>
                     <button onClick={() => setProdSel(null)} className="rounded-lg border border-crust-200 px-3 py-1.5 text-sm">Cancelar</button>
                   </div>
                 </div>
@@ -867,7 +867,7 @@ export default function SalonAdmin() {
                 <div className="border-t border-crust-100 pt-3">
                   <div className="mb-2 flex rounded-full bg-crust-100 p-1 text-xs font-semibold">
                     {([["todo", "Todo"], ["comensal", "Por comensal"], ["iguales", "Partes iguales"]] as const).map(([k, label]) => (
-                      <button key={k} onClick={() => { setSplitMode(k); setSillasCobro([]); }} className={`flex-1 rounded-full px-2 py-1 ${splitMode === k ? "bg-crust-600 text-white" : "text-crust-700"}`}>{label}</button>
+                      <button key={k} onClick={() => { setSplitMode(k); setSillasCobro([]); }} className={`flex-1 rounded-full px-2 py-1 ${splitMode === k ? "bg-dj-terracota text-white" : "text-crust-700"}`}>{label}</button>
                     ))}
                   </div>
 
@@ -941,7 +941,7 @@ export default function SalonAdmin() {
               />
             </label>
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={savingZona} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+              <button type="submit" disabled={savingZona} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
                 {savingZona ? "Guardando…" : "Crear zona"}
               </button>
               <button type="button" onClick={() => setZonaModal(false)} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>

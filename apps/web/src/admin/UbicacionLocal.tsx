@@ -164,7 +164,7 @@ export default function UbicacionLocal() {
         <button
           onClick={buscarDireccion}
           disabled={buscando}
-          className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700 disabled:opacity-50"
+          className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre disabled:opacity-50"
         >
           {buscando ? "Buscando…" : "Buscar"}
         </button>
@@ -278,7 +278,7 @@ export default function UbicacionLocal() {
         <button
           onClick={guardar}
           disabled={guardando}
-          className="rounded-lg bg-crust-600 px-5 py-2 text-sm font-semibold text-white hover:bg-crust-700 disabled:opacity-50"
+          className="rounded-lg bg-dj-terracota px-5 py-2 text-sm font-semibold text-white hover:bg-dj-cobre disabled:opacity-50"
         >
           {guardando ? "Guardando…" : "Guardar ubicación y contacto"}
         </button>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { LogoHorizontal, Sello } from "../lib/Logo";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
 
@@ -106,56 +107,85 @@ export default function Fichaje() {
   if (ok) {
     const entrada = ok.accion === "entrada";
     return (
-      <div className={`grid min-h-screen place-items-center p-6 text-center ${entrada ? "bg-green-600" : "bg-crust-800"}`}>
-        <div className="text-white">
-          <p className="text-7xl">{entrada ? "👋" : "🏠"}</p>
-          <h1 className="mt-4 font-display text-4xl font-bold">¡Hola, {ok.nombre}!</h1>
-          <p className="mt-2 text-2xl">
-            {entrada ? "Entrada registrada" : "Salida registrada"} ·{" "}
+      <div className="grid min-h-screen place-items-center bg-dj-carbon p-6 text-center text-dj-papel">
+        <div>
+          <Sello
+            tinta="#F5F0E6"
+            acento={entrada ? "#C9A56B" : "#C0561D"}
+            className="mx-auto h-28 w-28"
+          />
+          <p className="mt-8 text-[11px] font-semibold uppercase tracking-marca text-dj-dorado">
+            {entrada ? "Entrada registrada" : "Salida registrada"}
+          </p>
+          <h1 className="mt-4 font-display text-5xl font-bold">
+            {entrada ? `¡Hola, ${ok.nombre}!` : `Hasta mañana, ${ok.nombre}`}
+          </h1>
+          <p className="mt-4 font-display text-3xl tabular-nums text-dj-papel/80">
             {new Date(ok.hora).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}
           </p>
-          {ok.horas != null && <p className="mt-1 text-lg opacity-90">Trabajaste {ok.horas} h. ¡Buen descanso!</p>}
+          {ok.horas != null && (
+            <p className="mt-2 text-lg text-dj-papel/60">Trabajaste {ok.horas} h. ¡Buen descanso!</p>
+          )}
           {!!ok.minutosTarde && (
-            <p className="mt-3 inline-block rounded-xl bg-white/20 px-4 py-2 text-lg">
+            <p className="mt-6 inline-block border-l-2 border-dj-terracota bg-dj-papel/10 px-4 py-2 text-lg">
               Llegaste {ok.minutosTarde} min tarde
             </p>
           )}
           {!!ok.minutosAntes && (
-            <p className="mt-3 inline-block rounded-xl bg-white/20 px-4 py-2 text-lg">
+            <p className="mt-6 inline-block border-l-2 border-dj-terracota bg-dj-papel/10 px-4 py-2 text-lg">
               Saliste {ok.minutosAntes} min antes del horario
             </p>
           )}
-          <button onClick={() => { setOk(null); reiniciar(); }} className="mt-8 rounded-xl bg-white/20 px-6 py-3 font-semibold">
-            Listo
-          </button>
+          <div>
+            <button
+              onClick={() => { setOk(null); reiniciar(); }}
+              className="mt-10 rounded-full border border-dj-papel/30 px-8 py-3 text-xs font-semibold uppercase tracking-[0.16em] transition-colors hover:bg-dj-papel hover:text-dj-carbon"
+            >
+              Listo
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-crust-50 p-4">
+    <div className="grid min-h-screen place-items-center bg-dj-carbon p-4">
       <div className="w-full max-w-sm">
-        <div className="mb-4 text-center">
-          <p className="font-display text-2xl font-bold text-crust-800">🥖 Don Julio</p>
-          <p className="text-sm text-crust-500">
-            {reloj.toLocaleDateString("es-UY", { weekday: "long", day: "2-digit", month: "long" })} ·{" "}
-            <b>{reloj.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}</b>
+        <div className="mb-6 text-center">
+          <LogoHorizontal
+            tinta="#F5F0E6"
+            acento="#C9A56B"
+            className="mx-auto h-11 w-auto"
+          />
+          <p className="mt-4 text-sm text-dj-papel/60 first-letter:uppercase">
+            {reloj.toLocaleDateString("es-UY", { weekday: "long", day: "2-digit", month: "long" })}
+          </p>
+          <p className="font-display text-3xl tabular-nums text-dj-papel">
+            {reloj.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
-          <p className="mb-1 text-center text-sm font-medium text-crust-600">
-            {paso === "numero" ? "Ingresá tu número de empleado" : "Ahora tu PIN"}
+        <div className="rounded-sm bg-dj-papel p-5 shadow-2xl">
+          <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-marca text-dj-humo">
+            {paso === "numero" ? "Tu número de empleado" : "Ahora tu PIN"}
           </p>
 
           {/* Display */}
-          <div className="mb-3 flex h-16 items-center justify-center rounded-xl bg-crust-50 text-3xl font-bold tracking-widest text-crust-800">
-            {paso === "numero" ? numero || <span className="text-crust-300">—</span> : "•".repeat(pin.length) || <span className="text-crust-300">— — — —</span>}
+          <div className="mb-4 flex h-16 items-center justify-center rounded-sm border border-dj-arena bg-white font-display text-3xl font-bold tracking-widest text-dj-carbon">
+            {paso === "numero"
+              ? numero || <span className="text-dj-arena">—</span>
+              : "•".repeat(pin.length) || <span className="text-dj-arena">— — — —</span>}
           </div>
 
-          {error && <p className="mb-3 rounded-lg bg-red-100 px-3 py-2 text-center text-sm font-medium text-red-700">{error}</p>}
-          {enviando && <p className="mb-3 text-center text-sm text-crust-500">Verificando…</p>}
+          {error && (
+            <p className="mb-3 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-center text-sm font-medium text-red-800">
+              {error}
+            </p>
+          )}
+          {enviando && (
+            <p className="mb-3 text-center text-sm text-dj-humo">Verificando…</p>
+          )}
 
           {/* Teclado */}
           <div className="grid grid-cols-3 gap-2">
@@ -164,12 +194,12 @@ export default function Fichaje() {
                 key={t}
                 onClick={() => tecla(t)}
                 disabled={enviando}
-                className={`h-16 rounded-xl text-2xl font-semibold active:scale-95 disabled:opacity-50 ${
+                className={`h-16 rounded-sm font-display text-2xl font-semibold transition-colors active:scale-95 disabled:opacity-50 ${
                   t === "ok"
-                    ? "bg-green-600 text-white"
+                    ? "bg-dj-terracota text-dj-papel hover:bg-dj-cobre"
                     : t === "borrar"
-                      ? "bg-crust-200 text-crust-700 text-base"
-                      : "bg-crust-100 text-crust-800"
+                      ? "border border-dj-arena bg-dj-crema text-lg text-dj-grafito hover:bg-dj-arena"
+                      : "border border-dj-arena bg-white text-dj-carbon hover:bg-dj-crema"
                 }`}
               >
                 {t === "borrar" ? "←" : t === "ok" ? "✓" : t}
@@ -178,14 +208,17 @@ export default function Fichaje() {
           </div>
 
           {paso === "pin" && (
-            <button onClick={reiniciar} className="mt-3 w-full py-2 text-sm text-crust-500">
+            <button
+              onClick={reiniciar}
+              className="mt-4 w-full py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-dj-humo hover:text-dj-terracota"
+            >
               ← Cambiar número
             </button>
           )}
         </div>
 
-        <p className="mt-4 text-center text-xs text-crust-400">
-          Marcá tu entrada al llegar y tu salida al irte.
+        <p className="mt-5 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-dj-papel/40">
+          Marcá tu entrada al llegar y tu salida al irte
         </p>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { scrollToSection, useScrollSpy } from "../lib/useScrollSpy";
-import { LogoHorizontal } from "./Logo";
+import { LogoHorizontal } from "../lib/Logo";
 
 const LINKS = [
   { id: "inicio", label: "Inicio" },

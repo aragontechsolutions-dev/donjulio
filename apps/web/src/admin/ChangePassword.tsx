@@ -53,7 +53,7 @@ export default function ChangePassword() {
         {error && <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         <input type="password" placeholder="Nueva contraseña" value={pass} onChange={(e) => setPass(e.target.value)} className="mb-3 w-full rounded-lg border border-crust-200 px-3 py-2" required />
         <input type="password" placeholder="Repetir contraseña" value={pass2} onChange={(e) => setPass2(e.target.value)} className="mb-6 w-full rounded-lg border border-crust-200 px-3 py-2" required />
-        <button type="submit" disabled={loading} className="w-full rounded-lg bg-crust-600 py-2.5 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+        <button type="submit" disabled={loading} className="w-full rounded-lg bg-dj-terracota py-2.5 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
           {loading ? "Guardando…" : "Guardar y continuar"}
         </button>
         <button type="button" onClick={logout} className="mt-3 w-full text-center text-sm text-crust-500">

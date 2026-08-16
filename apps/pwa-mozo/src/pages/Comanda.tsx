@@ -6,6 +6,7 @@ import { flushOutbox } from "../lib/sync";
 import { showToast } from "../lib/toast";
 import { formatUYU } from "../lib/format";
 import type { MesaSel } from "../App";
+import { Monograma } from "../lib/Logo";
 
 interface Modifier { id: string; nombre: string; priceDelta: string }
 interface Grupo { group: { id: string; nombre: string; minSelect: number; maxSelect: number; modifiers: Modifier[] } }
@@ -238,7 +239,7 @@ export default function Comanda({
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
               onClick={() => setComensalSel("")}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensalSel === "" ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensalSel === "" ? "border-dj-terracota bg-dj-terracota text-white" : "border-crust-200 text-crust-700"}`}
             >
               Mesa
             </button>
@@ -246,7 +247,7 @@ export default function Comanda({
               <button
                 key={s.id}
                 onClick={() => setComensalSel(s.id)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensalSel === s.id ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${comensalSel === s.id ? "border-dj-terracota bg-dj-terracota text-white" : "border-crust-200 text-crust-700"}`}
               >
                 {s.nombre?.trim() || `Silla ${s.numero}`}
               </button>
@@ -301,7 +302,9 @@ export default function Comanda({
                     {p.imagenUrl ? (
                       <img src={p.imagenUrl} alt={p.nombre} loading="lazy" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="grid h-full w-full place-items-center text-4xl text-crust-300">🥐</div>
+                      <div className="grid h-full w-full place-items-center">
+                        <Monograma tinta="#E3D5B8" acento="#D8C7A4" className="h-12 w-12" />
+                      </div>
                     )}
                     {p.destacado && <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-crust-700 shadow-sm">★</span>}
                   </div>
@@ -331,7 +334,7 @@ export default function Comanda({
                     const single = group.maxSelect <= 1;
                     const on = (mods[group.id] ?? []).includes(m.id);
                     return (
-                      <button key={m.id} onClick={() => toggleMod(group.id, m.id, single)} className={`rounded-full border px-4 py-2 text-sm ${on ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}>
+                      <button key={m.id} onClick={() => toggleMod(group.id, m.id, single)} className={`rounded-full border px-4 py-2 text-sm ${on ? "border-dj-terracota bg-dj-terracota text-white" : "border-crust-200 text-crust-700"}`}>
                         {m.nombre}{Number(m.priceDelta) > 0 ? ` +${formatUYU(m.priceDelta)}` : ""}
                       </button>
                     );
@@ -339,7 +342,7 @@ export default function Comanda({
                 </div>
               </div>
             ))}
-            <button onClick={confirmarMods} className="mt-2 w-full rounded-xl bg-crust-600 py-3 font-semibold text-white active:bg-crust-700">Agregar</button>
+            <button onClick={confirmarMods} className="mt-2 w-full rounded-xl bg-dj-terracota py-3 font-semibold text-white active:bg-dj-cobre">Agregar</button>
           </div>
         </div>
       )}
@@ -407,7 +410,7 @@ export default function Comanda({
                 </div>
               ))}
             </div>
-            <button onClick={enviar} className="w-full rounded-xl bg-crust-600 py-3.5 text-lg font-semibold text-white active:bg-crust-700">
+            <button onClick={enviar} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre">
               Enviar a cocina · {formatUYU(cartTotal)}
             </button>
           </div>
@@ -423,7 +426,7 @@ export default function Comanda({
               ) : (
                 <div className="mb-2 flex rounded-full bg-crust-100 p-1 text-xs font-semibold">
                   {([["todo", "Todo"], ["comensal", "Por comensal"], ["iguales", "Iguales"]] as const).map(([k, label]) => (
-                    <button key={k} onClick={() => { setSplit(k); setSillasCobro([]); }} className={`flex-1 rounded-full px-2 py-1 ${split === k ? "bg-crust-600 text-white" : "text-crust-700"}`}>{label}</button>
+                    <button key={k} onClick={() => { setSplit(k); setSillasCobro([]); }} className={`flex-1 rounded-full px-2 py-1 ${split === k ? "bg-dj-terracota text-white" : "text-crust-700"}`}>{label}</button>
                   ))}
                 </div>
               )}
@@ -459,7 +462,7 @@ export default function Comanda({
                       key={m}
                       disabled={!online || (split === "comensal" && sillasCobro.length === 0)}
                       onClick={() => iniciarCobro(m as PaymentMethod)}
-                      className="rounded-xl bg-crust-700 py-3 text-sm font-semibold text-white active:bg-crust-800 disabled:opacity-40"
+                      className="rounded-xl bg-dj-terracota py-3 text-sm font-semibold text-white active:bg-crust-800 disabled:opacity-40"
                     >
                       {label}
                     </button>

@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-route
 import { useAuth } from "../lib/auth";
 import { useIdleLogout } from "../lib/useIdleLogout";
 import { homeFor, navFor } from "./nav";
+import { LogoHorizontal } from "../lib/Logo";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -25,21 +26,22 @@ export default function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-crust-50">
-      <aside className="flex w-60 flex-col border-r border-crust-100 bg-white">
-        <div className="flex items-center gap-2 border-b border-crust-100 px-5 py-4 font-display text-lg font-bold text-crust-700">
-          <span>🥖</span> Don Julio
+      {/* Barra lateral en carbón, como la fachada del local. */}
+      <aside className="flex w-60 flex-col bg-dj-carbon">
+        <div className="border-b border-dj-papel/10 px-5 py-5">
+          <LogoHorizontal tinta="#F5F0E6" acento="#C9A56B" className="h-10 w-auto" />
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
           {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                `flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-crust-600 text-white"
-                    : "text-crust-700 hover:bg-crust-100"
+                    ? "bg-dj-terracota text-dj-papel"
+                    : "text-dj-papel/70 hover:bg-dj-papel/10 hover:text-dj-papel"
                 }`
               }
             >
@@ -48,15 +50,17 @@ export default function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-crust-100 p-3">
-          <p className="px-2 text-xs text-crust-500">{user?.nombre}</p>
-          <p className="px-2 text-xs text-crust-400">{user?.role}</p>
+        <div className="border-t border-dj-papel/10 p-4">
+          <p className="text-sm font-medium text-dj-papel/90">{user?.nombre}</p>
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-dj-dorado">
+            {user?.role}
+          </p>
           <button
             onClick={() => {
               logout();
               navigate("/admin/login");
             }}
-            className="mt-2 w-full rounded-lg border border-crust-200 px-3 py-1.5 text-sm text-crust-700 hover:bg-crust-100"
+            className="mt-3 w-full rounded-full border border-dj-papel/25 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-dj-papel/80 transition-colors hover:border-dj-terracota hover:bg-dj-terracota hover:text-dj-papel"
           >
             Cerrar sesión
           </button>

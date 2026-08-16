@@ -141,7 +141,7 @@ export default function UsuariosAdmin() {
         <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Crear usuario</button>
+        <button className="rounded-lg bg-dj-terracota px-4 py-2 font-semibold text-white hover:bg-dj-cobre">Crear usuario</button>
         <label className="flex items-center gap-2 text-sm text-crust-600 sm:col-span-2 lg:col-span-5">
           <input type="checkbox" checked={form.forceChange} onChange={(e) => setForm({ ...form, forceChange: e.target.checked })} />
           Obligar a cambiar la contraseña en el primer ingreso
@@ -215,7 +215,7 @@ export default function UsuariosAdmin() {
               </label>
             ))}
           </div>
-          <button onClick={guardarSesion} disabled={savingSesion} className="mt-4 rounded-lg bg-crust-600 px-5 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+          <button onClick={guardarSesion} disabled={savingSesion} className="mt-4 rounded-lg bg-dj-terracota px-5 py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
             {savingSesion ? "Guardando…" : "Guardar política"}
           </button>
           <p className="mt-2 text-xs text-crust-400">

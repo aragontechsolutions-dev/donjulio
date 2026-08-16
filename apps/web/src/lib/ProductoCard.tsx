@@ -1,4 +1,5 @@
 import { formatUYU } from "./format";
+import { Monograma } from "./Logo";
 
 interface ProductoCardProps {
   nombre: string;
@@ -20,7 +21,9 @@ export default function ProductoCard({ nombre, precio, descripcion, imagenUrl, d
         {imagenUrl ? (
           <img src={imagenUrl} alt={nombre} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
-          <div className="grid h-full w-full place-items-center text-4xl text-crust-300 transition-transform duration-500 group-hover:scale-110">🥐</div>
+          <div className="grid h-full w-full place-items-center transition-transform duration-500 group-hover:scale-110">
+            <Monograma tinta="#E3D5B8" acento="#D8C7A4" className="h-14 w-14" />
+          </div>
         )}
         {destacado && (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-crust-700 shadow-sm backdrop-blur">★ Destacado</span>

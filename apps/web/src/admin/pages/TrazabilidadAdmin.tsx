@@ -55,10 +55,10 @@ export default function TrazabilidadAdmin() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-full bg-crust-100 p-1 text-sm font-semibold">
-          <button onClick={() => { setModo("producido"); setTraza(null); setTrazaIns(null); }} className={`rounded-full px-4 py-1.5 ${modo === "producido" ? "bg-crust-600 text-white" : "text-crust-700"}`}>
+          <button onClick={() => { setModo("producido"); setTraza(null); setTrazaIns(null); }} className={`rounded-full px-4 py-1.5 ${modo === "producido" ? "bg-dj-terracota text-white" : "text-crust-700"}`}>
             Producto terminado → insumos
           </button>
-          <button onClick={() => { setModo("insumo"); setTraza(null); setTrazaIns(null); }} className={`rounded-full px-4 py-1.5 ${modo === "insumo" ? "bg-crust-600 text-white" : "text-crust-700"}`}>
+          <button onClick={() => { setModo("insumo"); setTraza(null); setTrazaIns(null); }} className={`rounded-full px-4 py-1.5 ${modo === "insumo" ? "bg-dj-terracota text-white" : "text-crust-700"}`}>
             Insumo → productos
           </button>
         </div>

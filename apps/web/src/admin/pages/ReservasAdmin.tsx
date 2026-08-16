@@ -86,7 +86,7 @@ export default function ReservasAdmin() {
         </div>
         <div className="flex items-center gap-2">
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="rounded-lg border border-crust-200 px-3 py-2 text-sm" />
-          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">
+          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
             {showForm ? "Cancelar" : "+ Nueva reserva"}
           </button>
         </div>
@@ -122,7 +122,7 @@ export default function ReservasAdmin() {
             <input value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} placeholder="Ej: cumpleaños, silla para bebé" className="w-full rounded-lg border border-crust-200 px-3 py-2" />
           </label>
           <div className="sm:col-span-3">
-            <button disabled={saving} className="rounded-lg bg-crust-600 px-5 py-2.5 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+            <button disabled={saving} className="rounded-lg bg-dj-terracota px-5 py-2.5 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
               {saving ? "Guardando…" : "Registrar reserva"}
             </button>
           </div>

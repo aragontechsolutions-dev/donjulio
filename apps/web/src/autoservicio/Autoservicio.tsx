@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { LogoHorizontal, Monograma, Sello } from "../lib/Logo";
 import { showToast } from "../lib/toast";
 import { formatUYU } from "../lib/format";
 import ProductoCard from "../lib/ProductoCard";
@@ -205,11 +206,11 @@ export default function Autoservicio() {
 
   if (notFound) {
     return (
-      <div className="grid min-h-screen place-items-center bg-crust-50 p-6 text-center">
+      <div className="grid min-h-screen place-items-center bg-dj-papel p-6 text-center">
         <div>
-          <p className="text-5xl">🔍</p>
-          <h1 className="mt-3 font-display text-xl font-bold text-crust-800">Mesa no encontrada</h1>
-          <p className="mt-1 text-crust-500">El código QR no es válido o expiró. Pedí uno nuevo al personal.</p>
+          <Monograma tinta="#E3D5B8" acento="#E3D5B8" className="mx-auto h-16 w-16" />
+          <h1 className="mt-6 font-display text-2xl font-bold text-dj-carbon">Mesa no encontrada</h1>
+          <p className="mt-2 text-dj-humo">El código QR no es válido o expiró. Pedí uno nuevo al personal.</p>
         </div>
       </div>
     );
@@ -217,12 +218,19 @@ export default function Autoservicio() {
 
   if (despedida) {
     return (
-      <div className="grid min-h-screen place-items-center bg-crust-50 p-6 text-center">
+      <div className="grid min-h-screen place-items-center bg-dj-carbon p-6 text-center">
         <div className="animate-[fadeIn_.4s_ease-out]">
-          <p className="text-6xl">👋</p>
-          <h1 className="mt-4 font-display text-3xl font-bold text-crust-800">¡Gracias por tu visita!</h1>
-          <p className="mt-2 text-crust-500">Te esperamos pronto en Don Julio 🥖</p>
-          <button onClick={() => setDespedida(false)} className="mt-6 rounded-xl border border-crust-200 bg-white px-5 py-2.5 text-sm font-semibold text-crust-700">
+          <Sello tinta="#F5F0E6" acento="#C9A56B" className="mx-auto h-28 w-28" />
+          <h1 className="mt-8 font-display text-4xl font-bold text-dj-papel">
+            ¡Gracias por tu visita!
+          </h1>
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-marca text-dj-dorado">
+            Te esperamos pronto
+          </p>
+          <button
+            onClick={() => setDespedida(false)}
+            className="mt-10 rounded-full border border-dj-papel/30 px-7 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-dj-papel transition-colors hover:bg-dj-papel hover:text-dj-carbon"
+          >
             Comenzar nuevo pedido
           </button>
         </div>
@@ -232,14 +240,14 @@ export default function Autoservicio() {
   }
 
   return (
-    <div className="min-h-screen bg-crust-50 pb-40">
-      <header className="sticky top-0 z-20 border-b border-crust-100 bg-white px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🥖</span>
-          <div>
-            <h1 className="font-display text-lg font-bold text-crust-800">Don Julio</h1>
-            <p className="text-xs text-crust-500">Autoservicio · Mesa {estado?.mesa.numero ?? "…"}</p>
-          </div>
+    <div className="min-h-screen bg-dj-papel pb-40">
+      <header className="sticky top-0 z-20 bg-dj-carbon px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <LogoHorizontal tinta="#F5F0E6" acento="#C9A56B" className="h-9 w-auto" />
+          <p className="shrink-0 text-right text-[10px] font-semibold uppercase leading-tight tracking-[0.16em] text-dj-dorado">
+            Mesa {estado?.mesa.numero ?? "…"}
+            <span className="block text-dj-papel/50">Autoservicio</span>
+          </p>
         </div>
       </header>
 
@@ -252,7 +260,7 @@ export default function Autoservicio() {
           </div>
         ) : (
           <div className="mb-4 rounded-2xl border border-crust-100 bg-white p-4">
-            <p className="mb-1 font-display text-lg font-semibold text-crust-800">¡Hola! 👋</p>
+            <p className="mb-1 font-display text-xl font-semibold text-dj-carbon">¡Hola!</p>
             <p className="mb-3 text-sm text-crust-500">Ingresá tu nombre para pedir (así podés dividir la cuenta después).</p>
             <form onSubmit={(e) => { e.preventDefault(); identificar(nombreInput); }} className="flex flex-col gap-2 sm:flex-row">
               <input
@@ -262,7 +270,7 @@ export default function Autoservicio() {
                 className="w-full min-w-0 flex-1 rounded-xl border border-crust-200 px-3 py-2.5"
                 autoFocus
               />
-              <button type="submit" disabled={identificando || !nombreInput.trim()} className="w-full shrink-0 rounded-xl bg-crust-600 px-5 py-2.5 font-semibold text-white active:bg-crust-700 disabled:opacity-50 sm:w-auto">
+              <button type="submit" disabled={identificando || !nombreInput.trim()} className="w-full shrink-0 rounded-xl bg-dj-terracota px-5 py-2.5 font-semibold text-white active:bg-dj-cobre disabled:opacity-50 sm:w-auto">
                 {identificando ? "Entrando…" : "Entrar"}
               </button>
             </form>
@@ -317,9 +325,9 @@ export default function Autoservicio() {
               <button
                 onClick={pedirCuenta}
                 disabled={pidiendoCuenta}
-                className="mt-3 w-full rounded-xl bg-crust-700 py-3 font-semibold text-white active:bg-crust-800 disabled:opacity-50"
+                className="mt-3 w-full rounded-xl bg-dj-terracota py-3 font-semibold text-white active:bg-crust-800 disabled:opacity-50"
               >
-                {pidiendoCuenta ? "Avisando…" : "🧾 Pedir la cuenta"}
+                {pidiendoCuenta ? "Avisando…" : "Pedir la cuenta"}
               </button>
             )}
           </div>
@@ -362,7 +370,7 @@ export default function Autoservicio() {
                     const single = group.maxSelect <= 1;
                     const on = (mods[group.id] ?? []).includes(m.id);
                     return (
-                      <button key={m.id} onClick={() => toggleMod(group.id, m.id, single)} className={`rounded-full border px-4 py-2 text-sm ${on ? "border-crust-600 bg-crust-600 text-white" : "border-crust-200 text-crust-700"}`}>
+                      <button key={m.id} onClick={() => toggleMod(group.id, m.id, single)} className={`rounded-full border px-4 py-2 text-sm ${on ? "border-dj-terracota bg-dj-terracota text-white" : "border-crust-200 text-crust-700"}`}>
                         {m.nombre}{Number(m.priceDelta) > 0 ? ` +${formatUYU(m.priceDelta)}` : ""}
                       </button>
                     );
@@ -370,7 +378,7 @@ export default function Autoservicio() {
                 </div>
               </div>
             ))}
-            <button onClick={confirmarMods} className="mt-2 w-full rounded-xl bg-crust-600 py-3 font-semibold text-white active:bg-crust-700">Agregar</button>
+            <button onClick={confirmarMods} className="mt-2 w-full rounded-xl bg-dj-terracota py-3 font-semibold text-white active:bg-dj-cobre">Agregar</button>
           </div>
         </div>
       )}
@@ -387,7 +395,7 @@ export default function Autoservicio() {
                 </div>
               ))}
             </div>
-            <button onClick={enviar} disabled={enviando} className="w-full rounded-xl bg-crust-600 py-3.5 text-lg font-semibold text-white active:bg-crust-700 disabled:opacity-50">
+            <button onClick={enviar} disabled={enviando} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre disabled:opacity-50">
               {enviando ? "Enviando…" : `Enviar pedido · ${formatUYU(cartTotal)}`}
             </button>
           </div>

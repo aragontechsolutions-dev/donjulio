@@ -70,7 +70,7 @@ export default function ProduccionAdmin() {
         </select>
         <input type="number" step="0.1" min="0.1" value={form.cantidadLotes} onChange={(e) => setForm({ ...form, cantidadLotes: Number(e.target.value) })} className="w-28 rounded-lg border border-crust-200 px-3 py-2" />
         <span className="text-sm text-crust-500">lotes</span>
-        <button className="rounded-lg bg-crust-600 px-4 py-2 font-semibold text-white hover:bg-crust-700">Planificar</button>
+        <button className="rounded-lg bg-dj-terracota px-4 py-2 font-semibold text-white hover:bg-dj-cobre">Planificar</button>
       </form>
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

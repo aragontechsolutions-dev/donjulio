@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { cacheGet, cacheSet } from "../lib/db";
 import { formatUYU } from "../lib/format";
 import { useAuth } from "../lib/auth";
+import { LogoHorizontal } from "../lib/Logo";
 import type { MesaSel } from "../App";
 
 interface Mesa {
@@ -19,7 +20,7 @@ interface Mesa {
 /** Paleta por estado: fondo de la card, ícono de mesa y chip. */
 const ESTADO: Record<string, { label: string; card: string; fill: string; stroke: string; chip: string }> = {
   LIBRE: { label: "Libre", card: "bg-white border-green-200", fill: "#dcfce7", stroke: "#4ade80", chip: "bg-green-100 text-green-700" },
-  OCUPADA: { label: "Ocupada", card: "bg-white border-crust-300", fill: "#e7e5e4", stroke: "#a8a29e", chip: "bg-crust-100 text-crust-700" },
+  OCUPADA: { label: "Ocupada", card: "bg-white border-dj-arena", fill: "#E3D5B8", stroke: "#C9A56B", chip: "bg-dj-arena text-dj-grafito" },
   RESERVADA: { label: "Reservada", card: "bg-white border-amber-200", fill: "#fef3c7", stroke: "#fbbf24", chip: "bg-amber-100 text-amber-700" },
   PENDIENTE_PAGO: { label: "Por cobrar", card: "bg-white border-red-200", fill: "#fee2e2", stroke: "#f87171", chip: "bg-red-100 text-red-700" },
 };
@@ -76,25 +77,31 @@ export default function Mesas({ onSelect }: { onSelect: (m: MesaSel) => void }) 
   const ocupadas = mesas.length - libres;
 
   return (
-    <div className="min-h-screen bg-crust-50 p-4">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-crust-800">Mesas</h1>
-          <p className="text-xs text-crust-500">
+    <div className="min-h-screen bg-dj-papel">
+      <header className="mb-4 flex items-center justify-between gap-3 bg-dj-carbon px-4 py-3">
+        <LogoHorizontal tinta="#F5F0E6" acento="#C9A56B" className="h-9 w-auto" />
+        <div className="flex items-center gap-3">
+          <p className="text-right text-[10px] font-semibold uppercase leading-tight tracking-[0.14em] text-dj-dorado">
             {user?.nombre}
-            {fromCache && " · datos en caché (offline)"}
+            {fromCache && <span className="block text-dj-papel/50">caché · offline</span>}
           </p>
+          <button
+            onClick={logout}
+            className="rounded-full border border-dj-papel/25 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-dj-papel/80 active:bg-dj-papel active:text-dj-carbon"
+          >
+            Salir
+          </button>
         </div>
-        <button onClick={logout} className="rounded-lg border border-crust-200 bg-white px-3 py-1.5 text-sm text-crust-600 active:bg-crust-100">
-          Salir
-        </button>
-      </div>
+      </header>
+
+      <div className="p-4 pt-0">
+      <h1 className="mb-4 font-display text-2xl font-bold text-dj-carbon">Mesas</h1>
 
       {/* Resumen del salón */}
       {mesas.length > 0 && (
         <div className="mb-4 flex gap-2 text-xs font-medium">
           <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">{libres} libres</span>
-          <span className="rounded-full bg-crust-200 px-3 py-1 text-crust-700">{ocupadas} ocupadas</span>
+          <span className="rounded-full bg-dj-arena px-3 py-1 text-dj-grafito">{ocupadas} ocupadas</span>
         </div>
       )}
 
@@ -143,6 +150,7 @@ export default function Mesas({ onSelect }: { onSelect: (m: MesaSel) => void }) 
             Sin mesas disponibles.
           </p>
         )}
+      </div>
       </div>
     </div>
   );

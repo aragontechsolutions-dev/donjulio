@@ -151,7 +151,7 @@ export default function TurnosAdmin() {
                 <p className="text-sm text-amber-700">
                   Ningún tablet autorizado — nadie puede fichar todavía.
                 </p>
-                <button onClick={vincular} className="mt-2 rounded-lg bg-crust-600 px-3 py-1 text-xs font-semibold text-white hover:bg-crust-700">
+                <button onClick={vincular} className="mt-2 rounded-lg bg-dj-terracota px-3 py-1 text-xs font-semibold text-white hover:bg-dj-cobre">
                   Autorizar un tablet
                 </button>
                 {kiosco?.vinculacionHasta && new Date(kiosco.vinculacionHasta) > new Date() && (

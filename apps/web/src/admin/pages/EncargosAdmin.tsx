@@ -128,15 +128,15 @@ export default function EncargosAdmin() {
           <h1 className="font-display text-2xl font-bold text-crust-800">Encargos</h1>
           <p className="text-sm text-crust-500">Tortas y pedidos especiales con seña y retiro programado.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">
+        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
           {showForm ? "Cancelar" : "+ Nuevo encargo"}
         </button>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <button onClick={() => setFiltro("")} className={`rounded-full px-3 py-1.5 text-sm font-medium ${filtro === "" ? "bg-crust-600 text-white" : "bg-crust-100 text-crust-700"}`}>Todos</button>
+        <button onClick={() => setFiltro("")} className={`rounded-full px-3 py-1.5 text-sm font-medium ${filtro === "" ? "bg-dj-terracota text-white" : "bg-crust-100 text-crust-700"}`}>Todos</button>
         {ESTADOS.map((s) => (
-          <button key={s} onClick={() => setFiltro(s)} className={`rounded-full px-3 py-1.5 text-sm font-medium ${filtro === s ? "bg-crust-600 text-white" : "bg-crust-100 text-crust-700"}`}>
+          <button key={s} onClick={() => setFiltro(s)} className={`rounded-full px-3 py-1.5 text-sm font-medium ${filtro === s ? "bg-dj-terracota text-white" : "bg-crust-100 text-crust-700"}`}>
             {ESTADO_LABEL[s]}
           </button>
         ))}
@@ -198,7 +198,7 @@ export default function EncargosAdmin() {
               <textarea rows={2} value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} placeholder="Ej: sin nueces (alergia), entregar en caja alta" className="w-full rounded-lg border border-crust-200 px-3 py-2 text-sm" />
             </label>
           </div>
-          <button disabled={saving} className="rounded-lg bg-crust-600 px-5 py-2.5 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+          <button disabled={saving} className="rounded-lg bg-dj-terracota px-5 py-2.5 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
             {saving ? "Guardando…" : "Registrar encargo"}
           </button>
           <p className="text-xs text-crust-400">Si cobrás seña, se registra en la caja abierta del turno.</p>
@@ -277,7 +277,7 @@ export default function EncargosAdmin() {
               </select>
             </label>
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-crust-600 py-2 font-semibold text-white hover:bg-crust-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-dj-terracota py-2 font-semibold text-white hover:bg-dj-cobre disabled:opacity-60">
                 {saving ? "Guardando…" : "Registrar pago"}
               </button>
               <button type="button" onClick={() => setPagoDe(null)} className="rounded-lg border border-crust-200 px-4 py-2 text-crust-700 hover:bg-crust-100">Cancelar</button>

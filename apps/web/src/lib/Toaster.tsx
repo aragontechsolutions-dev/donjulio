@@ -4,7 +4,7 @@ import { subscribeToast, type ToastItem } from "./toast";
 const STYLE: Record<string, string> = {
   success: "bg-green-600",
   error: "bg-red-600",
-  info: "bg-crust-700",
+  info: "bg-dj-terracota",
 };
 const ICON: Record<string, string> = { success: "✓", error: "✕", info: "ℹ" };
 const DURATION = 3500;

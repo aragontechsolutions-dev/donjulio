@@ -2,7 +2,7 @@ import { formatUYU, DIAS } from "../lib/format";
 import { scrollToSection } from "../lib/useScrollSpy";
 import Octogonos from "../lib/Octogonos";
 import Mapa from "../lib/MapaLazy";
-import { LogoPrincipal, Monograma, Sello } from "./Logo";
+import { LogoPrincipal, Monograma, Sello } from "../lib/Logo";
 import type { ReactNode } from "react";
 import type {
   Contacto,

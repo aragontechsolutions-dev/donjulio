@@ -99,7 +99,7 @@ export default function RecetasAdmin() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold text-crust-800">Recetas y costos</h1>
-        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-crust-600 px-4 py-2 text-sm font-semibold text-white hover:bg-crust-700">
+        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
           {showForm ? "Cancelar" : "+ Nueva receta"}
         </button>
       </div>
@@ -228,7 +228,7 @@ export default function RecetasAdmin() {
           </div>
 
           <div className="border-t border-crust-100 pt-4">
-            <button className="rounded-lg bg-crust-600 px-5 py-2.5 font-semibold text-white hover:bg-crust-700">Guardar receta</button>
+            <button className="rounded-lg bg-dj-terracota px-5 py-2.5 font-semibold text-white hover:bg-dj-cobre">Guardar receta</button>
           </div>
         </form>
       )}
