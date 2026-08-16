@@ -21,7 +21,14 @@ body {
   @apply bg-masa text-crust-900 font-body antialiased;
 }
 
-/* Compensa el navbar fijo al saltar a una sección con ancla. */
+/* Compensa el navbar fijo al saltar a una sección con ancla. En pantallas
+   chicas el navbar suma la tira de enlaces, así que hay que descontar más. */
 section[id] {
-  scroll-margin-top: 80px;
+  scroll-margin-top: 118px;
+}
+
+@media (min-width: 1024px) {
+  section[id] {
+    scroll-margin-top: 84px;
+  }
 }

@@ -32,7 +32,7 @@ function pinIcon(editable: boolean) {
     html: `<div style="
         width:34px;height:34px;border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);
-        background:#b45309;border:3px solid #fff;
+        background:#C0561D;border:3px solid #F5F0E6;
         box-shadow:0 3px 10px rgba(0,0,0,.35);
         display:grid;place-items:center;
         cursor:${editable ? "grab" : "default"};

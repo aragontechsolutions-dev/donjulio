@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Favicon Don Julio: chapa carbón, monograma crema y rombo terracota.
+       Usa serif del sistema: los favicons SVG no cargan webfonts. -->
+  <rect width="64" height="64" rx="12" fill="#22211F"/>
+  <text x="32" y="46" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-weight="700" font-size="44" letter-spacing="-9" fill="#F5F0E6">DJ</text>
+  <rect x="30.5" y="17.5" width="9" height="9" fill="#C0561D" transform="rotate(45 35 22)"/>
+</svg>
