@@ -15,6 +15,7 @@
     "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "prisma:studio": "dotenv -e ../../.env -- prisma studio",
     "prisma:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
+    "reset:produccion": "dotenv -e ../../.env -- ts-node prisma/reset-produccion.ts",
     "provision:supabase": "dotenv -e ../../.env -- ts-node scripts/provision-supabase-users.ts"
   },
   "prisma": {

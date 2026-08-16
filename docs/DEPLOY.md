@@ -161,6 +161,42 @@ pasos 2–4 y luego `pnpm dev` + `pnpm dev:pwa`. El login usará Supabase Auth.
 > Para volver al modo 100% local: `AUTH_PROVIDER=local`, `STORAGE_PROVIDER=local`,
 > `DATABASE_URL`/`DIRECT_URL` al Postgres de Docker, y quitá las `VITE_SUPABASE_*`.
 
+## Vaciar la base para arrancar con datos reales
+
+Cuando termina la etapa de pruebas y hay que cargar los datos de verdad
+(mesas, zonas, productos, insumos, recetas…), este script deja la base vacía
+conservando un único usuario:
+
+```bash
+# 1. Backup primero: Supabase → Database → Backups.
+
+# 2. Ver qué se borraría, sin tocar nada:
+pnpm --filter @donjulio/api reset:produccion
+
+# 3. Borrar de verdad:
+CONFIRMAR=BORRAR-TODO pnpm --filter @donjulio/api reset:produccion
+
+# 4. Con Supabase Auth, borrar también las cuentas que sobran:
+CONFIRMAR=BORRAR-TODO LIMPIAR_SUPABASE=1 \
+  pnpm --filter @donjulio/api reset:produccion
+```
+
+| Variable | Para qué |
+| --- | --- |
+| `CONFIRMAR=BORRAR-TODO` | Obligatoria. Sin ella el script sólo simula. |
+| `EMAIL_CONSERVAR=...` | Usuario que sobrevive (por defecto `henry@donjulio.uy`). |
+| `CONSERVAR_WEB=1` | No borra ubicación, contacto, horarios, textos ni galería. |
+| `LIMPIAR_SUPABASE=1` | Borra las cuentas de Supabase Auth que no sean la conservada. |
+
+> **Con `AUTH_PROVIDER=supabase`, borrar la tabla `Usuario` no alcanza.** Las
+> cuentas viven en Supabase Auth y, al iniciar sesión, el guard vuelve a crear
+> su fila local. Usá `LIMPIAR_SUPABASE=1` o borralas en Supabase →
+> Authentication → Users.
+
+El script aborta si el usuario a conservar no existe, para no dejar una base
+sin acceso. Las migraciones (`_prisma_migrations`) quedan intactas: no hay que
+volver a migrar.
+
 ## Notas y advertencias
 
 - **Render free** duerme por inactividad: el primer request tras un rato tarda unos segundos.
