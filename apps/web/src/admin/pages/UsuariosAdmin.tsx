@@ -33,7 +33,7 @@ export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [sesion, setSesion] = useState<SesionCfg | null>(null);
   const [savingSesion, setSavingSesion] = useState(false);
-  const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
+  const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true, pin: "" });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -64,10 +64,22 @@ export default function UsuariosAdmin() {
     e.preventDefault();
     setError(null);
     setOk(null);
+    if (form.pin && !/^\d{4,6}$/.test(form.pin)) {
+      setError("El PIN de fichaje debe tener entre 4 y 6 dígitos.");
+      return;
+    }
     try {
-      await api.post("/admin/usuarios", form);
-      setOk(`Usuario ${form.email} creado`);
-      setForm({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true });
+      const u = await api.post<Usuario>(
+        "/admin/usuarios",
+        { ...form, pin: form.pin || undefined },
+        { sinToast: true }, // el aviso de abajo ya dice el número asignado
+      );
+      setOk(
+        u.pinHash
+          ? `${form.nombre} ya puede fichar en el tablet: número ${u.numeroEmpleado} + el PIN que definiste.`
+          : `${form.nombre} creado con el número ${u.numeroEmpleado}. Asignale un PIN para que pueda fichar.`,
+      );
+      setForm({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true, pin: "" });
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -134,18 +146,32 @@ export default function UsuariosAdmin() {
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {ok && <p className="mb-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{ok}</p>}
 
-      <form onSubmit={crear} className="mb-6 grid gap-3 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+      <form onSubmit={crear} className="mb-6 grid gap-3 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-6">
         <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2" required />
         <input placeholder="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2" required />
         <input placeholder="Contraseña" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2" required />
         <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="rounded-lg border border-crust-200 px-3 py-2">
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
+        <input
+          placeholder="PIN de fichaje"
+          inputMode="numeric"
+          maxLength={6}
+          value={form.pin}
+          onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })}
+          className="rounded-lg border border-crust-200 px-3 py-2 tabular-nums"
+          title="4 a 6 dígitos. Opcional: se puede asignar después con el botón Asignar PIN."
+        />
         <button className="rounded-lg bg-dj-terracota px-4 py-2 font-semibold text-white hover:bg-dj-cobre">Crear usuario</button>
-        <label className="flex items-center gap-2 text-sm text-crust-600 sm:col-span-2 lg:col-span-5">
+        <label className="flex items-center gap-2 text-sm text-crust-600 sm:col-span-2 lg:col-span-6">
           <input type="checkbox" checked={form.forceChange} onChange={(e) => setForm({ ...form, forceChange: e.target.checked })} />
           Obligar a cambiar la contraseña en el primer ingreso
         </label>
+        <p className="text-xs text-crust-400 sm:col-span-2 lg:col-span-6">
+          El <b>número de empleado</b> se asigna solo al crear el usuario. Con ese número
+          y el PIN se ficha en el tablet del local; el email y la contraseña son para
+          entrar al panel.
+        </p>
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">

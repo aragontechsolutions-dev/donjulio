@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,7 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient, type User } from "@supabase/supabase-js";
 import * as bcrypt from "bcryptjs";
 import {
   IsBoolean,
@@ -19,6 +20,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
 } from "class-validator";
 import { UserRole } from "@donjulio/shared";
@@ -33,6 +35,10 @@ class CreateUsuarioDto {
   @IsEnum(UserRole) role!: UserRole;
   /** Obliga a cambiar la contraseña en el primer login (default true). */
   @IsOptional() @IsBoolean() forceChange?: boolean;
+  /** PIN de fichaje, opcional al crear: se puede asignar después. */
+  @IsOptional()
+  @Matches(/^\d{4,6}$/, { message: "El PIN debe tener entre 4 y 6 dígitos." })
+  pin?: string;
 }
 class UpdateRoleDto {
   @IsEnum(UserRole) role!: UserRole;
@@ -74,27 +80,89 @@ export class UsersService {
     return this.supabase;
   }
 
+  /** Nombre a mostrar de una identidad de Supabase. */
+  private nombreDe(u: User): string {
+    return (
+      (u.user_metadata?.nombre as string) ??
+      (u.user_metadata?.full_name as string) ??
+      u.email ??
+      "Usuario"
+    );
+  }
+
+  /** Rol de una identidad de Supabase, con CAJERO como piso seguro. */
+  private roleDe(u: User): UserRole {
+    const raw = String(
+      (u.app_metadata as Record<string, unknown>)?.role ??
+        (u.user_metadata as Record<string, unknown>)?.role ??
+        "",
+    );
+    return (Object.values(UserRole) as string[]).includes(raw)
+      ? (raw as UserRole)
+      : UserRole.CAJERO;
+  }
+
+  /**
+   * Crea o actualiza la ficha local del usuario.
+   *
+   * El número de empleado y el PIN de fichaje viven en la tabla local, no en
+   * Supabase Auth. Sin esta fila el tablet no tiene con qué identificar a la
+   * persona: no hay número que tipear y el PIN no se puede ni asignar.
+   */
+  private async asegurarLocal(
+    email: string,
+    nombre: string,
+    role: UserRole,
+    pin?: string,
+  ) {
+    const pinHash = pin ? { pinHash: await bcrypt.hash(pin, 10) } : {};
+    const clave = email.toLowerCase();
+    return this.prisma.usuario.upsert({
+      where: { email: clave },
+      update: { nombre, role, activo: true, ...pinHash },
+      // passwordHash vacío: con Supabase Auth la contraseña no vive acá.
+      create: { email: clave, nombre, role, passwordHash: "", ...pinHash },
+    });
+  }
+
   async list(): Promise<UsuarioView[]> {
     if (this.provider === "supabase") {
       const { data, error } = await this.sb().auth.admin.listUsers({ page: 1, perPage: 200 });
       if (error) throw error;
       // Los datos de fichaje (número y PIN) viven en la tabla local: se cruzan por email.
-      const locales = await this.prisma.usuario.findMany();
-      const porEmail = new Map(locales.map((l) => [l.email.toLowerCase(), l]));
-      return data.users.map((u) => {
-        const local = porEmail.get((u.email ?? "").toLowerCase());
-        return {
-          id: u.id,
-          email: u.email ?? "",
-          nombre: (u.user_metadata?.nombre as string) ?? u.email ?? "",
-          role: (u.app_metadata?.role as string) ?? "CAJERO",
-          localId: local?.id,
-          numeroEmpleado: local?.numeroEmpleado,
-          pinHash: !!local?.pinHash,
-        };
-      });
+      let porEmail = await this.fichasPorEmail();
+
+      // Repara los usuarios creados antes de que create() escribiera la ficha
+      // local: quedaron sin número de empleado y no podían fichar. Se les crea
+      // acá una sola vez; a partir de la segunda carga esto no hace nada.
+      const sinFicha = data.users.filter(
+        (u) => u.email && !porEmail.has(u.email.toLowerCase()),
+      );
+      if (sinFicha.length > 0) {
+        for (const u of sinFicha) {
+          await this.asegurarLocal(u.email!, this.nombreDe(u), this.roleDe(u));
+        }
+        porEmail = await this.fichasPorEmail();
+      }
+
+      return data.users
+        .map((u) => {
+          const local = porEmail.get((u.email ?? "").toLowerCase());
+          return {
+            id: u.id,
+            email: u.email ?? "",
+            nombre: this.nombreDe(u),
+            role: this.roleDe(u),
+            localId: local?.id,
+            numeroEmpleado: local?.numeroEmpleado,
+            pinHash: !!local?.pinHash,
+          };
+        })
+        .sort((a, b) => (a.numeroEmpleado ?? 0) - (b.numeroEmpleado ?? 0));
     }
-    const users = await this.prisma.usuario.findMany({ orderBy: { nombre: "asc" } });
+    const users = await this.prisma.usuario.findMany({
+      orderBy: { numeroEmpleado: "asc" },
+    });
     return users.map((u) => ({
       id: u.id,
       email: u.email,
@@ -104,6 +172,12 @@ export class UsersService {
       numeroEmpleado: u.numeroEmpleado,
       pinHash: !!u.pinHash,
     }));
+  }
+
+  /** Fichas locales indexadas por email en minúsculas. */
+  private async fichasPorEmail() {
+    const locales = await this.prisma.usuario.findMany();
+    return new Map(locales.map((l) => [l.email.toLowerCase(), l]));
   }
 
   async create(dto: CreateUsuarioDto): Promise<UsuarioView> {
@@ -120,7 +194,26 @@ export class UsersService {
         },
       });
       if (error) throw error;
-      return { id: data.user!.id, email: dto.email, nombre: dto.nombre, role: dto.role };
+      const auth = data.user!;
+      // La ficha local se crea acá y no cuando la persona entra por primera
+      // vez al panel: un mozo puede no entrar nunca al panel y aun así tiene
+      // que poder fichar en el tablet desde el primer día.
+      // Se usa el email que devuelve Supabase (ya normalizado), no el tipeado.
+      const local = await this.asegurarLocal(
+        auth.email ?? dto.email,
+        dto.nombre,
+        dto.role,
+        dto.pin,
+      );
+      return {
+        id: auth.id,
+        email: auth.email ?? dto.email,
+        nombre: dto.nombre,
+        role: dto.role,
+        localId: local.id,
+        numeroEmpleado: local.numeroEmpleado,
+        pinHash: !!local.pinHash,
+      };
     }
     const u = await this.prisma.usuario.create({
       data: {
@@ -128,9 +221,18 @@ export class UsersService {
         nombre: dto.nombre,
         role: dto.role,
         passwordHash: await bcrypt.hash(dto.password, 10),
+        pinHash: dto.pin ? await bcrypt.hash(dto.pin, 10) : null,
       },
     });
-    return { id: u.id, email: u.email, nombre: u.nombre, role: u.role };
+    return {
+      id: u.id,
+      email: u.email,
+      nombre: u.nombre,
+      role: u.role,
+      localId: u.id,
+      numeroEmpleado: u.numeroEmpleado,
+      pinHash: !!u.pinHash,
+    };
   }
 
   async updateRole(id: string, role: UserRole): Promise<UsuarioView> {
@@ -170,8 +272,20 @@ export class UsersService {
 
   async remove(id: string) {
     if (this.provider === "supabase") {
+      const actual = await this.sb().auth.admin.getUserById(id);
+      const email = actual.data.user?.email;
       const { error } = await this.sb().auth.admin.deleteUser(id);
       if (error) throw error;
+      // La ficha local no se borra: de ella cuelga el historial (turnos,
+      // pedidos, arqueos de caja). Se desactiva y se le saca el PIN, porque
+      // si no la persona seguiría fichando con su número aunque ya no exista
+      // en Auth.
+      if (email) {
+        await this.prisma.usuario.updateMany({
+          where: { email: { equals: email, mode: "insensitive" } },
+          data: { activo: false, pinHash: null },
+        });
+      }
       return { ok: true };
     }
     await this.prisma.usuario.delete({ where: { id } });
