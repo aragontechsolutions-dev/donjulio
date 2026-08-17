@@ -3,12 +3,14 @@ import {
   calcularOctogonos,
   FOOD_COST_OBJETIVO,
   IvaRate,
+  puede,
   semaforoFoodCost,
   umbralesPara,
   type ProductoCosteo,
   type SemaforoFoodCost,
 } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 import { coincide } from "../../lib/texto";
@@ -116,6 +118,15 @@ const SEMAFORO: Record<SemaforoFoodCost, { cls: string; ayuda: string }> = {
 };
 
 export default function ProductosAdmin() {
+  const { user } = useAuth();
+  // Producción carga la ficha y el rótulo, pero no da de baja un producto ni
+  // reorganiza las categorías de la carta: eso es del admin.
+  const puedeBorrar = puede(user?.role, "productos.eliminar");
+  const puedeCategorias =
+    puede(user?.role, "categorias.crear") &&
+    puede(user?.role, "categorias.editar") &&
+    puede(user?.role, "categorias.eliminar");
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [costeo, setCosteo] = useState<Record<string, ProductoCosteo>>({});
@@ -384,12 +395,14 @@ export default function ProductosAdmin() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-crust-800">Productos</h1>
         <div className="flex gap-2">
+          {puedeCategorias && (
           <button
             onClick={() => setGestionCat(true)}
             className="rounded-lg border border-crust-200 px-4 py-2 text-sm font-semibold text-crust-700 hover:bg-crust-100"
           >
             Categorías
           </button>
+          )}
           <button
             onClick={abrirNuevo}
             className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre"
@@ -561,13 +574,15 @@ export default function ProductosAdmin() {
                       >
                         {p.requiereOctogono ? "⬢ Rótulo" : "Rótulo"}
                       </button>
-                      <button
-                        onClick={() => borrarProducto(p)}
-                        className="ml-1 rounded-lg px-2 py-1 text-xs text-red-500 hover:bg-red-50"
-                        title="Eliminar"
-                      >
-                        ✕
-                      </button>
+                      {puedeBorrar && (
+                        <button
+                          onClick={() => borrarProducto(p)}
+                          className="ml-1 rounded-lg px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                          title="Eliminar"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

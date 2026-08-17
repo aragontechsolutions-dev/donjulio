@@ -73,14 +73,23 @@ export const CAPACIDADES = {
     roles: [ADMIN, CAJERO, PRODUCCION, DELIVERY],
   },
 
-  // ── Catálogo ──
+  // ── Catálogo: producción define la ficha del producto y su rótulo
+  //    (ingredientes y alérgenos salen de la receta), pero no lo da de baja
+  //    ni reorganiza las categorías del menú. ──
   "productos.editar": {
     verbo: "POST",
     ruta: "/admin/productos",
     roles: [ADMIN, PRODUCCION],
   },
   "productos.eliminar": { verbo: "DELETE", ruta: "/admin/productos/:id", roles: [ADMIN] },
-  "categorias.editar": { verbo: "POST", ruta: "/admin/categorias", roles: [ADMIN] },
+  "productos.rotular": {
+    verbo: "PUT",
+    ruta: "/admin/productos/:id/rotulado",
+    roles: [ADMIN, PRODUCCION],
+  },
+  "categorias.crear": { verbo: "POST", ruta: "/admin/categorias", roles: [ADMIN] },
+  "categorias.editar": { verbo: "PATCH", ruta: "/admin/categorias/:id", roles: [ADMIN] },
+  "categorias.eliminar": { verbo: "DELETE", ruta: "/admin/categorias/:id", roles: [ADMIN] },
 } as const satisfies Record<string, Capacidad>;
 
 export type Accion = keyof typeof CAPACIDADES;

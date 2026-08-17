@@ -29,7 +29,9 @@ export const NAV: NavItem[] = [
   { to: "/admin/trazabilidad", label: "Trazabilidad", icon: "🔎", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/caja", label: "Caja", icon: "💵", roles: [ADMIN, CAJERO] },
   { to: "/admin/reportes", label: "Reportes", icon: "📈", roles: [ADMIN] },
-  { to: "/admin/productos", label: "Productos", icon: "🥖", roles: [ADMIN] },
+  // Producción entra por el rotulado: los ingredientes y alérgenos de la
+  // etiqueta salen de la receta, así que los carga quien la conoce.
+  { to: "/admin/productos", label: "Productos", icon: "🥖", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/promociones", label: "Promociones", icon: "🏷️", roles: [ADMIN] },
   { to: "/admin/cms", label: "Contenido web", icon: "✏️", roles: [ADMIN] },
   { to: "/admin/turnos", label: "Turnos", icon: "⏱️", roles: [ADMIN, CAJERO, PRODUCCION, MOZO] },
