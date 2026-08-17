@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { PaymentMethod } from "@donjulio/shared";
+import { PaymentMethod, puede } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
 import Modal from "../../lib/Modal";
@@ -54,6 +55,13 @@ const defaultPickup = () => {
 };
 
 export default function EncargosAdmin() {
+  const { user } = useAuth();
+  // Producción sigue la cola y la avanza, pero tomar el encargo y cobrar la
+  // seña es de caja: sin esto se les mostraba el formulario entero para
+  // rechazarlo recién al enviarlo.
+  const puedeCrear = puede(user?.role, "encargos.crear");
+  const puedeCobrar = puede(user?.role, "encargos.registrarPago");
+
   const [encargos, setEncargos] = useState<Encargo[]>([]);
   const [filtro, setFiltro] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
@@ -128,9 +136,15 @@ export default function EncargosAdmin() {
           <h1 className="font-display text-2xl font-bold text-crust-800">Encargos</h1>
           <p className="text-sm text-crust-500">Tortas y pedidos especiales con seña y retiro programado.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
-          {showForm ? "Cancelar" : "+ Nuevo encargo"}
-        </button>
+        {puedeCrear ? (
+          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
+            {showForm ? "Cancelar" : "+ Nuevo encargo"}
+          </button>
+        ) : (
+          <p className="rounded-lg bg-crust-100 px-3 py-2 text-sm text-crust-600">
+            Los encargos los toma Caja. Acá seguís la cola y vas marcando el avance.
+          </p>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -142,7 +156,7 @@ export default function EncargosAdmin() {
         ))}
       </div>
 
-      {showForm && (
+      {showForm && puedeCrear && (
         <form onSubmit={crear} className="mb-6 space-y-4 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block sm:col-span-2">
@@ -237,7 +251,7 @@ export default function EncargosAdmin() {
                 <select value={o.status} onChange={(e) => cambiarEstado(o, e.target.value)} className="rounded-lg border border-crust-200 px-2 py-1 text-sm">
                   {ESTADOS.map((s) => <option key={s} value={s}>{ESTADO_LABEL[s]}</option>)}
                 </select>
-                {Number(o.saldo) > 0 && o.status !== "CANCELADO" && (
+                {puedeCobrar && Number(o.saldo) > 0 && o.status !== "CANCELADO" && (
                   <button onClick={() => abrirPago(o)} className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700">
                     Registrar pago
                   </button>

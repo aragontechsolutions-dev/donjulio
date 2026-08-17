@@ -19,6 +19,7 @@
     "db:seed": "pnpm --filter @donjulio/api prisma:seed",
     "db:studio": "pnpm --filter @donjulio/api prisma:studio",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "check:permisos": "node scripts/check-permisos.mjs"
   }
 }

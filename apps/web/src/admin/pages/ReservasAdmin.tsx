@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ReservaStatus } from "@donjulio/shared";
+import { puede } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { showToast } from "../../lib/toast";
 
 interface MesaRef { id: string; numero: number; capacidad: number }
@@ -35,6 +37,10 @@ const hoyISO = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 const hora = (iso: string) => new Date(iso).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
 
 export default function ReservasAdmin() {
+  const { user } = useAuth();
+  const puedeCancelar = puede(user?.role, "reservas.cancelar");
+  const puedeVerMesas = puede(user?.role, "salon.verMesas");
+
   const [fecha, setFecha] = useState(hoyISO());
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [mesas, setMesas] = useState<MesaRef[]>([]);
@@ -47,7 +53,8 @@ export default function ReservasAdmin() {
   };
   useEffect(load, [fecha]);
   useEffect(() => {
-    api.get<MesaRef[]>("/admin/salon/mesas").then(setMesas).catch(() => {});
+    // El listado de mesas es de salón: producción no lo puede pedir.
+    if (puedeVerMesas) api.get<MesaRef[]>("/admin/salon/mesas").then(setMesas).catch(() => {});
   }, []);
 
   const crear = async (e: React.FormEvent) => {
@@ -152,6 +159,13 @@ export default function ReservasAdmin() {
                 </td>
                 <td className="px-4 py-3 text-center text-crust-600">👥 {r.personas}</td>
                 <td className="px-4 py-3">
+                  {/* Sin permiso para listar mesas el select sólo podría
+                      desasignar, así que se muestra como dato. */}
+                  {!puedeVerMesas ? (
+                    <span className="text-sm text-crust-600">
+                      {r.mesa ? `Mesa ${r.mesa.numero}` : "— sin asignar —"}
+                    </span>
+                  ) : (
                   <select
                     value={r.mesa?.id ?? ""}
                     onChange={(e) => cambiar(r, { mesaId: e.target.value || null })}
@@ -160,6 +174,7 @@ export default function ReservasAdmin() {
                     <option value="">— sin asignar —</option>
                     {mesas.map((m) => <option key={m.id} value={m.id}>Mesa {m.numero}</option>)}
                   </select>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <select
@@ -171,7 +186,9 @@ export default function ReservasAdmin() {
                   </select>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button onClick={() => eliminar(r)} className="rounded-lg px-2 py-1 text-sm text-red-500 hover:bg-red-50">✕</button>
+                  {puedeCancelar && (
+                    <button onClick={() => eliminar(r)} className="rounded-lg px-2 py-1 text-sm text-red-500 hover:bg-red-50">✕</button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { MermaMotivo } from "@donjulio/shared";
+import { MermaMotivo, puede } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { formatUYU } from "../../lib/format";
 
 interface Insumo { id: string; nombre: string; unidad: string }
@@ -18,6 +19,11 @@ interface Merma {
 const MOTIVOS = Object.values(MermaMotivo);
 
 export default function MermasAdmin() {
+  const { user } = useAuth();
+  // Los insumos son de quien maneja stock. Caja anota mermas de producto
+  // terminado (una torta que se cayó), no de la bolsa de harina.
+  const puedeVerInsumos = puede(user?.role, "inventario.verInsumos");
+
   const [mermas, setMermas] = useState<Merma[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -25,7 +31,9 @@ export default function MermasAdmin() {
 
   const load = () => {
     api.get<Merma[]>("/admin/mermas").then(setMermas).catch(() => {});
-    api.get<Insumo[]>("/admin/inventario/insumos/opciones").then(setInsumos).catch(() => {});
+    if (puedeVerInsumos) {
+      api.get<Insumo[]>("/admin/inventario/insumos/opciones").then(setInsumos).catch(() => {});
+    }
     api.get<Producto[]>("/admin/productos").then(setProductos).catch(() => {});
   };
   useEffect(load, []);
@@ -51,9 +59,11 @@ export default function MermasAdmin() {
       <form onSubmit={crear} className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-crust-100 bg-white p-4 shadow-sm">
         <select value={form.objeto} onChange={(e) => setForm({ ...form, objeto: e.target.value })} className="flex-1 rounded-lg border border-crust-200 px-3 py-2" required>
           <option value="">— producto o insumo —</option>
-          <optgroup label="Insumos (descuenta stock)">
-            {insumos.map((i) => <option key={i.id} value={`insumo:${i.id}`}>{i.nombre}</option>)}
-          </optgroup>
+          {puedeVerInsumos && (
+            <optgroup label="Insumos (descuenta stock)">
+              {insumos.map((i) => <option key={i.id} value={`insumo:${i.id}`}>{i.nombre}</option>)}
+            </optgroup>
+          )}
           <optgroup label="Productos terminados">
             {productos.map((p) => <option key={p.id} value={`producto:${p.id}`}>{p.nombre}</option>)}
           </optgroup>

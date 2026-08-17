@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { puede } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import { useAuth } from "../../lib/auth";
@@ -33,6 +34,7 @@ export default function TurnosAdmin() {
   const { user } = useAuth();
   // El enlace y el QR del tablet de fichaje son sólo del admin.
   const esAdmin = (user?.role ?? "").toUpperCase() === "ADMIN";
+  const puedeVerHistorial = puede(user?.role, "turnos.verHistorial");
   const [enTurno, setEnTurno] = useState<TurnoAbierto[]>([]);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [dias, setDias] = useState(14);
@@ -48,7 +50,11 @@ export default function TurnosAdmin() {
   };
   const load = () => {
     api.get<TurnoAbierto[]>("/admin/turnos/en-turno").then(setEnTurno).catch(() => {});
-    api.get<Turno[]>(`/admin/turnos?dias=${dias}`).then(setTurnos).catch(() => {});
+    // El historial es de admin y caja. Un mozo lo pedía igual y se comía un
+    // 403 cada 5 segundos, porque esto corre en un intervalo.
+    if (puedeVerHistorial) {
+      api.get<Turno[]>(`/admin/turnos?dias=${dias}`).then(setTurnos).catch(() => {});
+    }
   };
   // Tiempo real: refresca entradas y salidas cada 5s (sin recargar la página).
   useEffect(() => {
@@ -261,7 +267,8 @@ export default function TurnosAdmin() {
           </ul>
         </div>
 
-        {/* Historial */}
+        {/* Historial: sólo para quien puede consultarlo. */}
+        {puedeVerHistorial && (
         <div className="lg:col-span-2">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="font-semibold text-crust-700">Historial</h3>
@@ -323,6 +330,7 @@ export default function TurnosAdmin() {
             </table>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

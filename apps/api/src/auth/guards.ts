@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -157,6 +158,13 @@ export class RolesGuard implements CanActivate {
     ]);
     if (!required || required.length === 0) return true;
     const { user } = context.switchToHttp().getRequest();
-    return !!user && required.includes(user.role);
+    if (!user) throw new UnauthorizedException("Iniciá sesión para continuar.");
+    if (required.includes(user.role)) return true;
+    // El "Forbidden resource" de Nest no le dice nada a nadie. Este mensaje se
+    // muestra tal cual en el panel, así que tiene que explicar el porqué.
+    const quienes = required.join(" o ");
+    throw new ForbiddenException(
+      `Tu rol (${user.role}) no puede hacer esto. Lo puede hacer: ${quienes}.`,
+    );
   }
 }
