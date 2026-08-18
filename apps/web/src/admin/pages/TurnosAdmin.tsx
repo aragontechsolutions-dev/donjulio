@@ -198,8 +198,8 @@ export default function TurnosAdmin() {
               detectar llegadas tarde y salidas antes de tiempo. Dejá un día vacío si no trabaja.
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-crust-50 text-left text-crust-600">
                 <tr>
                   <th className="px-4 py-2">Persona</th>
@@ -289,8 +289,8 @@ export default function TurnosAdmin() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-            <table className="w-full text-sm">
+          <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+            <table className="tabla-cards w-full text-sm">
               <thead className="bg-crust-50 text-left text-crust-600">
                 <tr>
                   <th className="px-4 py-3">Persona</th>
@@ -304,11 +304,11 @@ export default function TurnosAdmin() {
               <tbody>
                 {turnos.map((t) => (
                   <tr key={t.id} className="border-t border-crust-50">
-                    <td className="px-4 py-2 font-medium text-crust-800">{t.usuario.nombre}</td>
-                    <td className="px-4 py-2 text-crust-500">{fecha(t.inicio)}</td>
-                    <td className="px-4 py-2 text-crust-600">{hora(t.inicio)}</td>
-                    <td className="px-4 py-2 text-crust-600">{t.fin ? hora(t.fin) : <span className="text-green-600">en curso</span>}</td>
-                    <td className="px-4 py-2 text-xs">
+                    <td data-principal className="px-4 py-2 font-medium text-crust-800">{t.usuario.nombre}</td>
+                    <td data-etiqueta="Día" className="px-4 py-2 text-crust-500">{fecha(t.inicio)}</td>
+                    <td data-etiqueta="Entrada" className="px-4 py-2 text-crust-600">{hora(t.inicio)}</td>
+                    <td data-etiqueta="Salida" className="px-4 py-2 text-crust-600">{t.fin ? hora(t.fin) : <span className="text-green-600">en curso</span>}</td>
+                    <td data-etiqueta="Cumplimiento" className="px-4 py-2 text-xs">
                       {t.horarioInicio ? (
                         <span className="flex flex-wrap items-center gap-1">
                           <span className="text-crust-400">{t.horarioInicio}–{t.horarioFin}</span>
@@ -320,7 +320,7 @@ export default function TurnosAdmin() {
                         <span className="text-crust-300">sin horario</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold text-crust-700">{t.horas != null ? `${t.horas} h` : "—"}</td>
+                    <td data-etiqueta="Horas" className="px-4 py-2 text-right font-semibold text-crust-700">{t.horas != null ? `${t.horas} h` : "—"}</td>
                   </tr>
                 ))}
                 {turnos.length === 0 && (

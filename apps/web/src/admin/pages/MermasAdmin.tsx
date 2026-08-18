@@ -76,19 +76,19 @@ export default function MermasAdmin() {
         <button className="rounded-lg bg-dj-terracota px-4 py-2 font-semibold text-white hover:bg-dj-cobre">Registrar</button>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+        <table className="tabla-cards w-full text-sm">
           <thead className="bg-crust-50 text-left text-crust-600">
             <tr><th className="px-4 py-3">Ítem</th><th className="px-4 py-3">Motivo</th><th className="px-4 py-3 text-right">Cantidad</th><th className="px-4 py-3 text-right">Costo</th><th className="px-4 py-3 text-right">Fecha</th></tr>
           </thead>
           <tbody>
             {mermas.map((m) => (
               <tr key={m.id} className="border-t border-crust-50">
-                <td className="px-4 py-3 font-medium text-crust-800">{m.insumo?.nombre ?? m.producto?.nombre ?? "—"}</td>
-                <td className="px-4 py-3 text-crust-500">{m.motivo.replace(/_/g, " ")}</td>
-                <td className="px-4 py-3 text-right">{Number(m.cantidad)}</td>
-                <td className="px-4 py-3 text-right text-red-600">{formatUYU(m.costo)}</td>
-                <td className="px-4 py-3 text-right text-crust-500">{new Date(m.createdAt).toLocaleDateString("es-UY")}</td>
+                <td data-principal className="px-4 py-3 font-medium text-crust-800">{m.insumo?.nombre ?? m.producto?.nombre ?? "—"}</td>
+                <td data-etiqueta="Motivo" className="px-4 py-3 text-crust-500">{m.motivo.replace(/_/g, " ")}</td>
+                <td data-etiqueta="Cantidad" className="px-4 py-3 text-right">{Number(m.cantidad)}</td>
+                <td data-etiqueta="Costo" className="px-4 py-3 text-right text-red-600">{formatUYU(m.costo)}</td>
+                <td data-etiqueta="Fecha" className="px-4 py-3 text-right text-crust-500">{new Date(m.createdAt).toLocaleDateString("es-UY")}</td>
               </tr>
             ))}
             {mermas.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-crust-400">Sin mermas registradas.</td></tr>}

@@ -32,3 +32,126 @@ section[id] {
     scroll-margin-top: 84px;
   }
 }
+
+/* ── Controles del panel en teléfono ──────────────────────────────────────
+   Dos cosas que sólo se notan en un teléfono real:
+
+   1. Un botón de 28 px se falla al tocarlo. El mínimo cómodo son ~44 px, así
+      que todo lo que se toca en el panel llega a esa altura.
+   2. Safari en iOS hace zoom al enfocar un campo con letra menor a 16 px, y
+      queda la página corrida. Con 16 px no hace zoom.
+
+   Va acotado a .panel-admin para no tocar el sitio público. */
+@media (max-width: 639px) {
+  .panel-admin button,
+  .panel-admin select,
+  .panel-admin [role="button"],
+  .panel-admin input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 2.75rem;
+  }
+
+  .panel-admin input:not([type="checkbox"]):not([type="radio"]),
+  .panel-admin select,
+  .panel-admin textarea {
+    font-size: 16px;
+  }
+
+  .panel-admin input[type="checkbox"],
+  .panel-admin input[type="radio"] {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  /* Para lo que de verdad tiene que ser chico (una celda de horario en una
+     grilla de siete días, por ejemplo). */
+  .panel-admin .control-compacto,
+  .panel-admin .control-compacto input,
+  .panel-admin .control-compacto select,
+  .panel-admin .control-compacto button {
+    min-height: 0;
+  }
+}
+
+/* ── Tablas del panel en teléfono ──────────────────────────────────────────
+   Una tabla de ocho columnas no entra en 390 px: o se corta o hay que
+   arrastrarla de costado para leer un dato. Con `tabla-cards` cada fila pasa
+   a ser una tarjeta y cada celda muestra su encabezado al lado, tomándolo del
+   atributo `data-etiqueta`. Desde sm vuelve a ser una tabla normal.
+
+   En el marcado: <table className="tabla-cards …"> y en cada celda
+   <td data-etiqueta="Stock">. Una celda sin data-etiqueta (la de acciones,
+   por ejemplo) queda a lo ancho de la tarjeta, sin rótulo. */
+@media (max-width: 639px) {
+  /* El marco blanco de la tabla sobra cuando las filas ya son tarjetas:
+     quedaría una tarjeta dentro de otra. */
+  .tabla-marco {
+    @apply overflow-visible rounded-none border-0 bg-transparent shadow-none;
+  }
+
+  .tabla-cards,
+  .tabla-cards tbody,
+  .tabla-cards td {
+    display: block;
+  }
+
+  /* Columna flex para poder reordenar: el nombre encabeza la tarjeta y las
+     acciones van al pie, sin importar en qué orden estén las columnas. */
+  .tabla-cards tr {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tabla-cards thead {
+    display: none;
+  }
+
+  .tabla-cards tr {
+    @apply mb-3 rounded-xl border border-crust-100 bg-white p-3 shadow-sm;
+  }
+
+  .tabla-cards tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* La celda queda "etiqueta a la izquierda, valor a la derecha". */
+  .tabla-cards td {
+    @apply flex items-center justify-between gap-3 border-0 px-0 py-1.5 text-right;
+  }
+
+  .tabla-cards td[data-etiqueta]::before {
+    content: attr(data-etiqueta);
+    @apply shrink-0 text-left text-xs font-semibold uppercase tracking-wide text-crust-500;
+  }
+
+  /* La celda destacada encabeza la tarjeta: sin rótulo y a texto completo. */
+  .tabla-cards td[data-principal] {
+    order: -1;
+    @apply mb-1 justify-start border-b border-crust-100 pb-2 text-left text-base font-semibold text-crust-800;
+  }
+
+  /* Acciones: ocupan el ancho y se separan del resto. */
+  .tabla-cards td[data-acciones] {
+    order: 99;
+    @apply mt-1 flex-wrap justify-start gap-2 border-t border-crust-100 pt-2 text-left;
+  }
+
+  /* Cuando la celda lleva un control (una tabla de carga, por ejemplo), el
+     control toma el espacio que sobra en vez de quedar apretado al margen. */
+  .tabla-cards td[data-etiqueta] > input,
+  .tabla-cards td[data-etiqueta] > select,
+  .tabla-cards td[data-etiqueta] > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Columnas que en un teléfono no pagan el alto que ocupan (un dato que se
+     deduce de otros dos que ya están en la tarjeta, por ejemplo). */
+  .tabla-cards td[data-oculto-movil] {
+    display: none;
+  }
+
+  /* Una fila de "no hay nada" no debe verse como una tarjeta de datos. */
+  .tabla-cards td[colspan] {
+    @apply justify-center text-center;
+  }
+}

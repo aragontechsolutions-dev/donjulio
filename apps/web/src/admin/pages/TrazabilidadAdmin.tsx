@@ -67,8 +67,8 @@ export default function TrazabilidadAdmin() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Listado de lotes */}
-        <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-          <table className="w-full text-sm">
+        <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+          <table className="tabla-cards w-full text-sm">
             <thead className="bg-crust-50 text-left text-crust-600">
               {modo === "producido" ? (
                 <tr><th className="px-4 py-3">Lote</th><th className="px-4 py-3">Producto</th><th className="px-4 py-3">Producido</th><th className="px-4 py-3">Vence</th><th /></tr>
@@ -79,22 +79,22 @@ export default function TrazabilidadAdmin() {
             <tbody>
               {modo === "producido" && producidos.map((l) => (
                 <tr key={l.id} className="border-t border-crust-50">
-                  <td className="px-4 py-2 font-mono text-xs text-crust-800">{l.lote}</td>
-                  <td className="px-4 py-2 text-crust-600">{l.producto?.nombre ?? "—"}</td>
-                  <td className="px-4 py-2 text-crust-500">{fecha(l.producedAt)}</td>
-                  <td className="px-4 py-2 text-crust-500">{fecha(l.expiresAt)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td data-etiqueta="Lote" className="px-4 py-2 font-mono text-xs text-crust-800">{l.lote}</td>
+                  <td data-principal className="px-4 py-2 text-crust-600">{l.producto?.nombre ?? "—"}</td>
+                  <td data-etiqueta="Producido" className="px-4 py-2 text-crust-500">{fecha(l.producedAt)}</td>
+                  <td data-etiqueta="Vence" className="px-4 py-2 text-crust-500">{fecha(l.expiresAt)}</td>
+                  <td data-acciones className="px-4 py-2 text-right">
                     <button onClick={() => verProducido(l.id)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Trazar</button>
                   </td>
                 </tr>
               ))}
               {modo === "insumo" && insumos.map((l) => (
                 <tr key={l.id} className="border-t border-crust-50">
-                  <td className="px-4 py-2 font-mono text-xs text-crust-800">{l.lote}</td>
-                  <td className="px-4 py-2 text-crust-600">{l.insumo.nombre}</td>
-                  <td className="px-4 py-2 text-right text-crust-500">{Number(l.cantidad)} {l.insumo.unidad}</td>
-                  <td className="px-4 py-2 text-crust-500">{fecha(l.vencimiento)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td data-etiqueta="Lote" className="px-4 py-2 font-mono text-xs text-crust-800">{l.lote}</td>
+                  <td data-principal className="px-4 py-2 text-crust-600">{l.insumo.nombre}</td>
+                  <td data-etiqueta="Restante" className="px-4 py-2 text-right text-crust-500">{Number(l.cantidad)} {l.insumo.unidad}</td>
+                  <td data-etiqueta="Vence" className="px-4 py-2 text-crust-500">{fecha(l.vencimiento)}</td>
+                  <td data-acciones className="px-4 py-2 text-right">
                     <button onClick={() => verInsumo(l.id)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Trazar</button>
                   </td>
                 </tr>

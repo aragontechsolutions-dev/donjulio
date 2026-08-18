@@ -296,19 +296,19 @@ export default function RecetasAdmin() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-          <table className="w-full text-sm">
+        <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+          <table className="tabla-cards w-full text-sm">
             <thead className="bg-crust-50 text-left text-crust-600">
               <tr><th className="px-4 py-3">Receta</th><th className="px-4 py-3">Producto asociado</th><th className="px-4 py-3">Rendimiento</th><th className="px-4 py-3"></th></tr>
             </thead>
             <tbody>
               {recetas.map((r) => (
                 <tr key={r.id} className="border-t border-crust-50">
-                  <td className="px-4 py-3 font-medium text-crust-800">
+                  <td data-principal className="px-4 py-3 font-medium text-crust-800">
                     {r.nombre}
                     {r.isSubRecipe && <span className="ml-2 rounded-full bg-crust-100 px-2 py-0.5 text-xs text-crust-600">sub-receta</span>}
                   </td>
-                  <td className="px-4 py-3 text-sm">
+                  <td data-etiqueta="Producto" className="px-4 py-3 text-sm">
                     {r.producto ? (
                       <span className="text-crust-700">{r.producto.nombre}</span>
                     ) : r.isSubRecipe ? (
@@ -319,8 +319,8 @@ export default function RecetasAdmin() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-crust-500">{Number(r.yieldQty)} {r.yieldUnit}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td data-etiqueta="Rendimiento" className="px-4 py-3 text-crust-500">{Number(r.yieldQty)} {r.yieldUnit}</td>
+                  <td data-acciones className="px-4 py-3 text-right">
                     <button onClick={() => costear(r.id)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Costear</button>
                   </td>
                 </tr>

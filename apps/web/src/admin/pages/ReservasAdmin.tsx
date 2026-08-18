@@ -136,8 +136,8 @@ export default function ReservasAdmin() {
         </form>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+        <table className="tabla-cards w-full text-sm">
           <thead className="bg-crust-50 text-left text-crust-600">
             <tr>
               <th className="px-4 py-3">Hora</th>
@@ -151,14 +151,14 @@ export default function ReservasAdmin() {
           <tbody>
             {reservas.map((r) => (
               <tr key={r.id} className="border-t border-crust-50">
-                <td className="px-4 py-3 font-semibold text-crust-800">{hora(r.fechaHora)}</td>
-                <td className="px-4 py-3">
+                <td data-etiqueta="Hora" className="px-4 py-3 font-semibold text-crust-800">{hora(r.fechaHora)}</td>
+                <td data-principal className="px-4 py-3">
                   <span className="font-medium text-crust-800">{r.nombre}</span>
                   {r.telefono && <span className="ml-2 text-xs text-crust-400">{r.telefono}</span>}
                   {r.notas && <p className="text-xs italic text-amber-700">“{r.notas}”</p>}
                 </td>
-                <td className="px-4 py-3 text-center text-crust-600">👥 {r.personas}</td>
-                <td className="px-4 py-3">
+                <td data-etiqueta="Personas" className="px-4 py-3 text-center text-crust-600">👥 {r.personas}</td>
+                <td data-etiqueta="Mesa" className="px-4 py-3">
                   {/* Sin permiso para listar mesas el select sólo podría
                       desasignar, así que se muestra como dato. */}
                   {!puedeVerMesas ? (
@@ -176,7 +176,7 @@ export default function ReservasAdmin() {
                   </select>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td data-etiqueta="Estado" className="px-4 py-3">
                   <select
                     value={r.status}
                     onChange={(e) => cambiar(r, { status: e.target.value })}
@@ -185,7 +185,7 @@ export default function ReservasAdmin() {
                     {ESTADOS.map((s) => <option key={s} value={s}>{LABEL[s]}</option>)}
                   </select>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td data-acciones className="px-4 py-3 text-right">
                   {puedeCancelar && (
                     <button onClick={() => eliminar(r)} className="rounded-lg px-2 py-1 text-sm text-red-500 hover:bg-red-50">✕</button>
                   )}

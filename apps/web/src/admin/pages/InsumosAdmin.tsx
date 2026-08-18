@@ -372,9 +372,9 @@ export default function InsumosAdmin() {
         </label>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+      <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="tabla-cards w-full text-sm">
             <thead className="bg-crust-50 text-left text-crust-600">
               <tr>
                 <th className="px-4 py-3">Insumo</th>
@@ -390,12 +390,12 @@ export default function InsumosAdmin() {
                 const low = Number(i.stockActual) <= Number(i.puntoReorden);
                 return (
                   <tr key={i.id} className="border-t border-crust-50">
-                    <td className="px-4 py-3 font-medium text-crust-800">{i.nombre}</td>
-                    <td className="px-4 py-3 text-crust-500">{i.unidad}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatUYU(i.costoUnitario)}</td>
-                    <td className={`px-4 py-3 text-right font-semibold tabular-nums ${low ? "text-red-600" : "text-crust-800"}`}>{Number(i.stockActual)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-crust-500">{Number(i.puntoReorden)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <td data-principal className="px-4 py-3 font-medium text-crust-800">{i.nombre}</td>
+                    <td data-etiqueta="Unidad" className="px-4 py-3 text-crust-500">{i.unidad}</td>
+                    <td data-etiqueta="Costo" className="px-4 py-3 text-right tabular-nums">{formatUYU(i.costoUnitario)}</td>
+                    <td data-etiqueta="Stock" className={`px-4 py-3 text-right font-semibold tabular-nums ${low ? "text-red-600" : "text-crust-800"}`}>{Number(i.stockActual)}</td>
+                    <td data-etiqueta="Reorden" className="px-4 py-3 text-right tabular-nums text-crust-500">{Number(i.puntoReorden)}</td>
+                    <td data-acciones className="whitespace-nowrap px-4 py-3 text-center">
                       <button onClick={() => abrirEntrada(i)} className="mr-2 rounded-lg bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200">+ Entrada</button>
                       <button onClick={() => abrirAjuste(i)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
                     </td>
@@ -471,8 +471,8 @@ export default function InsumosAdmin() {
           ancho="max-w-4xl"
         >
           <form onSubmit={submitRemito} className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+            <div className="overflow-x-auto sm:overflow-x-auto">
+              <table className="tabla-cards w-full text-sm sm:min-w-[720px]">
                 <thead className="text-left text-xs uppercase tracking-wide text-crust-500">
                   <tr>
                     <th className="pb-2 pr-2">Insumo</th>
@@ -488,7 +488,7 @@ export default function InsumosAdmin() {
                     const ins = insumoDe(l.insumoId);
                     return (
                       <tr key={l.key} className="align-top">
-                        <td className="py-1 pr-2">
+                        <td data-principal className="py-1 pr-2">
                           <Buscador
                             opciones={opciones.map((o) => ({
                               id: o.id,
@@ -503,7 +503,7 @@ export default function InsumosAdmin() {
                             sinResultados="Ningún insumo coincide."
                           />
                         </td>
-                        <td className="py-1 pr-2">
+                        <td data-etiqueta="Cantidad" className="py-1 pr-2">
                           <div className="flex items-center gap-1">
                             <input
                               type="number" step="0.01" min="0"
@@ -514,7 +514,7 @@ export default function InsumosAdmin() {
                             <span className="shrink-0 text-xs text-crust-400">{ins?.unidad ?? ""}</span>
                           </div>
                         </td>
-                        <td className="py-1 pr-2">
+                        <td data-etiqueta="Costo unit." className="py-1 pr-2">
                           <input
                             type="number" step="0.01" min="0"
                             value={l.costoUnitario}
@@ -523,7 +523,7 @@ export default function InsumosAdmin() {
                             className="w-full rounded-lg border border-crust-200 px-2 py-2 tabular-nums"
                           />
                         </td>
-                        <td className="py-1 pr-2">
+                        <td data-etiqueta="Lote" className="py-1 pr-2">
                           <input
                             value={l.lote}
                             onChange={(e) => setLinea(l.key, { lote: e.target.value })}
@@ -531,7 +531,7 @@ export default function InsumosAdmin() {
                             className="w-full rounded-lg border border-crust-200 px-2 py-2"
                           />
                         </td>
-                        <td className="py-1 pr-2">
+                        <td data-etiqueta="Vencimiento" className="py-1 pr-2">
                           <input
                             type="date"
                             value={l.vencimiento}
@@ -539,7 +539,7 @@ export default function InsumosAdmin() {
                             className="w-full rounded-lg border border-crust-200 px-2 py-2"
                           />
                         </td>
-                        <td className="py-1">
+                        <td data-acciones className="py-1">
                           <button
                             type="button"
                             onClick={() => setRemito((prev) => (prev!.length > 1 ? prev!.filter((x) => x.key !== l.key) : prev))}

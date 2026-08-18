@@ -448,9 +448,9 @@ export default function ProductosAdmin() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+      <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="tabla-cards w-full text-sm">
             <thead className="bg-crust-50 text-left text-crust-600">
               <tr>
                 <th className="px-4 py-3">Img</th>
@@ -474,7 +474,7 @@ export default function ProductosAdmin() {
                 const sem = semaforoFoodCost(c?.foodCostPct);
                 return (
                   <tr key={p.id} className="border-t border-crust-50">
-                    <td className="px-4 py-3">
+                    <td data-etiqueta="Imagen" className="px-4 py-3">
                       <label className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-crust-100 text-crust-400" title="Cambiar imagen">
                         {p.imagenUrl ? (
                           <img src={p.imagenUrl} alt={p.nombre} className="h-full w-full object-cover" />
@@ -493,7 +493,7 @@ export default function ProductosAdmin() {
                         />
                       </label>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-principal className="px-4 py-3">
                       <span className="font-medium text-crust-800">{p.nombre}</span>
                       <span className="mt-0.5 block text-xs text-crust-400">
                         {p.esReventa
@@ -503,12 +503,12 @@ export default function ProductosAdmin() {
                             : "Elaborado · sin receta"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-crust-500">{p.categoria?.nombre ?? "—"}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-crust-600">
+                    <td data-etiqueta="Categoría" className="px-4 py-3 text-crust-500">{p.categoria?.nombre ?? "—"}</td>
+                    <td data-etiqueta="Costo" className="px-4 py-3 text-right tabular-nums text-crust-600">
                       {c?.costoUnitario != null ? formatUYU(c.costoUnitario) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatUYU(p.precio)}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td data-etiqueta="Precio" className="px-4 py-3 text-right font-semibold tabular-nums">{formatUYU(p.precio)}</td>
+                    <td data-etiqueta="Food cost" className="px-4 py-3 text-center">
                       <span
                         className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${SEMAFORO[sem].cls}`}
                         title={SEMAFORO[sem].ayuda}
@@ -516,10 +516,10 @@ export default function ProductosAdmin() {
                         {c?.foodCostPct != null ? `${c.foodCostPct.toFixed(1)} %` : "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-crust-600">
+                    <td data-etiqueta="Margen" data-oculto-movil className="px-4 py-3 text-right tabular-nums text-crust-600">
                       {c?.margen != null ? formatUYU(c.margen) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
+                    <td data-etiqueta="Stock" className="px-4 py-3 text-right tabular-nums">
                       {p.stockProducido == null ? (
                         <span className="text-crust-300" title="Se prepara al momento">—</span>
                       ) : (
@@ -535,7 +535,7 @@ export default function ProductosAdmin() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td data-etiqueta="Disponible" className="px-4 py-3 text-center">
                       <button
                         onClick={() => toggle(p, "disponible")}
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -545,7 +545,7 @@ export default function ProductosAdmin() {
                         {p.disponible ? "Sí" : "No"}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td data-etiqueta="Destacado" className="px-4 py-3 text-center">
                       <button
                         onClick={() => toggle(p, "destacado")}
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -555,7 +555,7 @@ export default function ProductosAdmin() {
                         {p.destacado ? "★" : "☆"}
                       </button>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <td data-acciones className="whitespace-nowrap px-4 py-3 text-center">
                       <button
                         onClick={() => abrirEdicion(p)}
                         className="rounded-lg px-2 py-1 text-xs font-semibold text-crust-600 hover:bg-crust-100"

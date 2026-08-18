@@ -174,8 +174,8 @@ export default function UsuariosAdmin() {
         </p>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="tabla-marco overflow-hidden rounded-2xl border border-crust-100 bg-white shadow-sm">
+        <table className="tabla-cards w-full text-sm">
           <thead className="bg-crust-50 text-left text-crust-600">
             <tr>
               <th className="px-4 py-3 text-center">N°</th>
@@ -188,19 +188,19 @@ export default function UsuariosAdmin() {
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id} className="border-t border-crust-50">
-                <td className="px-4 py-3 text-center">
+                <td data-etiqueta="N° de empleado" className="px-4 py-3 text-center">
                   <span className="inline-grid h-7 w-7 place-items-center rounded-full bg-crust-100 text-xs font-bold text-crust-700" title="Número de empleado para fichar">
                     {u.numeroEmpleado ?? "—"}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-medium text-crust-800">{u.nombre}</td>
-                <td className="px-4 py-3 text-crust-500">{u.email}</td>
-                <td className="px-4 py-3">
+                <td data-principal className="px-4 py-3 font-medium text-crust-800">{u.nombre}</td>
+                <td data-etiqueta="Email" className="px-4 py-3 text-crust-500">{u.email}</td>
+                <td data-etiqueta="Rol" className="px-4 py-3">
                   <select value={u.role} onChange={(e) => cambiarRol(u, e.target.value)} className="rounded-lg border border-crust-200 px-2 py-1 text-sm">
                     {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td data-acciones className="px-4 py-3 text-right">
                   <button onClick={() => definirPin(u)} className={`mr-2 rounded-lg border px-3 py-1.5 text-sm ${u.pinHash ? "border-crust-200 text-crust-700 hover:bg-crust-100" : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>
                     {u.pinHash ? "Cambiar PIN" : "Asignar PIN"}
                   </button>

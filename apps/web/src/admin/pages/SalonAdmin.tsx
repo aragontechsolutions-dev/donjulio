@@ -678,6 +678,12 @@ export default function SalonAdmin() {
               </p>
             )}
           </div>
+          {/* En el teléfono el plano no entra entero y se arrastra: conviene decirlo. */}
+          {mesas.length > 0 && (
+            <p className="mt-2 text-center text-xs text-crust-400 sm:hidden">
+              Arrastrá el plano de costado para ver el resto de las mesas.
+            </p>
+          )}
         </div>
 
         {/* Panel lateral */}
