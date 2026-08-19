@@ -84,7 +84,7 @@ Como la lista es cerrada, **lo que no está ahí y no está exonerado va al 22 %
 | Panificados | **Sólo** pan blanco común y galleta de campaña |
 | Almacén | harina y subproductos de molienda, pastas y fideos, arroz, azúcar, sal de uso doméstico, aceites comestibles, grasas comestibles |
 | Infusiones | yerba, café, té |
-| Proteína | carne y menudencias, pescado (frescos, congelados o enfriados) |
+| Proteína | carne y menudencias, pescado (frescos, congelados o enfriados); carne avícola, porcina y de conejo (art. 36 lit. L, Título 10) |
 | Frutas y verduras | en estado natural, con las condiciones del literal f) |
 | Otros | jabón común |
 
@@ -98,6 +98,8 @@ importante de la revisión:**
 | **Confitería** | medialunas, facturas, bizcochos, tortas, masas, alfajores, budines, pan dulce, postres, helados |
 | **Rotisería** | empanadas, tartas, pizza, sándwiches, tostados |
 | Bebidas | agua mineral, refrescos, jugos envasados, cerveza, vino |
+| **Leche UHT y saborizada** | quedan fuera de la exoneración (ver más abajo) |
+| **Huevos** | no están exonerados ni en tasa mínima |
 | No alimentos | bolsas, souvenirs, tazas |
 
 Ninguno de esos figura en el artículo 101. **Lo que se corrigió:** la versión
@@ -106,20 +108,48 @@ anterior de este documento los ponía a todos en tasa mínima por analogía con
 
 ### Exento
 
-Pendiente de confirmar: las exoneraciones de alimentos **no están en el
-Decreto 220/998**, que sólo exonera insumos agropecuarios, metales preciosos y
-moneda extranjera. Están en el **artículo 19 del Título 10** del Texto
-Ordenado, que el decreto sólo referencia. Falta ese texto para poder afirmar
-que la leche fluida y los huevos están exentos.
+**Fuente: artículo 38, numeral 1, del Título 10** (Texto Ordenado, actualizado
+a diciembre de 2025). De toda la lista, lo que le toca a una panadería es un
+solo literal, y trae una excepción que importa mucho:
 
-Mientras tanto el sistema los marca **para revisar** en vez de asumir.
+> *F) Leche pasterizada, ultrapasterizada, vitaminizada, descremada, en polvo,
+> **excepto la saborizada y la UHT o UAT** (ultra alta temperatura).*
+
+O sea:
+
+| Producto | Tasa |
+|---|---|
+| Leche pasteurizada, descremada, vitaminizada, en polvo | **Exenta** |
+| Leche **UHT / UAT** (la de cajita larga vida) | **22 %** |
+| Leche **saborizada** / chocolatada | **22 %** |
+
+La leche UHT queda fuera de la exoneración *y* fuera de la lista de tasa
+mínima — donde lo único que aparece es el *transporte* de leche, no la leche.
+Así que va a básica.
+
+**Los huevos no están exonerados.** No figuran en el artículo 38 ni en la lista
+de tasa mínima: **22 %**. La versión anterior de este documento los daba por
+exentos, y era un error.
+
+Lo único otro que puede aparecer en el mostrador: **diarios, revistas y libros**
+están exentos por el literal H).
+
+Como el nombre del producto no dice el proceso, un producto llamado sólo
+"Leche entera 1 L" queda propuesto como exento pero **marcado para revisar**.
 
 ### Ayuda al cargar productos
 
-`sugerirIva(nombre)` propone la tasa siguiendo el artículo 101 y cita el
-literal en el motivo. Verificada contra 25 productos típicos. Cuando no
-reconoce el producto propone **básica**, no mínima: siendo la lista cerrada, lo
-no identificado probablemente esté fuera de ella.
+`sugerirIva(nombre)` propone la tasa y cita el literal del que sale, así quien
+carga el producto ve el porqué. Cuando no reconoce el producto propone
+**básica**, no mínima: siendo la lista cerrada, lo no identificado
+probablemente esté fuera de ella.
+
+Además marca **para revisar** los casos donde la norma depende de un dato que
+el nombre no dice:
+
+- **Pan**, porque la tasa mínima es para el *pan blanco común*: un integral, de
+  semillas o relleno puede no calificar.
+- **Leche** sin especificar el proceso, por la excepción de la UHT.
 
 ## 3. La regla del salón
 
@@ -192,14 +222,15 @@ régimen general, aplica todo lo de arriba.
 
 ### Sin confirmar
 
-1. **Exoneraciones de alimentos** (leche fluida, huevos). Están en el artículo
-   19 del Título 10, que no tengo.
-2. **Qué es "pan blanco común".** Hay reglamentación de DGI que lo define
+Las exoneraciones ya están resueltas con el artículo 38 del Título 10. Queda:
+
+1. **Qué es "pan blanco común".** Hay reglamentación de DGI que lo define
    (común o francés, flauta, catalán, porteño, marsellés, casero). Un pan
-   integral o de semillas probablemente quede fuera y vaya al 22 %.
-3. **Café servido en mesa.** Como bien está al 10 %, pero un cortado servido
-   podría ser servicio gastronómico. La lista enumera bienes.
-4. **Reducción de IVA por pago con tarjeta.** No está implementada.
+   integral, de semillas o relleno probablemente quede fuera y vaya al 22 %.
+   Falta esa resolución para saber qué panes de la casa califican.
+2. **Café servido en mesa.** Como bien está al 10 %, pero un cortado servido
+   con servicio podría ser prestación de servicio y no enajenación de bien.
+3. **Reducción de IVA por pago con tarjeta.** No está implementada.
 
 ### Para preguntarle al contador
 
@@ -208,15 +239,13 @@ régimen general, aplica todo lo de arriba.
 2. ¿Confirma confitería y rotisería al 22 %? Es lo que sale del artículo 101 y
    es el cambio más grande respecto de lo que estaba cargado.
 3. ¿Qué panes de la casa califican como "pan blanco común"?
-4. Leche fluida y huevos, ¿exentos? (Falta el Título 10 art. 19.)
+4. ¿Qué leche vendemos, pasteurizada o UHT? Cambia de exenta a 22 %.
 5. El café servido en mesa, ¿10 % como bien o 22 % como servicio?
 6. ¿Corresponde la reducción de IVA por pago con tarjeta?
 
 ### Textos que faltan conseguir
 
-- **Título 10 del Texto Ordenado, artículos 18 y 19** — las tasas y las
-  exoneraciones a nivel legal.
-- La resolución de DGI que define **"pan blanco común"**.
+Sólo uno: la resolución de DGI que define **"pan blanco común"**.
 
 ## Fuentes
 
@@ -225,7 +254,7 @@ régimen general, aplica todo lo de arriba.
 - [Cámara de Representantes — exoneración por treinta días](http://www.diputados.gub.uy/noticias/se-aprobo-la-exoneracion-del-iva-al-pan-blanco-comun-galleta-de-campana-pasta-y-fideos-por-un-plazo-de-treinta-dias/)
 - [DGI — exoneraciones vigentes en el IVA](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/son-exoneraciones-vigentes-iva)
 - [DGI — bienes y servicios gravados a la tasa básica](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/son-bienes-servicios-gravados-tasa-basica-del-22)
-- [Título 10 del Texto Ordenado (IVA) — IMPO](https://www.impo.com.uy/bases/todgi-2023/10-2024/10) — *pendiente: arts. 18 y 19*
+- [Título 10 del Texto Ordenado (IVA), actualizado diciembre 2025](https://www.impo.com.uy/bases/todgi-2023/10-2024/10) — **fuente primaria**: art. 34 (tasas), art. 36 (tasa mínima), art. 38 (exoneraciones)
 - [Decreto 220/998, texto actualizado marzo 2026 — IMPO](https://www.impo.com.uy/bases/decretos-reglamentarios-todgi/220-1998_A) — **fuente primaria de las tasas de este documento**
 - [DGI — Cuota IVA mínimo, valores vigentes](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/cuota-iva-minimo-valores-vigentes)
 - [Decreto N° 220/998 — IMPO](https://www.impo.com.uy/bases/decretos/220-1998)

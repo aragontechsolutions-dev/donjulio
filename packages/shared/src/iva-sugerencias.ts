@@ -24,6 +24,8 @@ interface Regla {
   motivo: string;
   /** Se busca como palabra dentro del nombre, sin acentos. */
   claves: string[];
+  /** La norma depende de un dato que el nombre no dice: hay que mirarlo. */
+  revisar?: boolean;
 }
 
 const CITA = "art. 101 lit. a, Dto. 220/998";
@@ -79,7 +81,8 @@ const REGLAS: Regla[] = [
   // ── Lo que el artículo 101 sí enumera ──
   {
     tasa: IvaRate.MINIMA,
-    motivo: `Pan blanco común y galleta de campaña: tasa mínima (${CITA}). Un pan especial (integral, de semillas) puede no entrar.`,
+    revisar: true,
+    motivo: `Pan blanco común y galleta de campaña: tasa mínima (${CITA}). Un pan especial (integral, de semillas, con relleno) puede no calificar y sería 22 %.`,
     claves: [
       "pan", "panes", "pancito", "galleta", "flauta", "catalan", "marselles",
       "portenito", "felipe", "figazza",
@@ -90,19 +93,58 @@ const REGLAS: Regla[] = [
     motivo: `Café, té y yerba figuran entre los bienes de tasa mínima (${CITA}). Servidos en mesa podrían ser servicio gastronómico: consultalo.`,
     claves: ["cafe", "capuchino", "cortado", "expreso", "espresso", "te", "mate", "yerba"],
   },
+
+  // ── Leche: exonerada, pero NO toda ──
+  // Art. 38 num. 1 lit. F) del Título 10 exonera la leche "pasterizada,
+  // ultrapasterizada, vitaminizada, descremada, en polvo, EXCEPTO la
+  // saborizada y la UHT o UAT". La de cajita larga vida, entonces, no está
+  // exonerada; y como tampoco figura en tasa mínima, va a básica.
+  {
+    tasa: IvaRate.BASICA,
+    motivo:
+      "La exoneración de la leche excluye expresamente la UHT/UAT y la saborizada (art. 38 num. 1 lit. F, Título 10).",
+    claves: ["leche uht", "leche uat", "leche larga vida", "leche saborizada", "chocolatada"],
+  },
+  {
+    tasa: IvaRate.EXENTO,
+    motivo: "Leche pasterizada, descremada, vitaminizada o en polvo: exenta (art. 38 num. 1 lit. F, Título 10).",
+    claves: [
+      "leche pasteurizada", "leche pasterizada", "leche ultrapasterizada",
+      "leche descremada", "leche en polvo", "leche vitaminizada",
+    ],
+  },
+  {
+    tasa: IvaRate.EXENTO,
+    revisar: true,
+    motivo:
+      "La leche está exenta salvo la UHT/UAT y la saborizada. El nombre no dice el proceso: confirmá cuál es.",
+    claves: ["leche"],
+  },
+
   {
     tasa: IvaRate.MINIMA,
     motivo: `Enumerado entre los bienes de tasa mínima (${CITA}).`,
     claves: [
       "harina", "fideo", "pasta", "arroz", "azucar", "aceite", "sal",
-      "carne", "menudencia", "pollo", "pescado", "jabon",
+      "carne", "menudencia", "pollo", "ave", "cerdo", "conejo", "pescado", "jabon",
     ],
   },
   {
     tasa: IvaRate.MINIMA,
     motivo:
-      "Frutas, flores y hortalizas en estado natural: tasa mínima al vender a consumo final (art. 101 lit. f). No es exento.",
+      "Frutas, flores y hortalizas en estado natural: tasa mínima al vender a consumo final (art. 36 lit. K, Título 10). No es exento.",
     claves: ["fruta", "verdura", "hortaliza", "flor"],
+  },
+  {
+    tasa: IvaRate.BASICA,
+    motivo:
+      "Los huevos no figuran ni entre los bienes exonerados ni entre los de tasa mínima: tasa básica.",
+    claves: ["huevo"],
+  },
+  {
+    tasa: IvaRate.EXENTO,
+    motivo: "Diarios, revistas y libros: exentos (art. 38 num. 1 lit. H, Título 10).",
+    claves: ["diario", "revista", "libro"],
   },
 ];
 
@@ -145,7 +187,7 @@ export function sugerirIva(nombre: string): SugerenciaIva {
 
   for (const regla of REGLAS) {
     if (regla.claves.some((c) => contienePalabra(n, c))) {
-      return { tasa: regla.tasa, motivo: regla.motivo, reconocido: true };
+      return { tasa: regla.tasa, motivo: regla.motivo, reconocido: !regla.revisar };
     }
   }
   return {
