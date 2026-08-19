@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PaymentMethod } from "@donjulio/shared";
+import { PaymentMethod, agruparIguales, lineaConCantidad } from "@donjulio/shared";
 import { api } from "../lib/api";
 import { cacheGet, cacheSet, outboxAdd, uuid } from "../lib/db";
 import { flushOutbox } from "../lib/sync";
@@ -73,6 +73,7 @@ export default function Comanda({
   const [sillasCobro, setSillasCobro] = useState<string[]>([]);
   const [cashModal, setCashModal] = useState(false); // paso de vuelto (efectivo)
   const [recibido, setRecibido] = useState("");
+  const [confirmando, setConfirmando] = useState(false); // repaso antes de cocina
 
   const loadCuenta = () =>
     api
@@ -99,7 +100,26 @@ export default function Comanda({
     return () => clearInterval(t);
   }, [mesa.id]);
 
+  // Si se vacía el carrito, el repaso ya no tiene qué mostrar.
+  useEffect(() => {
+    if (cart.length === 0) setConfirmando(false);
+  }, [cart.length]);
+
   const cartTotal = useMemo(() => cart.reduce((a, l) => a + l.precio, 0), [cart]);
+  // Lo mismo pedido dos veces por el mismo comensal es una línea con cantidad.
+  const lineasCarrito = useMemo(
+    () =>
+      agruparIguales(
+        cart,
+        (l) => `${l.producto.id}|${[...l.modificadorIds].sort().join(",")}|${l.sillaId ?? ""}`,
+      ),
+    [cart],
+  );
+  const sumarUno = (l: CartLine) => setCart((c) => [...c, { ...l, key: uuid() }]);
+  const quitarUno = (keys: string[]) => {
+    const ultima = keys[keys.length - 1];
+    setCart((c) => c.filter((x) => x.key !== ultima));
+  };
   const sillaLabel = (s: Silla) => (s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`);
   const sillaLabelById = (id: string | null) => {
     if (!id) return "Mesa";
@@ -143,12 +163,14 @@ export default function Comanda({
 
   const enviar = async () => {
     if (cart.length === 0) return;
+    setConfirmando(false);
     const clientTxnId = uuid();
-    const items = cart.map((l) => ({
-      productoId: l.producto.id,
-      cantidad: 1,
-      modificadorIds: l.modificadorIds,
-      ...(l.sillaId ? { sillaId: l.sillaId } : {}),
+    // Lo repetido viaja junto: la cocina lee "2 × Medialunas de manteca".
+    const items = lineasCarrito.map((g) => ({
+      productoId: g.primera.producto.id,
+      cantidad: g.cantidad,
+      modificadorIds: g.primera.modificadorIds,
+      ...(g.primera.sillaId ? { sillaId: g.primera.sillaId } : {}),
     }));
     await outboxAdd({ id: clientTxnId, mesaId: mesa.id, mesaNumero: mesa.numero, items, createdAt: Date.now() });
     setCart([]);
@@ -163,9 +185,12 @@ export default function Comanda({
     }
   };
 
-  const entregar = async (itemId: string) => {
+  /** Entrega la línea entera: si son 2 medialunas, van las 2. */
+  const entregar = async (itemIds: string[]) => {
     try {
-      await api.patch(`/admin/kds/items/${itemId}`, { status: "ENTREGADO" });
+      await Promise.all(
+        itemIds.map((id) => api.patch(`/admin/kds/items/${id}`, { status: "ENTREGADO" })),
+      );
       loadCuenta();
     } catch {
       /* toast del api */
@@ -199,6 +224,26 @@ export default function Comanda({
     setCashModal(false);
     await doCobrar(PaymentMethod.EFECTIVO);
   };
+
+  // Junta los ítems iguales de un comensal en una línea con cantidad. No se
+  // juntan si están en estados distintos: uno puede estar listo y el otro no.
+  const juntarItems = (items: CuentaItem[]) =>
+    agruparIguales(
+      items,
+      (it) =>
+        `${it.producto.nombre}|${it.modificadores.map((m) => m.nombre).sort().join(",")}|${it.status}|${it.pagado}`,
+      (it) => it.cantidad,
+    ).map((g) => ({
+      id: g.primera.id,
+      // Entregar afecta a todos los ítems de la línea, no sólo al primero.
+      ids: g.lineas.map((it) => it.id),
+      cantidad: g.cantidad,
+      subtotal: g.lineas.reduce((a, it) => a + Number(it.subtotal), 0),
+      status: g.primera.status,
+      pagado: g.primera.pagado,
+      nombre: g.primera.producto.nombre,
+      modificadores: g.primera.modificadores.map((m) => m.nombre),
+    }));
 
   // Agrupa la cuenta por comensal.
   const grupos = useMemo(() => {
@@ -267,14 +312,14 @@ export default function Comanda({
                   <span>{g.titulo}</span><span>{formatUYU(pendienteDe(g.items))}</span>
                 </div>
                 <ul className="mt-1 space-y-1 text-sm">
-                  {g.items.map((it) => {
+                  {juntarItems(g.items).map((it) => {
                     const est = ITEM_ESTADO[it.status] ?? ITEM_ESTADO.PENDIENTE;
                     return (
                       <li key={it.id} className={`flex items-center justify-between gap-2 ${it.pagado ? "text-crust-300 line-through" : "text-crust-700"}`}>
-                        <span className="flex-1">{it.cantidad}× {it.producto.nombre}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
+                        <span className="flex-1">{lineaConCantidad(it.cantidad, it.nombre)}{it.modificadores.length ? ` (${it.modificadores.join(", ")})` : ""}</span>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${est.cls}`}>{est.label}</span>
                         {!it.pagado && it.status === "LISTO" && online && (
-                          <button onClick={() => entregar(it.id)} className="rounded-md bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-white active:bg-green-700">Entregar</button>
+                          <button onClick={() => entregar(it.ids)} className="rounded-md bg-green-600 px-2 py-0.5 text-[10px] font-semibold text-white active:bg-green-700">Entregar</button>
                         )}
                         <span className="w-16 text-right">{formatUYU(it.subtotal)}</span>
                       </li>
@@ -392,25 +437,102 @@ export default function Comanda({
         </div>
       )}
 
+      {/* Repaso antes de mandar a cocina */}
+      {confirmando && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-crust-900/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-enviar"
+          onClick={() => setConfirmando(false)}
+        >
+          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 pb-7" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center gap-3">
+              <Monograma tinta="#B5563C" acento="#C9A56B" className="h-10 w-10 shrink-0" />
+              <div>
+                <h3 id="titulo-enviar" className="font-display text-xl font-bold text-crust-800">¿Enviar a cocina?</h3>
+                <p className="text-xs text-crust-500">Mesa {mesa.numero} · repasá antes de mandar</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-y border-crust-100 py-3">
+              {[...new Set(lineasCarrito.map((g) => g.primera.sillaId))].map((sillaId) => (
+                <div key={sillaId ?? "mesa"}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-crust-400">{sillaLabelById(sillaId)}</p>
+                  <ul className="mt-1 space-y-1.5">
+                    {lineasCarrito
+                      .filter((g) => g.primera.sillaId === sillaId)
+                      .map((g) => (
+                        <li key={g.clave} className="flex items-baseline justify-between gap-3">
+                          <span className="text-crust-800">
+                            <span className="font-medium">{lineaConCantidad(g.cantidad, g.primera.producto.nombre)}</span>
+                            {g.primera.modLabels.length > 0 && (
+                              <span className="block text-xs text-crust-500">{g.primera.modLabels.join(", ")}</span>
+                            )}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-crust-700">{formatUYU(g.primera.precio * g.cantidad)}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-3 flex items-baseline justify-between font-display text-lg font-bold text-crust-900">
+              <span>Total</span>
+              <span className="tabular-nums">{formatUYU(cartTotal)}</span>
+            </p>
+            {!online && (
+              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Sin conexión: queda guardada y se manda sola al reconectar.
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setConfirmando(false)} className="rounded-xl border border-crust-200 px-5 py-3.5 font-semibold text-crust-700 active:bg-crust-100">
+                Revisar
+              </button>
+              <button onClick={enviar} className="flex-1 rounded-xl bg-dj-terracota py-3.5 font-semibold text-white active:bg-dj-cobre">
+                Sí, enviar a cocina
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Barra inferior: carrito + cobro */}
       <div className="fixed inset-x-0 bottom-0 border-t border-crust-100 bg-white p-3 shadow-lg">
         {cart.length > 0 ? (
           <div>
             <div className="mb-2 max-h-28 overflow-auto text-sm">
-              {cart.map((l) => (
-                <div key={l.key} className="flex items-center justify-between py-0.5">
-                  <span className="text-crust-700">
-                    {l.producto.nombre}{l.modLabels.length ? ` (${l.modLabels.join(", ")})` : ""}
-                    <span className="ml-1 text-xs text-crust-400">· {sillaLabelById(l.sillaId)}</span>
+              {lineasCarrito.map((g) => (
+                <div key={g.clave} className="flex items-center justify-between gap-2 py-0.5">
+                  <span className="min-w-0 flex-1 truncate text-crust-700">
+                    {lineaConCantidad(g.cantidad, g.primera.producto.nombre)}
+                    {g.primera.modLabels.length ? ` (${g.primera.modLabels.join(", ")})` : ""}
+                    <span className="ml-1 text-xs text-crust-400">· {sillaLabelById(g.primera.sillaId)}</span>
                   </span>
-                  <span className="flex items-center gap-2">
-                    {formatUYU(l.precio)}
-                    <button onClick={() => setCart((c) => c.filter((x) => x.key !== l.key))} className="text-red-500">✕</button>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {formatUYU(g.primera.precio * g.cantidad)}
+                    <button
+                      onClick={() => quitarUno(g.lineas.map((l) => l.key))}
+                      aria-label={`Quitar uno de ${g.primera.producto.nombre}`}
+                      className="h-7 w-7 rounded-full border border-crust-200 text-crust-600 active:bg-crust-100"
+                    >
+                      −
+                    </button>
+                    <button
+                      onClick={() => sumarUno(g.primera)}
+                      aria-label={`Agregar otro ${g.primera.producto.nombre}`}
+                      className="h-7 w-7 rounded-full border border-crust-200 text-crust-600 active:bg-crust-100"
+                    >
+                      +
+                    </button>
                   </span>
                 </div>
               ))}
             </div>
-            <button onClick={enviar} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre">
+            <button onClick={() => setConfirmando(true)} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre">
               Enviar a cocina · {formatUYU(cartTotal)}
             </button>
           </div>

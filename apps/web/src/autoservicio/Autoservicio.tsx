@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { agruparIguales, lineaConCantidad } from "@donjulio/shared";
 import { LogoHorizontal, Monograma, Sello } from "../lib/Logo";
 import { showToast } from "../lib/toast";
 import { formatUYU } from "../lib/format";
@@ -51,6 +52,7 @@ export default function Autoservicio() {
   const [nombreInput, setNombreInput] = useState<string>("");
   const [identificando, setIdentificando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [pidiendoCuenta, setPidiendoCuenta] = useState(false);
   const [despedida, setDespedida] = useState(false);
   // ¿Llegamos a confirmar contra el servidor que esta identidad es válida?
@@ -78,12 +80,22 @@ export default function Autoservicio() {
     setNombreInput("");
     setCart([]);
     setProdSel(null);
+    setConfirmando(false);
     localStorage.removeItem(STORE_KEY);
     if (conDespedida) {
       setDespedida(true);
       setTimeout(() => setDespedida(false), 6000);
     }
   };
+
+  // La confirmación se cierra con Escape y también si el carrito quedó vacío.
+  useEffect(() => {
+    if (!confirmando) return;
+    if (cart.length === 0) { setConfirmando(false); return; }
+    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape") setConfirmando(false); };
+    document.addEventListener("keydown", alTeclear);
+    return () => document.removeEventListener("keydown", alTeclear);
+  }, [confirmando, cart.length]);
 
   const pedirCuenta = async () => {
     setPidiendoCuenta(true);
@@ -159,6 +171,21 @@ export default function Autoservicio() {
 
   const sillas = estado?.mesa.sillas ?? [];
   const cartTotal = useMemo(() => cart.reduce((a, l) => a + l.precio, 0), [cart]);
+  // Dos veces el mismo producto (con los mismos agregados y para el mismo
+  // comensal) es una sola línea con cantidad, no dos renglones repetidos.
+  const lineasCarrito = useMemo(
+    () =>
+      agruparIguales(
+        cart,
+        (l) => `${l.producto.id}|${[...l.modificadorIds].sort().join(",")}|${l.sillaId ?? ""}`,
+      ),
+    [cart],
+  );
+  const sumarUno = (l: CartLine) => setCart((c) => [...c, { ...l, key: uid() }]);
+  const quitarUno = (keys: string[]) => {
+    const ultima = keys[keys.length - 1];
+    setCart((c) => c.filter((x) => x.key !== ultima));
+  };
   const sillaLabel = (s: Silla) => (s.nombre?.trim() ? `${s.nombre} (silla ${s.numero})` : `Silla ${s.numero}`);
   const labelById = (id: string | null) => {
     if (!id) return "Mesa";
@@ -194,9 +221,17 @@ export default function Autoservicio() {
 
   const enviar = async () => {
     if (cart.length === 0) return;
+    setConfirmando(false);
     setEnviando(true);
     try {
-      const items = cart.map((l) => ({ productoId: l.producto.id, cantidad: 1, modificadorIds: l.modificadorIds, ...(l.sillaId ? { sillaId: l.sillaId } : {}) }));
+      // Lo repetido viaja como una sola línea con cantidad: así la cocina ve
+      // "2 × Medialunas de manteca" y no dos renglones sueltos.
+      const items = lineasCarrito.map((g) => ({
+        productoId: g.primera.producto.id,
+        cantidad: g.cantidad,
+        modificadorIds: g.primera.modificadorIds,
+        ...(g.primera.sillaId ? { sillaId: g.primera.sillaId } : {}),
+      }));
       const r = await fetch(`${BASE}/autoservicio/${token}/comanda`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -213,12 +248,31 @@ export default function Autoservicio() {
     }
   };
 
+  // Junta los ítems iguales del mismo comensal en una línea con cantidad. No
+  // se juntan si están en estados distintos: uno puede estar listo y el otro
+  // todavía en cocina, y eso se tiene que ver.
+  const juntarItems = (items: CuentaItem[]) =>
+    agruparIguales(
+      items,
+      (it) =>
+        `${it.producto.nombre}|${it.modificadores.map((m) => m.nombre).sort().join(",")}|${it.status}|${it.pagado}`,
+      (it) => it.cantidad,
+    ).map((g) => ({
+      id: g.primera.id,
+      cantidad: g.cantidad,
+      subtotal: g.lineas.reduce((a, it) => a + Number(it.subtotal), 0),
+      status: g.primera.status,
+      pagado: g.primera.pagado,
+      nombre: g.primera.producto.nombre,
+      modificadores: g.primera.modificadores.map((m) => m.nombre),
+    }));
+
   const grupos = useMemo(() => {
     if (!estado?.cuenta) return [];
     const gs = sillas.map((s) => ({ titulo: sillaLabel(s), items: estado.cuenta!.items.filter((it) => it.sillaId === s.id) }));
     const sin = estado.cuenta.items.filter((it) => !it.sillaId);
     if (sin.length) gs.push({ titulo: "Sin asignar", items: sin });
-    return gs.filter((g) => g.items.length > 0);
+    return gs.filter((g) => g.items.length > 0).map((g) => ({ titulo: g.titulo, items: juntarItems(g.items) }));
   }, [estado, sillas]);
 
   if (notFound) {
@@ -319,7 +373,7 @@ export default function Autoservicio() {
                       const est = ESTADO[it.status] ?? ESTADO.PENDIENTE;
                       return (
                         <li key={it.id} className={`flex items-center justify-between gap-2 ${it.pagado ? "text-crust-300 line-through" : "text-crust-700"}`}>
-                          <span className="flex-1">{it.cantidad}× {it.producto.nombre}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
+                          <span className="flex-1">{lineaConCantidad(it.cantidad, it.nombre)}{it.modificadores.length ? ` (${it.modificadores.join(", ")})` : ""}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${est.cls}`}>{est.label}</span>
                           <span className="w-16 text-right">{formatUYU(it.subtotal)}</span>
                         </li>
@@ -400,19 +454,102 @@ export default function Autoservicio() {
         </div>
       )}
 
+      {/* Confirmación antes de mandar a cocina */}
+      {confirmando && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-dj-carbon/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-confirmar"
+          onClick={() => setConfirmando(false)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-dj-papel p-6 shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <Sello tinta="#2B2724" acento="#C9A56B" className="mx-auto h-14 w-14" />
+              <h3 id="titulo-confirmar" className="mt-3 font-display text-2xl font-bold text-dj-carbon">
+                ¿Confirmás tu pedido?
+              </h3>
+              <p className="mt-1 text-sm text-crust-500">
+                Esto va derecho a la cocina. Después no se puede cambiar solo: habría que avisarle al mozo.
+              </p>
+            </div>
+
+            <ul className="my-5 divide-y divide-crust-100 border-y border-crust-100">
+              {lineasCarrito.map((g) => (
+                <li key={g.clave} className="flex items-baseline justify-between gap-3 py-2.5">
+                  <span className="text-crust-800">
+                    <span className="font-medium">{lineaConCantidad(g.cantidad, g.primera.producto.nombre)}</span>
+                    {g.primera.modLabels.length > 0 && (
+                      <span className="block text-xs text-crust-500">{g.primera.modLabels.join(", ")}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-crust-700">{formatUYU(g.primera.precio * g.cantidad)}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="flex items-baseline justify-between font-display text-xl font-bold text-dj-carbon">
+              <span>Total</span>
+              <span className="tabular-nums">{formatUYU(cartTotal)}</span>
+            </p>
+            <p className="mt-1 text-xs text-crust-500">Pedís como {comensalNombre || "invitado/a"}.</p>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
+              <button
+                onClick={() => setConfirmando(false)}
+                className="flex-1 rounded-xl border border-crust-200 py-3.5 font-semibold text-crust-700 transition-colors hover:bg-crust-100"
+              >
+                Seguir mirando
+              </button>
+              <button
+                onClick={enviar}
+                disabled={enviando}
+                autoFocus
+                className="flex-1 rounded-xl bg-dj-terracota py-3.5 font-semibold text-white transition-colors hover:bg-dj-cobre disabled:opacity-50"
+              >
+                {enviando ? "Enviando…" : "Sí, enviar a cocina"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Carrito */}
       {cart.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 border-t border-crust-100 bg-white p-3 shadow-lg">
           <div className="mx-auto max-w-2xl">
             <div className="mb-2 max-h-28 overflow-auto text-sm">
-              {cart.map((l) => (
-                <div key={l.key} className="flex items-center justify-between py-0.5">
-                  <span className="text-crust-700">{l.producto.nombre}{l.modLabels.length ? ` (${l.modLabels.join(", ")})` : ""}<span className="ml-1 text-xs text-crust-400">· {labelById(l.sillaId)}</span></span>
-                  <span className="flex items-center gap-2">{formatUYU(l.precio)}<button onClick={() => setCart((c) => c.filter((x) => x.key !== l.key))} className="text-red-500">✕</button></span>
+              {lineasCarrito.map((g) => (
+                <div key={g.clave} className="flex items-center justify-between gap-2 py-0.5">
+                  <span className="min-w-0 flex-1 truncate text-crust-700">
+                    {lineaConCantidad(g.cantidad, g.primera.producto.nombre)}
+                    {g.primera.modLabels.length ? ` (${g.primera.modLabels.join(", ")})` : ""}
+                    <span className="ml-1 text-xs text-crust-400">· {labelById(g.primera.sillaId)}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="tabular-nums">{formatUYU(g.primera.precio * g.cantidad)}</span>
+                    <button
+                      onClick={() => quitarUno(g.lineas.map((l) => l.key))}
+                      aria-label={`Quitar uno de ${g.primera.producto.nombre}`}
+                      className="h-7 w-7 rounded-full border border-crust-200 text-crust-600 active:bg-crust-100"
+                    >
+                      −
+                    </button>
+                    <button
+                      onClick={() => sumarUno(g.primera)}
+                      aria-label={`Agregar otro ${g.primera.producto.nombre}`}
+                      className="h-7 w-7 rounded-full border border-crust-200 text-crust-600 active:bg-crust-100"
+                    >
+                      +
+                    </button>
+                  </span>
                 </div>
               ))}
             </div>
-            <button onClick={enviar} disabled={enviando} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre disabled:opacity-50">
+            <button onClick={() => setConfirmando(true)} disabled={enviando} className="w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white active:bg-dj-cobre disabled:opacity-50">
               {enviando ? "Enviando…" : `Enviar pedido · ${formatUYU(cartTotal)}`}
             </button>
           </div>

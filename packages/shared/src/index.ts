@@ -8,3 +8,5 @@ export * from "./permisos";
 export * from "./iva";
 export * from "./iva-sugerencias";
 export * from "./caja";
+export * from "./plural";
+export * from "./agrupar";

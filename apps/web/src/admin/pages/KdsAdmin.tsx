@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { OrderItemStatus } from "@donjulio/shared";
+import { OrderItemStatus, lineaConCantidad } from "@donjulio/shared";
 import { api } from "../../lib/api";
 
 interface Station { id: string; nombre: string; tipo: string }
@@ -95,7 +95,7 @@ export default function KdsAdmin() {
             return (
               <div key={it.id} className={`rounded-xl bg-white p-4 shadow-sm ${STATUS_STYLE[it.status] ?? ""}`}>
                 <div className="flex items-start justify-between">
-                  <span className="text-lg font-bold text-crust-900">{it.cantidad}× {it.producto}</span>
+                  <span className="text-lg font-bold text-crust-900">{lineaConCantidad(it.cantidad, it.producto)}</span>
                   <span className="text-xs text-crust-400">{minsAgo(it.desde)}</span>
                 </div>
                 <p className="text-xs text-crust-500">

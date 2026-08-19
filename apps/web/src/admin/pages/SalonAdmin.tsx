@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { PaymentMethod } from "@donjulio/shared";
+import { PaymentMethod, lineaConCantidad } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
@@ -815,7 +815,7 @@ export default function SalonAdmin() {
                     <ul>
                       {g.items.map((it) => (
                         <li key={it.id} className={`flex justify-between border-b border-crust-50 py-1 ${it.pagado ? "text-crust-300 line-through" : "text-crust-700"}`}>
-                          <span>{it.cantidad}× {it.producto.nombre}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
+                          <span>{lineaConCantidad(it.cantidad, it.producto.nombre)}{it.modificadores.length ? ` (${it.modificadores.map((m) => m.nombre).join(", ")})` : ""}</span>
                           <span className="font-medium">{formatUYU(it.subtotal)}</span>
                         </li>
                       ))}
