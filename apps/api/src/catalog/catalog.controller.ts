@@ -19,6 +19,7 @@ import {
   UpdateCategoriaDto,
   UpdateProductoDto,
   UpsertRotuladoDto,
+  IvaMasivoDto,
 } from "./catalog.dto";
 
 @Controller()
@@ -82,6 +83,15 @@ export class CatalogController {
   @Post("admin/productos")
   createProducto(@Body() dto: CreateProductoDto) {
     return this.catalog.createProducto(dto);
+  }
+
+  /** Ajuste de IVA de varios productos: la pantalla de revisión del catálogo.
+   *  Va antes que :id, si no Nest toma "iva-masivo" como un id. */
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.PRODUCCION)
+  @Patch("admin/productos/iva-masivo")
+  ajustarIvaMasivo(@Body() dto: IvaMasivoDto) {
+    return this.catalog.ajustarIvaMasivo(dto.productos);
   }
 
   @UseGuards(RolesGuard)

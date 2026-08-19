@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { calcularOctogonos, ProductoCosteo } from "@donjulio/shared";
+import { calcularOctogonos, IvaRate, ProductoCosteo } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RecipesService } from "../recipes/recipes.service";
 import { InventoryService } from "../inventory/inventory.service";
@@ -286,6 +286,31 @@ export class CatalogService {
     await this.prisma.producto.update({ where: { id: productoId }, data: { requiereOctogono } });
 
     return rotulado;
+  }
+
+  /**
+   * Ajusta el IVA de varios productos en una sola transacción.
+   *
+   * Todo o nada: si un id no existe, no se aplica ninguno. Revisar el catálogo
+   * a medias dejaría al usuario sin saber qué quedó cambiado y qué no.
+   */
+  async ajustarIvaMasivo(productos: { id: string; ivaRate: IvaRate }[]) {
+    const ids = productos.map((p) => p.id);
+    const existen = await this.prisma.producto.count({ where: { id: { in: ids } } });
+    if (existen !== new Set(ids).size) {
+      throw new NotFoundException(
+        "Alguno de los productos ya no existe. Recargá la pantalla y probá de nuevo.",
+      );
+    }
+    await this.prisma.$transaction(
+      productos.map((p) =>
+        this.prisma.producto.update({
+          where: { id: p.id },
+          data: { ivaRate: p.ivaRate },
+        }),
+      ),
+    );
+    return { actualizados: productos.length };
   }
 
   private async ensureCategoria(id: string) {

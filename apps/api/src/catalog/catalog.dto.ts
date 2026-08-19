@@ -1,4 +1,7 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -7,7 +10,9 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { IvaRate } from "@donjulio/shared";
 
 export class CreateCategoriaDto {
@@ -65,6 +70,28 @@ export class UpdateProductoDto {
   @IsOptional() @IsBoolean() esReventa?: boolean;
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
   @IsOptional() @IsBoolean() controlaStock?: boolean;
+}
+
+/** Una línea del ajuste masivo de IVA. */
+export class IvaProductoDto {
+  @IsString() id!: string;
+  @IsEnum(IvaRate) ivaRate!: IvaRate;
+}
+
+/**
+ * Ajuste de IVA de varios productos de una vez.
+ *
+ * Existe porque revisar el catálogo producto por producto es inviable: la
+ * pantalla compara lo cargado contra lo que sugiere la norma y aplica en
+ * bloque lo que el usuario acepte.
+ */
+export class IvaMasivoDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => IvaProductoDto)
+  productos!: IvaProductoDto[];
 }
 
 /** Rotulado frontal y ficha nutricional (Decreto 272/018). */

@@ -82,6 +82,11 @@ export const CAPACIDADES = {
     roles: [ADMIN, PRODUCCION],
   },
   "productos.eliminar": { verbo: "DELETE", ruta: "/admin/productos/:id", roles: [ADMIN] },
+  "productos.ivaMasivo": {
+    verbo: "PATCH",
+    ruta: "/admin/productos/iva-masivo",
+    roles: [ADMIN, PRODUCCION],
+  },
   "productos.rotular": {
     verbo: "PUT",
     ruta: "/admin/productos/:id/rotulado",

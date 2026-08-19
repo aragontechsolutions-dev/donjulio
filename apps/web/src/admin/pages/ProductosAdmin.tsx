@@ -143,6 +143,11 @@ export default function ProductosAdmin() {
   const [form, setForm] = useState<ProductoForm>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
 
+  // Revisión de IVA de todo el catálogo
+  const [revisandoIva, setRevisandoIva] = useState(false);
+  const [aAplicar, setAAplicar] = useState<Set<string>>(new Set());
+  const [aplicandoIva, setAplicandoIva] = useState(false);
+
   // Categorías
   const [gestionCat, setGestionCat] = useState(false);
   const [catNueva, setCatNueva] = useState("");
@@ -224,6 +229,54 @@ export default function ProductosAdmin() {
     });
     setIvaTocado(true); // editando, la tasa guardada manda
     setEditando(p);
+  };
+
+  /**
+   * Compara lo cargado en cada producto contra lo que sugiere la norma.
+   * Se ordena poniendo primero lo que difiere, que es lo que hay que mirar.
+   */
+  const revisionIva = useMemo(() => {
+    const filas = productos.map((p) => {
+      const sug = sugerirIva(p.nombre);
+      return {
+        producto: p,
+        sugerida: sug.tasa as string,
+        motivo: sug.motivo,
+        dudoso: !sug.reconocido,
+        difiere: sug.tasa !== p.ivaRate,
+      };
+    });
+    const peso = (f: (typeof filas)[number]) => (f.difiere ? 0 : f.dudoso ? 1 : 2);
+    return filas.sort((a, b) => peso(a) - peso(b) || a.producto.nombre.localeCompare(b.producto.nombre));
+  }, [productos]);
+
+  const difieren = revisionIva.filter((f) => f.difiere);
+
+  const abrirRevisionIva = () => {
+    // Vienen marcadas las que difieren: es lo que uno quiere aplicar.
+    setAAplicar(new Set(difieren.map((f) => f.producto.id)));
+    setRevisandoIva(true);
+  };
+
+  const aplicarIva = async () => {
+    const cambios = revisionIva
+      .filter((f) => aAplicar.has(f.producto.id) && f.sugerida !== f.producto.ivaRate)
+      .map((f) => ({ id: f.producto.id, ivaRate: f.sugerida }));
+    if (cambios.length === 0) {
+      showToast("info", "No hay cambios marcados.");
+      return;
+    }
+    setAplicandoIva(true);
+    try {
+      await api.patch("/admin/productos/iva-masivo", { productos: cambios }, { sinToast: true });
+      showToast("success", `IVA actualizado en ${cambios.length} producto${cambios.length === 1 ? "" : "s"} ✓`);
+      setRevisandoIva(false);
+      await load();
+    } catch {
+      /* toast del api */
+    } finally {
+      setAplicandoIva(false);
+    }
   };
 
   /** Sugerencia de IVA para el nombre actual (sólo informativa). */
@@ -406,7 +459,25 @@ export default function ProductosAdmin() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-crust-800">Productos</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {productos.length > 0 && (
+            <button
+              onClick={abrirRevisionIva}
+              className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+                difieren.length > 0
+                  ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  : "border-crust-200 text-crust-700 hover:bg-crust-100"
+              }`}
+              title="Compara el IVA cargado contra lo que dice la norma"
+            >
+              Revisar IVA
+              {difieren.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 text-xs text-white">
+                  {difieren.length}
+                </span>
+              )}
+            </button>
+          )}
           {puedeCategorias && (
           <button
             onClick={() => setGestionCat(true)}
@@ -870,6 +941,126 @@ export default function ProductosAdmin() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ---------- Revisión de IVA de todo el catálogo ---------- */}
+      {revisandoIva && (
+        <Modal
+          title="Revisar IVA del catálogo"
+          subtitle="Lo cargado contra lo que dice la norma"
+          onClose={() => setRevisandoIva(false)}
+          ancho="max-w-3xl"
+        >
+          <p className="mb-3 rounded-lg bg-crust-50 px-3 py-2 text-xs text-crust-600">
+            La tasa sugerida sale del art. 101 del Decreto 220/998 y del art. 38 del
+            Título 10. Es una ayuda: <b>la que vale es la que queda guardada</b>, y la
+            confirma tu contador. El detalle está en <b>docs/iva.md</b>.
+          </p>
+
+          {difieren.length === 0 ? (
+            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+              Todo el catálogo coincide con lo sugerido.
+            </p>
+          ) : (
+            <p className="mb-2 text-sm text-crust-600">
+              <b>{difieren.length}</b> de {revisionIva.length} productos tienen una tasa
+              distinta a la sugerida.
+            </p>
+          )}
+
+          <div className="tabla-marco max-h-[45vh] overflow-auto rounded-xl border border-crust-100">
+            <table className="tabla-cards w-full text-sm">
+              <thead className="sticky top-0 bg-crust-50 text-left text-xs uppercase tracking-wide text-crust-500">
+                <tr>
+                  <th className="px-3 py-2 w-8"></th>
+                  <th className="px-3 py-2">Producto</th>
+                  <th className="px-3 py-2">Cargado</th>
+                  <th className="px-3 py-2">Sugerido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revisionIva.map((f) => (
+                  <tr
+                    key={f.producto.id}
+                    className={`border-t border-crust-50 ${f.difiere ? "bg-amber-50/40" : ""}`}
+                  >
+                    <td data-etiqueta="Aplicar" className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        disabled={!f.difiere}
+                        checked={aAplicar.has(f.producto.id)}
+                        onChange={(e) => {
+                          const s = new Set(aAplicar);
+                          if (e.target.checked) s.add(f.producto.id);
+                          else s.delete(f.producto.id);
+                          setAAplicar(s);
+                        }}
+                        title={f.difiere ? "Aplicar la sugerida" : "Ya coincide"}
+                      />
+                    </td>
+                    <td data-principal className="px-3 py-2">
+                      <span className="font-medium text-crust-800">{f.producto.nombre}</span>
+                      {f.motivo && (
+                        <span className="mt-0.5 block text-xs text-crust-400">{f.motivo}</span>
+                      )}
+                    </td>
+                    <td data-etiqueta="Cargado" className="px-3 py-2 text-crust-600">
+                      {IVA_LABEL[f.producto.ivaRate]}
+                    </td>
+                    <td data-etiqueta="Sugerido" className="px-3 py-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          f.difiere
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        {IVA_LABEL[f.sugerida]}
+                      </span>
+                      {f.dudoso && (
+                        <span className="ml-1 text-xs text-crust-400" title="La norma depende de un dato que el nombre no dice">
+                          · a revisar
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              onClick={aplicarIva}
+              disabled={aplicandoIva || aAplicar.size === 0}
+              className="rounded-lg bg-dj-terracota px-5 py-2.5 font-semibold text-white hover:bg-dj-cobre disabled:opacity-50"
+            >
+              {aplicandoIva ? "Aplicando…" : `Aplicar a ${aAplicar.size} producto${aAplicar.size === 1 ? "" : "s"}`}
+            </button>
+            {difieren.length > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setAAplicar(
+                    aAplicar.size === difieren.length
+                      ? new Set()
+                      : new Set(difieren.map((f) => f.producto.id)),
+                  )
+                }
+                className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100"
+              >
+                {aAplicar.size === difieren.length ? "Desmarcar todas" : "Marcar todas las que difieren"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setRevisandoIva(false)}
+              className="rounded-lg border border-crust-200 px-4 py-2 text-sm text-crust-700 hover:bg-crust-100"
+            >
+              Cerrar
+            </button>
+          </div>
         </Modal>
       )}
 
