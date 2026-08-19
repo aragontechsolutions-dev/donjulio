@@ -3,34 +3,37 @@ import { IvaRate } from "./enums";
 /**
  * Tasa sugerida para un producto, a partir de su nombre.
  *
- * Es una AYUDA para no cargar todo a mano, no una definición fiscal. La tasa
- * que vale es la que queda guardada en cada producto, y quien la confirma es
- * el contador. Ver docs/iva.md: ahí están las fuentes y lo que quedó abierto.
+ * Basado en el **artículo 101 del Decreto 220/998** (texto actualizado a marzo
+ * de 2026), que reglamenta el IVA. Ese artículo es **taxativo**: "Pagarán la
+ * tasa mínima del tributo las operaciones relativas a los siguientes bienes y
+ * servicios", y enumera. Lo que no está en esa lista y no está exonerado, va a
+ * tasa básica.
  *
- * El criterio general que surge de la normativa uruguaya:
- *   · Exento    alimentos sin elaborar (leche fluida, huevos, frutas y
- *               verduras en estado natural).
- *   · Mínima    la canasta de alimentos elaborados: pan, harinas, fideos,
- *               arroz, azúcar, yerba, café, té, aceite, carne, pescado.
- *   · Básica    todo lo demás: bebidas sin alcohol embotelladas, cerveza y
- *               vinos, artículos que no son alimento.
+ * Para una panadería eso da un resultado que sorprende: el pan blanco común y
+ * la galleta de campaña van al 10 %, pero las facturas, medialunas, bizcochos
+ * y tortas NO están en la lista, así que van al 22 %.
+ *
+ * Sigue siendo una AYUDA, no una definición fiscal: la tasa que vale es la que
+ * queda guardada en cada producto, y quien la confirma es el contador.
+ * Ver docs/iva.md, con las citas y lo que quedó abierto.
  */
 
 interface Regla {
   tasa: IvaRate;
   /** Por qué, para poder mostrárselo a quien carga el producto. */
   motivo: string;
-  /** Se busca en el nombre, sin acentos y en minúsculas. */
+  /** Se busca como palabra dentro del nombre, sin acentos. */
   claves: string[];
 }
 
+const CITA = "art. 101 lit. a, Dto. 220/998";
+
 /** El orden importa: gana la primera que coincida. */
 const REGLAS: Regla[] = [
-  // ── Bebidas: van antes que nada porque "cafe" aparece en "cafe con leche",
-  //    que es una bebida preparada, no el paquete de café de la góndola. ──
+  // ── Bebidas y no alimentos: nada de esto está en el artículo 101 ──
   {
     tasa: IvaRate.BASICA,
-    motivo: "Bebida embotellada: no integra la canasta de alimentos.",
+    motivo: "Bebida embotellada: no figura entre los bienes de tasa mínima.",
     claves: [
       "agua mineral", "agua con gas", "agua sin gas", "refresco", "gaseosa",
       "coca", "pepsi", "sprite", "fanta", "seven up", "tonica", "soda",
@@ -42,7 +45,7 @@ const REGLAS: Regla[] = [
     motivo: "Bebida alcohólica: tasa básica.",
     claves: [
       "cerveza", "vino", "espumante", "champagne", "whisky", "vodka", "gin",
-      "ron", "licor", "aperitivo", "fernet", "grappa", "cana",
+      "ron", "licor", "aperitivo", "fernet", "grappa",
     ],
   },
   {
@@ -54,47 +57,52 @@ const REGLAS: Regla[] = [
     ],
   },
 
+  // ── Confitería y preparados ──
+  // Van ANTES que la regla del pan, para que "pan dulce" no se cuele como
+  // pan común.
+  {
+    tasa: IvaRate.BASICA,
+    motivo: `Confitería: no está entre los bienes de tasa mínima (${CITA}).`,
+    claves: [
+      "factura", "medialuna", "croissant", "cruasan", "bizcocho", "torta",
+      "masa", "alfajor", "budin", "scon", "brioche", "rosca", "pan dulce",
+      "pastel", "tarta", "postre", "flan", "mousse", "helado", "muffin",
+      "cookie", "galletita", "churro", "pionono", "merengue",
+    ],
+  },
+  {
+    tasa: IvaRate.BASICA,
+    motivo: `Preparado de rotisería: no está entre los bienes de tasa mínima (${CITA}).`,
+    claves: ["empanada", "pizza", "sandwich", "sanguche", "tostado", "pebete", "chivito"],
+  },
 
-  // ── Canasta de elaborados: tasa mínima ──
+  // ── Lo que el artículo 101 sí enumera ──
   {
     tasa: IvaRate.MINIMA,
-    motivo: "Pan y panificados: canasta de alimentos, tasa mínima.",
+    motivo: `Pan blanco común y galleta de campaña: tasa mínima (${CITA}). Un pan especial (integral, de semillas) puede no entrar.`,
     claves: [
-      "pan", "panes", "pancito", "panificado", "galleta", "bizcocho", "factura", "medialuna", "croissant",
-      "cruasan", "rosca", "grisin", "tostada", "chipa", "budin", "torta",
-      "masa", "alfajor", "scon", "brioche", "pebete", "flauta", "marsellés",
-      "marselles", "catalan", "porteñito", "portenito", "ciabatta", "focaccia",
-      "empanada", "tarta", "pastel", "pizza", "sandwich", "sanguche", "tostado",
+      "pan", "panes", "pancito", "galleta", "flauta", "catalan", "marselles",
+      "portenito", "felipe", "figazza",
     ],
   },
   {
     tasa: IvaRate.MINIMA,
-    motivo: "Café, té y yerba: canasta de alimentos, tasa mínima.",
-    claves: ["cafe", "capuchino", "cortado", "expreso", "espresso", "te", "mate", "yerba", "submarino", "chocolatada"],
+    motivo: `Café, té y yerba figuran entre los bienes de tasa mínima (${CITA}). Servidos en mesa podrían ser servicio gastronómico: consultalo.`,
+    claves: ["cafe", "capuchino", "cortado", "expreso", "espresso", "te", "mate", "yerba"],
   },
   {
     tasa: IvaRate.MINIMA,
-    motivo: "Alimento elaborado de la canasta: tasa mínima.",
+    motivo: `Enumerado entre los bienes de tasa mínima (${CITA}).`,
     claves: [
-      "harina", "fideo", "pasta", "arroz", "polenta", "avena", "azucar",
-      "aceite", "sal", "vinagre", "carne", "pollo", "pescado", "milanesa",
-      "queso", "manteca", "dulce de leche", "mermelada", "miel", "yogur",
-      "helado", "postre", "flan", "mousse", "budin", "jugo",
+      "harina", "fideo", "pasta", "arroz", "azucar", "aceite", "sal",
+      "carne", "menudencia", "pollo", "pescado", "jabon",
     ],
   },
-
-  // ── Sin elaborar: exentos ──
-  // Van últimas a propósito: si fueran antes, "tarta de verdura" quedaría
-  // exenta por nombrar un ingrediente, cuando es un producto elaborado.
   {
-    tasa: IvaRate.EXENTO,
-    motivo: "Leche fluida sin elaborar: exenta.",
-    claves: ["leche entera", "leche descremada", "leche fresca", "leche uht", "leche pasteurizada"],
-  },
-  {
-    tasa: IvaRate.EXENTO,
-    motivo: "Alimento en estado natural: exento.",
-    claves: ["huevo", "fruta fresca", "verdura", "hortaliza"],
+    tasa: IvaRate.MINIMA,
+    motivo:
+      "Frutas, flores y hortalizas en estado natural: tasa mínima al vender a consumo final (art. 101 lit. f). No es exento.",
+    claves: ["fruta", "verdura", "hortaliza", "flor"],
   },
 ];
 
@@ -113,7 +121,7 @@ const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 function contienePalabra(nombre: string, clave: string): boolean {
   const c = escapar(plano(clave));
-  const fin = plano(clave).length <= 3 ? "(?![a-z0-9])" : "";
+  const fin = plano(clave).length <= 4 ? "(?![a-z0-9])" : "";
   return new RegExp(`(^|[^a-z0-9])${c}${fin}`).test(nombre);
 }
 
@@ -127,12 +135,13 @@ export interface SugerenciaIva {
 /**
  * Sugiere una tasa mirando el nombre del producto.
  *
- * Cuando no reconoce nada devuelve tasa mínima, que es la más habitual en una
- * panadería, y avisa que no lo reconoció para que se revise a mano.
+ * Cuando no reconoce nada devuelve tasa básica, no mínima: la lista del
+ * artículo 101 es cerrada, así que lo que no se identifica como parte de ella
+ * lo más probable es que sea básica. Igual queda marcado para revisar.
  */
 export function sugerirIva(nombre: string): SugerenciaIva {
   const n = plano(nombre);
-  if (!n) return { tasa: IvaRate.MINIMA, motivo: "", reconocido: false };
+  if (!n) return { tasa: IvaRate.BASICA, motivo: "", reconocido: false };
 
   for (const regla of REGLAS) {
     if (regla.claves.some((c) => contienePalabra(n, c))) {
@@ -140,8 +149,9 @@ export function sugerirIva(nombre: string): SugerenciaIva {
     }
   }
   return {
-    tasa: IvaRate.MINIMA,
-    motivo: "No se reconoció el producto: se propone tasa mínima. Revisalo.",
+    tasa: IvaRate.BASICA,
+    motivo:
+      "No se reconoció el producto. La lista de tasa mínima es cerrada, así que se propone básica. Revisalo.",
     reconocido: false,
   };
 }

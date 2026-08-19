@@ -55,51 +55,71 @@ comensal declara sólo el de los ítems que se cobran en ese movimiento.
 
 ## 2. Tasa por tipo de producto
 
-Tres regímenes: **básica 22 %**, **mínima 10 %** y **exento**.
+**Fuente primaria: artículo 101 del Decreto 220/998**, texto actualizado a
+marzo de 2026. Es la reglamentación del IVA y es **taxativa**:
 
-El criterio que surge de la normativa es el grado de elaboración: lo que se
-vende en estado natural queda exento, la canasta de alimentos elaborados va a
-tasa mínima, y el resto a básica.
+> *Artículo 101º.- Tasa mínima.- Pagarán la tasa mínima del tributo las
+> operaciones relativas a los siguientes bienes y servicios:*
+>
+> *a) Pan blanco común y galleta de campaña; pescado; carne y menudencias;
+> frescos, congelados o enfriados; aceites comestibles y crudos para su
+> elaboración; arroz; harina de cereales y subproductos de su molienda; pastas
+> y fideos; sal para uso doméstico; azúcar; yerba; café; té; jabón común;
+> grasas comestibles; transporte de leche.*
 
-### Exento
+Y en el literal f):
 
-| Producto                                   | Nota                              |
-|--------------------------------------------|-----------------------------------|
-| Leche fluida (entera, descremada, UHT)      | Sin elaborar                      |
-| Huevos                                      |                                   |
-| Frutas, verduras y hortalizas en estado natural |                               |
+> *f) Frutas, flores y hortalizas en su estado natural, en tanto el enajenante
+> sea contribuyente de los Impuestos a las Rentas de las Actividades Económicas
+> y al Valor Agregado, por las enajenaciones realizadas al consumo final,
+> siempre que los referidos bienes no provengan de su propia explotación
+> agropecuaria.*
+
+Como la lista es cerrada, **lo que no está ahí y no está exonerado va al 22 %**.
 
 ### Tasa mínima — 10 %
 
-Es la que más aplica en una panadería.
-
-| Grupo             | Ejemplos                                                        |
-|-------------------|-----------------------------------------------------------------|
-| Pan y panificados | pan de campo, francés, flauta, catalán, marsellés, galleta de campaña |
-| Confitería        | medialunas, facturas, bizcochos, alfajores, budines, tortas, masas |
-| Salados           | empanadas, tartas, pizza, sándwiches, tostados                   |
-| Cafetería         | café, cortado, capuchino, té, submarino, chocolatada             |
-| Almacén           | harina, fideos, arroz, polenta, avena, azúcar, aceite, sal, vinagre, yerba |
-| Otros elaborados  | quesos, manteca, yogur, dulce de leche, mermelada, miel, helados, postres |
-| Carnes            | carne, pollo, pescado, milanesas                                 |
+| Grupo | Qué entra |
+|---|---|
+| Panificados | **Sólo** pan blanco común y galleta de campaña |
+| Almacén | harina y subproductos de molienda, pastas y fideos, arroz, azúcar, sal de uso doméstico, aceites comestibles, grasas comestibles |
+| Infusiones | yerba, café, té |
+| Proteína | carne y menudencias, pescado (frescos, congelados o enfriados) |
+| Frutas y verduras | en estado natural, con las condiciones del literal f) |
+| Otros | jabón común |
 
 ### Tasa básica — 22 %
 
-| Grupo                | Ejemplos                                              |
-|----------------------|-------------------------------------------------------|
-| Bebidas embotelladas | agua mineral, refrescos, jugos envasados, energizantes |
-| Alcohol              | cerveza, vino, espumantes, licores                     |
-| No alimentos         | bolsas, souvenirs, tazas, artículos de regalo          |
+Todo lo demás. **Para una panadería esto sorprende, y es el hallazgo más
+importante de la revisión:**
+
+| Grupo | Ejemplos |
+|---|---|
+| **Confitería** | medialunas, facturas, bizcochos, tortas, masas, alfajores, budines, pan dulce, postres, helados |
+| **Rotisería** | empanadas, tartas, pizza, sándwiches, tostados |
+| Bebidas | agua mineral, refrescos, jugos envasados, cerveza, vino |
+| No alimentos | bolsas, souvenirs, tazas |
+
+Ninguno de esos figura en el artículo 101. **Lo que se corrigió:** la versión
+anterior de este documento los ponía a todos en tasa mínima por analogía con
+"alimentos elaborados". La lista es taxativa y no admite esa analogía.
+
+### Exento
+
+Pendiente de confirmar: las exoneraciones de alimentos **no están en el
+Decreto 220/998**, que sólo exonera insumos agropecuarios, metales preciosos y
+moneda extranjera. Están en el **artículo 19 del Título 10** del Texto
+Ordenado, que el decreto sólo referencia. Falta ese texto para poder afirmar
+que la leche fluida y los huevos están exentos.
+
+Mientras tanto el sistema los marca **para revisar** en vez de asumir.
 
 ### Ayuda al cargar productos
 
-`sugerirIva(nombre)` propone una tasa a partir del nombre y explica por qué.
-Está verificada contra 29 productos típicos. Es **una ayuda, no la definición**:
-la tasa que vale es la que queda guardada en cada producto.
-
-Cuando no reconoce el producto, propone tasa mínima y lo marca para revisar.
-
----
+`sugerirIva(nombre)` propone la tasa siguiendo el artículo 101 y cita el
+literal en el motivo. Verificada contra 25 productos típicos. Cuando no
+reconoce el producto propone **básica**, no mínima: siendo la lista cerrada, lo
+no identificado probablemente esté fuera de ella.
 
 ## 3. La regla del salón
 
@@ -113,58 +133,90 @@ Hay un interruptor en **Usuarios → Configuración fiscal**:
   a 22 %. Take away y delivery no se ven afectados. Lo exento sigue exento: no
   se vuelve gravado por servirse en una mesa.
 
-Está apagado porque **las fuentes públicas no coinciden** en si una confitería
-debe hacerlo — ver más abajo. Cambiarlo es marcar una casilla, sin tocar código.
+Con el artículo 101 a la vista, el argumento para prenderlo se fortalece: el
+servicio de restaurante **no figura** entre los de tasa mínima, y sólo aparece
+en el literal i) como parte de un paquete turístico con hospedaje. Un servicio
+gastronómico suelto quedaría entonces en tasa básica.
+
+Aun así viene apagado, porque hay una distinción que la norma no zanja sola:
+vender una medialuna sobre el mostrador es **enajenación de un bien**, mientras
+que servirla en la mesa con servicio puede ser **prestación de un servicio**, y
+son hechos gravados distintos. Con la tabla de arriba la mayor parte de la
+confitería ya está en 22 %, así que el interruptor sólo mueve la aguja en lo
+que sí está en la lista: pan, café y té.
+
+Es exactamente la pregunta 5 para el contador. Cambiarlo es marcar una casilla,
+sin tocar código.
 
 ---
 
 ## 4. Qué se verificó y qué no
 
-### Confirmado
+### Confirmado con fuente primaria
 
-**La exoneración del pan de 2022 no rige.** La Ley 20.028 (7/4/2022) exoneró de
-IVA en etapa minorista al pan blanco común, la galleta de campaña, las pastas y
-los fideos, pero **por 30 días**, prorrogados una única vez por el Decreto
-143/022 hasta junio de 2022. Fue una medida coyuntural, no una exoneración
-permanente. Hoy esos productos vuelven a tributar tasa mínima.
+**El artículo 101 del Decreto 220/998** (arriba, citado textual) resuelve:
 
-Esto importa porque es fácil recordar mal el titular de 2022 y dejar el pan
-exento.
+- Pan blanco común y galleta de campaña **al 10 %** — y sólo esos dos
+  panificados.
+- Confitería y rotisería **al 22 %**, por no estar en la lista.
+- Carne, menudencias y pescado **al 10 %**. Queda cerrada la duda anterior de
+  si la carne fresca estaba exenta: no lo está.
+- Frutas, flores y hortalizas en estado natural **al 10 %**, no exentas, y con
+  condiciones sobre quién vende y a quién.
+- Café, té y yerba **al 10 %** como bienes.
+- **El servicio de restaurante no está en la lista.** Sólo aparece en el
+  literal i) como parte de un paquete turístico con hospedaje. Un servicio
+  gastronómico suelto queda entonces en tasa básica.
+
+**La exoneración del pan de 2022 no rige.** La Ley 20.028 (7/4/2022) exoneró el
+pan blanco común, la galleta de campaña, las pastas y los fideos, pero por 30
+días, prorrogados una única vez por el Decreto 143/022. Fue coyuntural.
+
+### El régimen importa más que las tasas
+
+El **artículo 106 del mismo decreto** trae algo que cambia el planteo si Don
+Julio es pequeña empresa (literal E del art. 52 del Título 4):
+
+> *Los citados contribuyentes **no deberán facturar ni liquidar el Impuesto al
+> Valor Agregado** correspondiente a sus operaciones en tanto sus ingresos no
+> superen el límite...*
+
+Pagan una **cuota fija mensual** en vez de liquidar por venta: **$ 5.910 en
+2026** (Dto. 310/025). Los que inician actividad pagan 25 % el primer año, 50 %
+el segundo y 100 % desde el tercero, y el tope es 3,3 % de los ingresos del mes
+si documentan todo con CFE.
+
+Si ese es el caso, el comprobante **no debe discriminar IVA**, y el desglose
+del sistema pasa a ser información de gestión, no un dato fiscal. Si están en
+régimen general, aplica todo lo de arriba.
 
 ### Sin confirmar
 
-No pude llegar a las fuentes primarias: el proxy de red de este entorno bloquea
-`dgi.gub.uy`, `impo.com.uy` y `gub.uy`. Lo de arriba sale de fuentes
-secundarias que **se contradicen entre sí** en estos puntos:
-
-1. **Consumo en el local.** Una fuente dice que el servicio gastronómico va a
-   tasa básica 22 %; otra, orientada a restaurantes uruguayos, dice que
-   restaurantes y confiterías van al 10 %. Es la diferencia más cara de todas.
-
-2. **Carne fresca.** Una fuente la da como exenta, otra a tasa mínima.
-
-3. **Pan: exento o 10 %.** Varias fuentes dicen que "pan y leche fluida" están
-   exentos. Otras, que el pan blanco común va al 10 % y sólo la leche está
-   exenta. Acá se tomó **pan al 10 %**, que es lo consistente con que la Ley
-   20.028 haya tenido que exonerarlo temporalmente: si ya hubiera estado
-   exento, la ley no habría hecho falta.
-
-4. **Grado de elaboración en confitería.** No conseguí el texto del artículo
-   que lista los productos de tasa mínima, así que la clasificación de tortas,
-   masas y postres es por analogía con "alimentos elaborados".
+1. **Exoneraciones de alimentos** (leche fluida, huevos). Están en el artículo
+   19 del Título 10, que no tengo.
+2. **Qué es "pan blanco común".** Hay reglamentación de DGI que lo define
+   (común o francés, flauta, catalán, porteño, marsellés, casero). Un pan
+   integral o de semillas probablemente quede fuera y vaya al 22 %.
+3. **Café servido en mesa.** Como bien está al 10 %, pero un cortado servido
+   podría ser servicio gastronómico. La lista enumera bienes.
+4. **Reducción de IVA por pago con tarjeta.** No está implementada.
 
 ### Para preguntarle al contador
 
-1. El consumo en mesa, ¿se factura como servicio gastronómico a 22 % o mantiene
-   la tasa de cada producto? *(Define si prendemos el interruptor del salón.)*
-2. ¿Confirma pan y panificados a tasa mínima?
-3. ¿Leche fluida exenta y huevos exentos?
-4. Tortas, masas y postres elaborados en el local, ¿tasa mínima?
-5. Café y cafetería preparada, ¿tasa mínima o básica?
-6. ¿Corresponde el régimen de reducción de IVA por pago con tarjeta? No está
-   implementado y habría que agregarlo si aplica.
+1. **¿Estamos en literal E (pequeña empresa) o en régimen general?** Define si
+   hay que discriminar IVA o pagar la cuota fija.
+2. ¿Confirma confitería y rotisería al 22 %? Es lo que sale del artículo 101 y
+   es el cambio más grande respecto de lo que estaba cargado.
+3. ¿Qué panes de la casa califican como "pan blanco común"?
+4. Leche fluida y huevos, ¿exentos? (Falta el Título 10 art. 19.)
+5. El café servido en mesa, ¿10 % como bien o 22 % como servicio?
+6. ¿Corresponde la reducción de IVA por pago con tarjeta?
 
----
+### Textos que faltan conseguir
+
+- **Título 10 del Texto Ordenado, artículos 18 y 19** — las tasas y las
+  exoneraciones a nivel legal.
+- La resolución de DGI que define **"pan blanco común"**.
 
 ## Fuentes
 
@@ -173,7 +225,9 @@ secundarias que **se contradicen entre sí** en estos puntos:
 - [Cámara de Representantes — exoneración por treinta días](http://www.diputados.gub.uy/noticias/se-aprobo-la-exoneracion-del-iva-al-pan-blanco-comun-galleta-de-campana-pasta-y-fideos-por-un-plazo-de-treinta-dias/)
 - [DGI — exoneraciones vigentes en el IVA](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/son-exoneraciones-vigentes-iva)
 - [DGI — bienes y servicios gravados a la tasa básica](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/son-bienes-servicios-gravados-tasa-basica-del-22)
-- [Título 10 del Texto Ordenado (IVA) — IMPO](https://www.impo.com.uy/bases/todgi-2023/10-2024/10)
+- [Título 10 del Texto Ordenado (IVA) — IMPO](https://www.impo.com.uy/bases/todgi-2023/10-2024/10) — *pendiente: arts. 18 y 19*
+- [Decreto 220/998, texto actualizado marzo 2026 — IMPO](https://www.impo.com.uy/bases/decretos-reglamentarios-todgi/220-1998_A) — **fuente primaria de las tasas de este documento**
+- [DGI — Cuota IVA mínimo, valores vigentes](https://www.gub.uy/direccion-general-impositiva/comunicacion/publicaciones/cuota-iva-minimo-valores-vigentes)
 - [Decreto N° 220/998 — IMPO](https://www.impo.com.uy/bases/decretos/220-1998)
 - [Ecovis Uruguay — exoneración de pan, pastas y fideos](https://www.ecovis.com/uruguay/es/blog/2022/04/13/iva-exoneracion-pan-pastas-y-fideos/)
 - [RICA Consultores — restaurantes y liquidación de IVA](https://ricaconsultores.com.uy/notas-de-interes/restaurantes-y-liquidacion-de-iva-aspectos-a-tener-en-cuenta/)
