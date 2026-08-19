@@ -35,6 +35,8 @@ interface CuentaItem {
   cantidad: number;
   precioUnitario: string;
   subtotal: string;
+  ivaRate: string;
+  ivaMonto: string;
   sillaId: string | null;
   pagado: boolean;
   producto: { nombre: string };
@@ -509,6 +511,23 @@ export default function SalonAdmin() {
 
   const pendienteDe = (items: CuentaItem[]) =>
     items.filter((it) => !it.pagado).reduce((a, it) => a + Number(it.subtotal), 0);
+
+  /** IVA de lo que falta cobrar, por tasa. Usa lo guardado en cada ítem. */
+  const desglosePendiente = (cuenta?.items ?? [])
+    .filter((it) => !it.pagado)
+    .reduce(
+      (acc, it) => {
+        const total = Number(it.subtotal);
+        const iva = Number(it.ivaMonto);
+        acc.total += total;
+        acc.neto += total - iva;
+        if (it.ivaRate === "MINIMA") acc.ivaMinima += iva;
+        else if (it.ivaRate === "BASICA") acc.ivaBasica += iva;
+        else acc.noGravado += total;
+        return acc;
+      },
+      { total: 0, neto: 0, ivaMinima: 0, ivaBasica: 0, noGravado: 0 },
+    );
   const totalPendiente = cuenta ? pendienteDe(cuenta.items) : 0;
   const nComensalesConItems = gruposCuenta.filter((g) => g.sillaId && pendienteDe(g.items) > 0).length || 1;
 
@@ -805,6 +824,22 @@ export default function SalonAdmin() {
                 ))}
                 {cuenta.items.length === 0 && <p className="text-crust-400">Sin ítems aún.</p>}
               </div>
+              {/* Desglose de lo pendiente. El precio ya incluye el IVA: esto
+                  muestra cuánto de ese total es impuesto, abierto por tasa. */}
+              {desglosePendiente.total > 0 && (
+                <div className="mb-1 space-y-0.5 border-t border-crust-100 pt-2 text-xs text-crust-500">
+                  <p className="flex justify-between"><span>Neto</span><span className="tabular-nums">{formatUYU(desglosePendiente.neto)}</span></p>
+                  {desglosePendiente.ivaMinima > 0 && (
+                    <p className="flex justify-between"><span>IVA 10 %</span><span className="tabular-nums">{formatUYU(desglosePendiente.ivaMinima)}</span></p>
+                  )}
+                  {desglosePendiente.ivaBasica > 0 && (
+                    <p className="flex justify-between"><span>IVA 22 %</span><span className="tabular-nums">{formatUYU(desglosePendiente.ivaBasica)}</span></p>
+                  )}
+                  {desglosePendiente.noGravado > 0 && (
+                    <p className="flex justify-between"><span>Exento</span><span className="tabular-nums">{formatUYU(desglosePendiente.noGravado)}</span></p>
+                  )}
+                </div>
+              )}
               <p className="mb-4 flex justify-between border-t border-crust-100 pt-2 font-bold text-crust-900"><span>Total pendiente</span><span>{formatUYU(totalPendiente)}</span></p>
 
               {/* Selector de comensal + alta de productos */}

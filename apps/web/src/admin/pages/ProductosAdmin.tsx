@@ -5,6 +5,7 @@ import {
   IvaRate,
   puede,
   semaforoFoodCost,
+  sugerirIva,
   umbralesPara,
   type ProductoCosteo,
   type SemaforoFoodCost,
@@ -136,6 +137,9 @@ export default function ProductosAdmin() {
 
   // Alta / edición de producto
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
+  // Al cargar un producto nuevo se propone la tasa por el nombre, para no
+  // tener que acordarse de cuál va. Ver docs/iva.md.
+  const [ivaTocado, setIvaTocado] = useState(false);
   const [form, setForm] = useState<ProductoForm>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
 
@@ -201,6 +205,7 @@ export default function ProductosAdmin() {
       return;
     }
     setForm({ ...FORM_VACIO, categoriaId: categorias[0].id });
+    setIvaTocado(false);
     setEditando("nuevo");
   };
 
@@ -217,8 +222,15 @@ export default function ProductosAdmin() {
       disponible: p.disponible,
       destacado: p.destacado,
     });
+    setIvaTocado(true); // editando, la tasa guardada manda
     setEditando(p);
   };
+
+  /** Sugerencia de IVA para el nombre actual (sólo informativa). */
+  const sugerencia = useMemo(
+    () => (form.nombre.trim() ? sugerirIva(form.nombre) : null),
+    [form.nombre],
+  );
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -642,7 +654,16 @@ export default function ProductosAdmin() {
                 <span className="mb-1 block text-sm font-medium text-crust-700">Nombre</span>
                 <input
                   value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  onChange={(e) => {
+                    const nombre = e.target.value;
+                    // En un alta, la tasa sigue al nombre hasta que se toque
+                    // el selector a mano. Editando un producto no se pisa.
+                    const auto =
+                      editando === "nuevo" && !ivaTocado && nombre.trim()
+                        ? { ivaRate: sugerirIva(nombre).tasa }
+                        : {};
+                    setForm({ ...form, nombre, ...auto });
+                  }}
                   placeholder="Ej: Pan de masa madre 800 g"
                   className="w-full rounded-lg border border-crust-200 px-3 py-2"
                   autoFocus
@@ -672,14 +693,32 @@ export default function ProductosAdmin() {
                 <span className="mb-1 block text-sm font-medium text-crust-700">IVA</span>
                 <select
                   value={form.ivaRate}
-                  onChange={(e) => setForm({ ...form, ivaRate: e.target.value })}
+                  onChange={(e) => {
+                    setIvaTocado(true);
+                    setForm({ ...form, ivaRate: e.target.value });
+                  }}
                   className="w-full rounded-lg border border-crust-200 px-3 py-2"
                 >
                   {Object.values(IvaRate).map((v) => (
                     <option key={v} value={v}>{IVA_LABEL[v]}</option>
                   ))}
                 </select>
-                <span className="mt-1 block text-xs text-crust-400">La mayoría de los alimentos va en mínima.</span>
+                {sugerencia && sugerencia.tasa === form.ivaRate && sugerencia.reconocido ? (
+                  <span className="mt-1 block text-xs text-crust-400">{sugerencia.motivo}</span>
+                ) : sugerencia && sugerencia.tasa !== form.ivaRate ? (
+                  <button
+                    type="button"
+                    onClick={() => { setIvaTocado(true); setForm({ ...form, ivaRate: sugerencia.tasa }); }}
+                    className="mt-1 block text-left text-xs text-dj-cobre underline"
+                  >
+                    Por el nombre correspondería {IVA_LABEL[sugerencia.tasa]}. Usar esa.
+                  </button>
+                ) : (
+                  <span className="mt-1 block text-xs text-crust-400">La mayoría de los alimentos va en mínima.</span>
+                )}
+                <span className="mt-1 block text-xs text-crust-400">
+                  El precio ya incluye el IVA: esto define cuánto se declara, no lo que paga el cliente.
+                </span>
               </label>
 
               <label className="block sm:col-span-2">

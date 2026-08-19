@@ -14,6 +14,11 @@ interface Usuario {
 
 const ROLES = Object.values(UserRole);
 
+interface FiscalCfg {
+  preciosConIvaIncluido: boolean;
+  salonTasaBasica: boolean;
+}
+
 interface SesionCfg {
   adminMin: number;
   cajeroMin: number;
@@ -32,6 +37,7 @@ const CAMPOS_SESION: { k: keyof SesionCfg; label: string }[] = [
 export default function UsuariosAdmin() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [sesion, setSesion] = useState<SesionCfg | null>(null);
+  const [fiscal, setFiscal] = useState<FiscalCfg | null>(null);
   const [savingSesion, setSavingSesion] = useState(false);
   const [form, setForm] = useState({ email: "", nombre: "", password: "", role: "CAJERO", forceChange: true, pin: "" });
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +49,22 @@ export default function UsuariosAdmin() {
   useEffect(() => {
     load();
     api.get<SesionCfg>("/admin/config/sesion").then(setSesion).catch(() => {});
+    api.get<FiscalCfg>("/admin/config/fiscal").then(setFiscal).catch(() => {});
   }, []);
+
+  /** Guarda al instante: es un interruptor, no un formulario. */
+  const cambiarFiscal = async (campo: keyof FiscalCfg, valor: boolean) => {
+    setFiscal((f) => (f ? { ...f, [campo]: valor } : f));
+    setError(null);
+    setOk(null);
+    try {
+      await api.patch("/admin/config/fiscal", { [campo]: valor }, { sinToast: true });
+      setOk("Configuración fiscal guardada. Aplica a las ventas nuevas.");
+    } catch (e) {
+      setError((e as Error).message);
+      api.get<FiscalCfg>("/admin/config/fiscal").then(setFiscal).catch(() => {});
+    }
+  };
 
   const guardarSesion = async () => {
     if (!sesion) return;
@@ -215,6 +236,55 @@ export default function UsuariosAdmin() {
           </tbody>
         </table>
       </div>
+
+      {/* Configuración fiscal */}
+      {fiscal && (
+        <div className="mt-8 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+          <h2 className="font-display text-lg font-semibold text-crust-800">Configuración fiscal</h2>
+          <p className="mb-4 text-sm text-crust-500">
+            Cómo se liquida el IVA. Son definiciones de tu contador. El detalle de
+            qué tasa lleva cada producto está en <b>docs/iva.md</b>.
+          </p>
+
+          <label className="flex items-start gap-3 rounded-xl bg-crust-50 p-3">
+            <input
+              type="checkbox"
+              checked={fiscal.preciosConIvaIncluido}
+              onChange={(e) => cambiarFiscal("preciosConIvaIncluido", e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm font-medium text-crust-800">
+                Los precios ya incluyen IVA
+              </span>
+              <span className="block text-xs text-crust-500">
+                El precio que cargás en Productos es el que paga el cliente. El impuesto
+                se desglosa hacia atrás, no se suma encima.
+              </span>
+            </span>
+          </label>
+
+          <label className="mt-3 flex items-start gap-3 rounded-xl bg-crust-50 p-3">
+            <input
+              type="checkbox"
+              checked={fiscal.salonTasaBasica}
+              onChange={(e) => cambiarFiscal("salonTasaBasica", e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm font-medium text-crust-800">
+                Cobrar el consumo en salón a tasa básica (22 %)
+              </span>
+              <span className="block text-xs text-crust-500">
+                Todo lo consumido en mesa se factura como servicio gastronómico, sin
+                importar la tasa del producto. Take away y delivery no cambian, y lo
+                exento sigue exento. Viene apagado: consultalo con tu contador antes
+                de prenderlo.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {/* Cierre de sesión por inactividad */}
       {sesion && (

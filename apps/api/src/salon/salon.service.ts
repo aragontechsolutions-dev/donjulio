@@ -399,7 +399,10 @@ export class SalonService {
 
   async agregarItems(pedidoId: string, dto: AddItemsDto) {
     const pedido = await this.getPedidoAbierto(pedidoId);
-    const { items, subtotal } = await this.orders.priceItems(dto.items);
+    const { items, subtotal, iva } = await this.orders.priceItems(
+      dto.items,
+      OrderType.DINE_IN,
+    );
 
     // Sólo aceptamos sillas que pertenezcan a la mesa del pedido. Si llega una
     // silla inexistente/vieja (p. ej. una comanda encolada offline), el ítem se
@@ -429,6 +432,9 @@ export class SalonService {
           cantidad: it.cantidad,
           precioUnitario: it.precioUnitario,
           subtotal: it.subtotal,
+          ivaRate: it.ivaRate,
+          neto: it.neto,
+          ivaMonto: it.ivaMonto,
           notas: it.notas,
           modificadores: {
             create: it.modificadores.map((m) => ({
@@ -450,6 +456,14 @@ export class SalonService {
         data: {
           subtotal: num(pedido.subtotal) + subtotal,
           total: num(pedido.total) + subtotal,
+          // El desglose de la cuenta se acumula con cada comanda.
+          neto: num(pedido.neto) + iva.neto,
+          ivaTotal: num(pedido.ivaTotal) + iva.iva,
+          netoIvaMinima: num(pedido.netoIvaMinima) + iva.netoMinima,
+          ivaMinima: num(pedido.ivaMinima) + iva.ivaMinima,
+          netoIvaBasica: num(pedido.netoIvaBasica) + iva.netoBasica,
+          ivaBasica: num(pedido.ivaBasica) + iva.ivaBasica,
+          montoNoGravado: num(pedido.montoNoGravado) + iva.noGravado,
         },
         include: { items: { include: { producto: true, modificadores: true } } },
       }),
@@ -541,13 +555,26 @@ export class SalonService {
    */
   private async settleItems(
     pedido: { id: string; numero: number; status: string; mesaId: string | null; mozoId: string | null },
-    items: { id: string; subtotal: Prisma.Decimal; cantidad: number; precioUnitario: Prisma.Decimal; producto: { nombre: string } }[],
+    items: {
+      id: string;
+      subtotal: Prisma.Decimal;
+      cantidad: number;
+      precioUnitario: Prisma.Decimal;
+      // Guardado al pedir: es el que se declara al cobrar.
+      ivaMonto: Prisma.Decimal;
+      producto: { nombre: string };
+    }[],
     dto: CobrarDto | CobrarParcialDto,
     usuarioId: string,
   ) {
     const pedidoId = pedido.id;
     const total = Math.round(items.reduce((a, it) => a + num(it.subtotal), 0) * 100) / 100;
     const itemIds = items.map((it) => it.id);
+    // IVA de lo que se cobra en este movimiento, no de la cuenta entera: en un
+    // cobro por comensal el comprobante sale sólo por sus ítems. Se usa la tasa
+    // guardada en cada ítem, la que estaba vigente cuando se pidió.
+    const ivaCobrado =
+      Math.round(items.reduce((a, it) => a + num(it.ivaMonto), 0) * 100) / 100;
 
     // El cobro requiere una caja abierta en el turno (propia o del turno).
     const sesion =
@@ -582,7 +609,7 @@ export class SalonService {
         orderId: pedidoId,
         numero: pedido.numero,
         montoTotal: total,
-        iva: 0,
+        iva: ivaCobrado,
         rutReceptor: dto.rutReceptor,
         lineas: items.map((it) => ({
           descripcion: it.producto.nombre,

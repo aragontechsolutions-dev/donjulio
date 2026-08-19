@@ -640,6 +640,16 @@ model Pedido {
   subtotal    Decimal      @db.Decimal(12, 2) @default(0)
   descuento   Decimal      @db.Decimal(12, 2) @default(0)
   total       Decimal      @db.Decimal(12, 2) @default(0)
+  // Desglose de IVA, abierto por tasa como lo pide el comprobante fiscal.
+  // Los precios se cargan con IVA incluido: esto es lo que sale de adentro
+  // del total, no algo que se le sume.
+  neto           Decimal   @db.Decimal(12, 2) @default(0)
+  ivaTotal       Decimal   @db.Decimal(12, 2) @default(0)
+  netoIvaMinima  Decimal   @db.Decimal(12, 2) @default(0)
+  ivaMinima      Decimal   @db.Decimal(12, 2) @default(0)
+  netoIvaBasica  Decimal   @db.Decimal(12, 2) @default(0)
+  ivaBasica      Decimal   @db.Decimal(12, 2) @default(0)
+  montoNoGravado Decimal   @db.Decimal(12, 2) @default(0)
   notas       String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -669,6 +679,11 @@ model PedidoItem {
   cantidad         Int
   precioUnitario   Decimal         @db.Decimal(12, 2)
   subtotal         Decimal         @db.Decimal(12, 2)
+  // Tasa y montos congelados al momento de vender: si mañana cambia la tasa
+  // del producto, la venta de ayer tiene que seguir mostrando lo que se cobró.
+  ivaRate          IvaRate         @default(MINIMA)
+  neto             Decimal         @db.Decimal(12, 2) @default(0)
+  ivaMonto         Decimal         @db.Decimal(12, 2) @default(0)
   notas            String?
   status           OrderItemStatus @default(PENDIENTE)
   // Comensal (silla) al que se le imputa el ítem, para cuentas individuales.
@@ -987,4 +1002,18 @@ model SesionConfig {
   produccionMin Int    @default(30)
   mozoMin       Int    @default(0)
   deliveryMin   Int    @default(0)
+}
+
+/// Cómo se liquida el IVA. Son definiciones del contador, no del código.
+model FiscalConfig {
+  id String @id @default("default")
+  /// Los precios de Productos ya incluyen IVA (venta a consumidor final).
+  /// En false el sistema se lo sumaría encima al total.
+  preciosConIvaIncluido Boolean @default(true)
+  /// Facturar todo el consumo en mesa como servicio gastronómico a tasa
+  /// básica, sin importar la tasa de cada producto. Queda apagado: las
+  /// fuentes públicas no coinciden en si una confitería debe hacerlo, así
+  /// que lo prende el contador si corresponde.
+  salonTasaBasica       Boolean @default(false)
+  updatedAt             DateTime @updatedAt @default(now())
 }

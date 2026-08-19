@@ -8,12 +8,15 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
+  calcularIvaPedido,
   canTransition,
+  IvaRate,
   IVA_PORCENTAJE,
   OrderStatus,
   OrderType,
   PaymentMethod,
   PaymentStatus,
+  tasaAplicable,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsService } from "../integrations/payments/payments.service";
@@ -45,7 +48,7 @@ export class OrdersService {
       throw new BadRequestException("El carrito está vacío");
     }
 
-    const { items, subtotal } = await this.priceItems(dto.items);
+    const { items, subtotal, iva } = await this.priceItems(dto.items, dto.orderType);
 
     // Cliente (con registro de consentimiento — Ley 18.331).
     let clienteId: string | undefined;
@@ -74,6 +77,13 @@ export class OrdersService {
           clienteId,
           subtotal,
           total: subtotal,
+          neto: iva.neto,
+          ivaTotal: iva.iva,
+          netoIvaMinima: iva.netoMinima,
+          ivaMinima: iva.ivaMinima,
+          netoIvaBasica: iva.netoBasica,
+          ivaBasica: iva.ivaBasica,
+          montoNoGravado: iva.noGravado,
           notas: dto.notas,
           items: {
             create: items.map((i) => ({
@@ -83,6 +93,9 @@ export class OrdersService {
               cantidad: i.cantidad,
               precioUnitario: i.precioUnitario,
               subtotal: i.subtotal,
+              ivaRate: i.ivaRate,
+              neto: i.neto,
+              ivaMonto: i.ivaMonto,
               notas: i.notas,
               modificadores: {
                 create: i.modificadores.map((m) => ({
@@ -183,11 +196,10 @@ export class OrdersService {
 
     // Emite el CFE (mock por defecto).
     try {
-      const iva = pedido.items.reduce((acc, it) => {
-        const pct = IVA_PORCENTAJE[it.producto.ivaRate];
-        const base = num(it.subtotal);
-        return acc + (base - base / (1 + pct / 100));
-      }, 0);
+      // El IVA se lee del pedido, no se recalcula: si la tasa del producto
+      // cambió después de la venta, el comprobante tiene que declarar lo que
+      // efectivamente se cobró.
+      const iva = num(pedido.ivaTotal);
       await this.billing.emitForOrder({
         tipo: "E_TICKET" as any, // el service decide según rutReceptor
         orderId: pedido.id,
@@ -270,7 +282,14 @@ export class OrdersService {
    * validaciones: que el producto exista, esté disponible y —si se vende de lo
    * producido— que haya stock horneado suficiente.
    */
-  async priceItems(cart: CartItemDto[]) {
+  /**
+   * Precio, validación de stock y desglose de IVA de un carrito.
+   *
+   * Por acá pasan todas las ventas -- salón, mozo, autoservicio y web -- así
+   * que es el único lugar donde se calcula el impuesto. `orderType` entra
+   * porque la regla del salón puede cambiar la tasa aplicable.
+   */
+  async priceItems(cart: CartItemDto[], orderType?: OrderType) {
     const productoIds = [...new Set(cart.map((i) => i.productoId))];
     const productos = await this.prisma.producto.findMany({
       where: { id: { in: productoIds } },
@@ -315,6 +334,8 @@ export class OrdersService {
         })
       : [];
 
+    const fiscal = await this.configFiscal();
+
     let subtotal = 0;
     const items = cart.map((ci) => {
       const producto = productos.find((p) => p.id === ci.productoId);
@@ -348,6 +369,11 @@ export class OrdersService {
         cantidad: ci.cantidad,
         precioUnitario: unit,
         subtotal: lineSubtotal,
+        ivaRate: tasaAplicable(
+          producto.ivaRate as IvaRate,
+          orderType === OrderType.DINE_IN,
+          fiscal.salonTasaBasica,
+        ),
         notas: ci.notas,
         modificadores: mods.map((m) => ({
           id: m.id,
@@ -357,7 +383,24 @@ export class OrdersService {
       };
     });
 
-    return { items, subtotal: Math.round(subtotal * 100) / 100 };
+    // El IVA sale de adentro del precio: el que se carga en Productos ya lo
+    // incluye, así que el total del cliente no cambia por calcularlo.
+    const iva = calcularIvaPedido(
+      items.map((i) => ({ totalConIva: i.subtotal, tasa: i.ivaRate })),
+    );
+    const conIva = items.map((i, n) => ({
+      ...i,
+      neto: iva.lineas[n].neto,
+      ivaMonto: iva.lineas[n].iva,
+    }));
+
+    return { items: conIva, subtotal: Math.round(subtotal * 100) / 100, iva };
+  }
+
+  /** Definiciones fiscales; se crean con los valores por defecto la primera vez. */
+  async configFiscal() {
+    const c = await this.prisma.fiscalConfig.findUnique({ where: { id: "default" } });
+    return c ?? this.prisma.fiscalConfig.create({ data: { id: "default" } });
   }
 
   /**
