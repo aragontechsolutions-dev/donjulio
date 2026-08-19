@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, Silla } from "@prisma/client";
 import {
   CashMovementType,
   CashSessionStatus,
@@ -331,22 +331,55 @@ export class SalonService {
     const mesa = await this.mesaByToken(token);
     const nombre = (nombreRaw ?? "").trim();
     if (!nombre) throw new BadRequestException("Ingresá tu nombre.");
+
     const sillas = await this.prisma.silla.findMany({
       where: { mesaId: mesa.id },
       orderBy: { numero: "asc" },
     });
+
     // Ya se anotó antes con ese nombre → reusa su silla.
-    const existente = sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === nombre.toLowerCase());
+    const existente = sillas.find(
+      (s) => (s.nombre ?? "").trim().toLowerCase() === nombre.toLowerCase(),
+    );
     if (existente) return existente;
-    // Primera silla libre.
-    const libre = sillas.find((s) => !(s.nombre ?? "").trim());
-    if (libre) return this.prisma.silla.update({ where: { id: libre.id }, data: { nombre } });
-    // No hay libres: se sumó gente, creamos una silla nueva.
-    const numero = (sillas.reduce((mx, s) => Math.max(mx, s.numero), 0) || 0) + 1;
-    const pos = this.sillaOffset(sillas.length, Math.max(mesa.capacidad, sillas.length + 1), mesa.forma);
-    return this.prisma.silla.create({
-      data: { mesaId: mesa.id, numero, nombre, posX: pos.posX, posY: pos.posY },
-    });
+
+    // Toma la primera silla libre de forma ATÓMICA.
+    //
+    // Una familia se sienta y los cuatro escanean el QR casi al mismo tiempo.
+    // Leyendo las sillas y después escribiendo, los cuatro veían la silla 1
+    // libre y los cuatro se la llevaban: el último nombre pisaba a los otros
+    // tres, y a esos el tablet les decía "gracias por tu visita" y los
+    // devolvía al inicio, porque su silla ya no tenía su nombre.
+    //
+    // SELECT ... FOR UPDATE SKIP LOCKED hace que cada pedido concurrente tome
+    // una silla distinta: el que llega segundo saltea la que ya está tomada.
+    const tomada = await this.prisma.$queryRaw<Silla[]>`
+      UPDATE "Silla" SET "nombre" = ${nombre}
+      WHERE "id" = (
+        SELECT "id" FROM "Silla"
+        WHERE "mesaId" = ${mesa.id}
+          AND ("nombre" IS NULL OR btrim("nombre") = '')
+        ORDER BY "numero" ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING *`;
+    if (tomada.length > 0) return tomada[0];
+
+    // No quedan libres: se sumó gente. El número sale de un MAX en la misma
+    // sentencia, así dos altas simultáneas no se pisan el número.
+    const pos = this.sillaOffset(
+      sillas.length,
+      Math.max(mesa.capacidad, sillas.length + 1),
+      mesa.forma,
+    );
+    const creada = await this.prisma.$queryRaw<Silla[]>`
+      INSERT INTO "Silla" ("id", "mesaId", "numero", "nombre", "posX", "posY")
+      SELECT ${randomUUID()}, ${mesa.id},
+             COALESCE(MAX("numero"), 0) + 1, ${nombre}, ${pos.posX}, ${pos.posY}
+      FROM "Silla" WHERE "mesaId" = ${mesa.id}
+      RETURNING *`;
+    return creada[0];
   }
 
   // ---------- Comanda ----------

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { LogoHorizontal, Monograma, Sello } from "../lib/Logo";
 import { showToast } from "../lib/toast";
@@ -53,6 +53,9 @@ export default function Autoservicio() {
   const [enviando, setEnviando] = useState(false);
   const [pidiendoCuenta, setPidiendoCuenta] = useState(false);
   const [despedida, setDespedida] = useState(false);
+  // ¿Llegamos a confirmar contra el servidor que esta identidad es válida?
+  // Sirve para no despedir a alguien que nunca llegó a pedir en esta visita.
+  const identidadViva = useRef(false);
 
   const STORE_KEY = `auto:${token}:comensal`;
 
@@ -69,6 +72,7 @@ export default function Autoservicio() {
 
   /** Limpia el tablet. Con `conDespedida`, muestra el agradecimiento primero. */
   const resetCliente = (conDespedida = false) => {
+    identidadViva.current = false;
     setComensalId("");
     setComensalNombre("");
     setNombreInput("");
@@ -100,19 +104,32 @@ export default function Autoservicio() {
   // el tablet como nuevo para el próximo grupo.
   useEffect(() => {
     if (!estado || !comensalId) return;
+    const igual = (a?: string | null, b?: string | null) =>
+      (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
     const porId = estado.mesa.sillas.find((s) => s.id === comensalId);
-    if (porId) {
-      // La silla existe pero su nombre fue limpiado (mesa cerrada) → reset.
-      if ((porId.nombre ?? "").trim().toLowerCase() !== comensalNombre.trim().toLowerCase()) resetCliente(true);
+    if (porId && igual(porId.nombre, comensalNombre)) {
+      identidadViva.current = true; // confirmada contra el servidor
       return;
     }
-    const porNombre = estado.mesa.sillas.find((s) => (s.nombre ?? "").trim().toLowerCase() === comensalNombre.trim().toLowerCase());
+    // La silla puede haber cambiado de id (la mesa se rearmó): se busca por nombre.
+    const porNombre = estado.mesa.sillas.find((s) => igual(s.nombre, comensalNombre));
     if (porNombre) {
+      identidadViva.current = true;
       setComensalId(porNombre.id);
       localStorage.setItem(STORE_KEY, JSON.stringify({ id: porNombre.id, nombre: porNombre.nombre }));
-    } else {
-      resetCliente(true);
+      return;
     }
+
+    // Ya no hay silla con ese nombre. Hay dos motivos muy distintos:
+    //
+    //  · Estábamos pidiendo y la mesa se cerró (se cobró todo y se limpiaron
+    //    los nombres) → corresponde despedir y dejar el tablet listo.
+    //  · Acabamos de abrir el QR con una identidad vieja guardada en el
+    //    teléfono, de una visita anterior. Ahí despedir no tiene sentido:
+    //    la persona recién llega y lo único que ve es "gracias por tu visita"
+    //    tapándole el formulario durante seis segundos.
+    resetCliente(identidadViva.current);
   }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const identificar = async (nombre: string) => {
