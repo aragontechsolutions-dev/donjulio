@@ -18,6 +18,8 @@ import {
   CashSessionStatus,
   PaymentMethod,
   UserRole,
+  conciliacionPorMedio,
+  resumirCaja,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser, Roles } from "../auth/decorators";
@@ -51,17 +53,42 @@ const CASH_TOLERANCE = Number(process.env.CASH_TOLERANCE ?? 20);
 export class CashService {
   constructor(private prisma: PrismaService) {}
 
-  /** Sesión de caja abierta más reciente del cajero. */
-  current(usuarioId: string) {
-    return this.prisma.cashSession.findFirst({
+  /**
+   * Sesión de caja abierta más reciente del cajero, con el arqueo en vivo.
+   *
+   * El resumen viaja calculado desde acá para que el panel muestre el mismo
+   * reparto efectivo / no efectivo que va a aplicar el cierre, y para que el
+   * refresco automático traiga los cobros que entran por la PWA.
+   */
+  async current(usuarioId: string) {
+    const session = await this.prisma.cashSession.findFirst({
       where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
       orderBy: { openedAt: "desc" },
       include: { movimientos: { orderBy: { createdAt: "desc" } } },
     });
+    if (!session) return null;
+    return {
+      ...session,
+      resumen: resumirCaja(
+        session.movimientos.map((m) => ({
+          tipo: m.tipo,
+          metodoPago: m.metodoPago,
+          monto: num(m.monto),
+        })),
+        num(session.openingFloat),
+      ),
+      tolerance: CASH_TOLERANCE,
+      // Marca de tiempo del servidor: el panel la usa para avisar cuándo se
+      // actualizó por última vez sin depender del reloj del navegador.
+      actualizadoEn: new Date().toISOString(),
+    };
   }
 
   async open(dto: OpenSessionDto, usuarioId: string) {
-    const abierta = await this.current(usuarioId);
+    const abierta = await this.prisma.cashSession.findFirst({
+      where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
+      select: { id: true },
+    });
     if (abierta) {
       throw new BadRequestException("Ya tenés una caja abierta. Cerrala primero.");
     }
@@ -95,23 +122,17 @@ export class CashService {
       where: { cashSessionId: sessionId },
     });
 
-    const sum = (pred: (m: (typeof movimientos)[number]) => boolean) =>
-      movimientos.filter(pred).reduce((a, m) => a + num(m.monto), 0);
-
-    // Sólo el efectivo afecta el cajón físico.
-    const ventasEfectivo = sum(
-      (m) => m.tipo === CashMovementType.SALE && m.metodoPago === PaymentMethod.EFECTIVO,
+    // Sólo el efectivo afecta el cajón físico: débito, crédito y QR se
+    // concilian contra el POS / Mercado Pago, no contra la plata contada.
+    const resumen = resumirCaja(
+      movimientos.map((m) => ({
+        tipo: m.tipo,
+        metodoPago: m.metodoPago,
+        monto: num(m.monto),
+      })),
+      num(session.openingFloat),
     );
-    const ingresos = sum((m) => m.tipo === CashMovementType.IN);
-    const egresos = sum(
-      (m) =>
-        m.tipo === CashMovementType.OUT ||
-        m.tipo === CashMovementType.WITHDRAWAL ||
-        m.tipo === CashMovementType.EXPENSE,
-    );
-    const expected = round2(
-      num(session.openingFloat) + ventasEfectivo + ingresos - egresos,
-    );
+    const expected = resumen.efectivoEsperado;
     const difference = round2(dto.closingCount - expected);
 
     // Fuera de tolerancia exige un motivo del descuadre para poder cerrar.
@@ -124,12 +145,13 @@ export class CashService {
     }
 
     // Conciliación de ventas por medio de pago (todos los medios).
-    const conciliacion: Record<string, number> = {};
-    for (const m of movimientos) {
-      if (m.tipo !== CashMovementType.SALE) continue;
-      const k = m.metodoPago ?? "SIN_MEDIO";
-      conciliacion[k] = round2((conciliacion[k] ?? 0) + num(m.monto));
-    }
+    const conciliacion = conciliacionPorMedio(
+      movimientos.map((m) => ({
+        tipo: m.tipo,
+        metodoPago: m.metodoPago,
+        monto: num(m.monto),
+      })),
+    );
 
     const updated = await this.prisma.cashSession.update({
       where: { id: sessionId },
@@ -149,6 +171,7 @@ export class CashService {
       expected,
       difference,
       conciliacion,
+      resumen,
       tolerance: CASH_TOLERANCE,
       cuadra: !fueraDeTolerancia,
       justificacion: justificacion || null,

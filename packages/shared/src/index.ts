@@ -7,3 +7,4 @@ export * from "./rotulado";
 export * from "./permisos";
 export * from "./iva";
 export * from "./iva-sugerencias";
+export * from "./caja";
