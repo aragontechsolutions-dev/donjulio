@@ -58,6 +58,12 @@ pnpm db:seed                                 # catálogo, mesas, recetas de ejem
 2. En el backend: `STORAGE_PROVIDER=supabase` y `SUPABASE_STORAGE_BUCKET=donjulio`.
    Las subidas usan la `service_role` key (sólo en el backend) y devuelven la URL pública.
 
+> Al bucket también van las **fotos del fichaje** (el tablet saca una al marcar).
+> Son fotos de personas identificadas: el bucket público las deja accesibles a
+> quien tenga la URL. Si eso no va, pasá el bucket a privado y servilas con URLs
+> firmadas, y definí cada cuánto se borran (guardarlas para siempre no hace falta
+> para controlar asistencia).
+
 ## 4) Auth: usuarios, roles y RLS
 
 **Usuarios** — creá los usuarios en Supabase Auth con su rol en `app_metadata`:
@@ -204,3 +210,8 @@ volver a migrar.
   en runtime usa el **pooler** (`DATABASE_URL`).
 - **service_role key**: nunca en el frontend ni en variables `VITE_*`.
 - **Pagos/CFE**: siguen en `mock` hasta la Etapa 2 (Mercado Pago + proveedor CFE real).
+- **Cámara del fichaje**: los navegadores sólo dan acceso a la cámara en **HTTPS**
+  (o en `localhost`). En el tablet hay que abrir el enlace del kiosco por https y
+  aceptar el permiso una vez; queda recordado para ese sitio. Si el tablet no tiene
+  cámara, apagá *Pedir foto al marcar* en **Turnos**. Si la cámara falla en el
+  momento, la marca se registra igual y queda sin foto: nadie se queda sin fichar.

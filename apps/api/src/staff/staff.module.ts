@@ -2,20 +2,27 @@ import {
   BadRequestException,
   Body,
   Controller,
+  FileTypeValidator,
   ForbiddenException,
   Delete,
   Get,
   Injectable,
+  MaxFileSizeValidator,
   Module,
   NotFoundException,
   Param,
+  ParseFilePipe,
   Patch,
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -31,11 +38,16 @@ import { AuthUser, ReservaStatus, TableStatus, UserRole } from "@donjulio/shared
 import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser, Public, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
+import { StorageModule, StorageService } from "../integrations/storage/storage.module";
 
 /** Intentos fallidos de PIN por número de empleado (defensa contra fuerza bruta). */
 const intentosPin = new Map<string, { fallos: number; hasta: number }>();
 const numeroEmpteadoKey = (n: number) => `emp:${n}`;
 const MAX_FALLOS_PIN = 5;
+/** Ventana para subir la foto de la marca recién hecha. */
+const FOTO_TOKEN_MIN = 2;
+/** La foto del kiosco es una captura chica; más que esto es sospechoso. */
+const MAX_FOTO_BYTES = 3 * 1024 * 1024;
 
 class FicharKioscoDto {
   @IsInt() @Min(1) numeroEmpleado!: number;
@@ -45,8 +57,16 @@ class FicharKioscoDto {
   @IsOptional() @IsString() deviceNombre?: string;
 }
 
+class FotoFichajeDto {
+  @IsString() fotoToken!: string;
+}
+
 class VincularDto {
   @IsOptional() @IsInt() @Min(1) @Max(60) minutos?: number;
+}
+
+class PedirFotoDto {
+  @IsBoolean() pedirFoto!: boolean;
 }
 
 class ToleranciaDto {
@@ -87,7 +107,10 @@ class UpdateReservaDto {
 
 @Injectable()
 export class StaffService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
 
   /** Turno abierto del usuario (si está fichado). */
   turnoActual(usuarioId: string) {
@@ -122,7 +145,8 @@ export class StaffService {
       include: { usuario: { select: { id: true, nombre: true, role: true } } },
       take: 300,
     });
-    return turnos.map((t) => ({
+    // El permiso de subida no sale del kiosco: no tiene por qué viajar al panel.
+    return turnos.map(({ fotoToken: _t, fotoTokenExp: _e, ...t }) => ({
       ...t,
       horas: t.fin
         ? Math.round(((t.fin.getTime() - t.inicio.getTime()) / 3600000) * 100) / 100
@@ -184,6 +208,15 @@ export class StaffService {
     return this.prisma.kioscoFichaje.update({
       where: { id: "default" },
       data: { toleranciaMin: minutos },
+    });
+  }
+
+  /** Pedir (o no) la foto al marcar: se apaga si el tablet no tiene cámara. */
+  async setPedirFoto(pedirFoto: boolean) {
+    await this.getKiosco();
+    return this.prisma.kioscoFichaje.update({
+      where: { id: "default" },
+      data: { pedirFoto },
     });
   }
 
@@ -290,9 +323,10 @@ export class StaffService {
         const diff = this.diffMin(ahora, abierto.horarioFin); // negativo = antes
         minutosAntes = diff < -tol ? Math.abs(diff) : 0;
       }
+      const foto = this.nuevoPermisoFoto(kiosco.pedirFoto, "salida");
       const t = await this.prisma.shift.update({
         where: { id: abierto.id },
-        data: { fin: ahora, minutosAntes },
+        data: { fin: ahora, minutosAntes, ...foto.data },
       });
       const horas = Math.round(((t.fin!.getTime() - t.inicio.getTime()) / 3600000) * 100) / 100;
       return {
@@ -302,6 +336,7 @@ export class StaffService {
         horas,
         minutosAntes,
         minutosTarde: null,
+        fotoToken: foto.token,
       };
     }
 
@@ -311,6 +346,7 @@ export class StaffService {
       const diff = this.diffMin(ahora, horario.horaInicio); // positivo = tarde
       minutosTarde = diff > tol ? diff : 0;
     }
+    const foto = this.nuevoPermisoFoto(kiosco.pedirFoto, "entrada");
     const t = await this.prisma.shift.create({
       data: {
         usuarioId: usuario.id,
@@ -318,6 +354,7 @@ export class StaffService {
         minutosTarde,
         horarioInicio: horario?.horaInicio ?? null,
         horarioFin: horario?.horaFin ?? null,
+        ...foto.data,
       },
     });
     return {
@@ -327,7 +364,54 @@ export class StaffService {
       horas: null,
       minutosTarde,
       minutosAntes: null,
+      fotoToken: foto.token,
     };
+  }
+
+  /**
+   * Permiso de un solo uso para subir la foto de la marca recién registrada.
+   *
+   * La marca se guarda primero y la foto se adjunta después: si la cámara
+   * falla, se pierde la foto pero nunca el fichaje. El token dice a qué campo
+   * va la imagen, así que una salida hecha a los pocos segundos de la entrada
+   * no puede pisar la foto de la otra marca.
+   */
+  private nuevoPermisoFoto(pedirFoto: boolean, campo: "entrada" | "salida") {
+    if (!pedirFoto) return { token: null, data: {} };
+    const token = `${campo}:${randomUUID()}`;
+    return {
+      token,
+      data: { fotoToken: token, fotoTokenExp: new Date(Date.now() + FOTO_TOKEN_MIN * 60_000) },
+    };
+  }
+
+  /**
+   * Adjunta la foto del tablet a la marca. El token vale una sola vez y vence
+   * enseguida, así que nadie puede subir imágenes a turnos ajenos ni repetir
+   * la subida más tarde.
+   */
+  async adjuntarFotoFichaje(
+    token: string,
+    fotoToken: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+  ) {
+    await this.validarKiosco(token);
+    const shift = await this.prisma.shift.findUnique({ where: { fotoToken } });
+    if (!shift || !shift.fotoTokenExp || shift.fotoTokenExp < new Date()) {
+      throw new BadRequestException("El permiso para subir la foto venció.");
+    }
+    const campo = fotoToken.startsWith("salida:") ? "fotoSalidaUrl" : "fotoEntradaUrl";
+    const { url } = await this.storage.upload({
+      buffer: file.buffer,
+      originalname: `fichaje-${shift.id}.jpg`,
+      mimetype: file.mimetype,
+    });
+    // Se consume el token en el mismo update: no se puede reutilizar.
+    await this.prisma.shift.update({
+      where: { id: shift.id },
+      data: { [campo]: url, fotoToken: null, fotoTokenExp: null },
+    });
+    return { ok: true, url };
   }
 
   // ─────────────────── Horarios previstos por trabajador ───────────────────
@@ -541,6 +625,12 @@ class StaffController {
     return this.svc.setTolerancia(dto.minutos);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Patch("turnos/kiosco/foto")
+  pedirFoto(@Body() dto: PedirFotoDto) {
+    return this.svc.setPedirFoto(dto.pedirFoto);
+  }
+
   // ---- Horarios previstos ----
   @Roles(UserRole.ADMIN, UserRole.CAJERO)
   @Get("horarios")
@@ -595,9 +685,31 @@ class FichajeController {
   fichar(@Param("token") token: string, @Body() dto: FicharKioscoDto) {
     return this.svc.ficharKiosco(token, dto.numeroEmpleado, dto.pin, dto.deviceId, dto.deviceNombre);
   }
+
+  /** Foto de la marca recién hecha; el permiso viene en la respuesta anterior. */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post(":token/foto")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_FOTO_BYTES } }))
+  foto(
+    @Param("token") token: string,
+    @Body() dto: FotoFichajeDto,
+    @UploadedFile(
+      new ParseFilePipe({
+        fileIsRequired: true,
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_FOTO_BYTES, message: "La foto es muy pesada." }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.svc.adjuntarFotoFichaje(token, dto.fotoToken, file);
+  }
 }
 
 @Module({
+  imports: [StorageModule],
   controllers: [StaffController, FichajeController],
   providers: [StaffService],
   exports: [StaffService],

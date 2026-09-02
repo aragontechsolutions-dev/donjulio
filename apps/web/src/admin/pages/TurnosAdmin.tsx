@@ -10,16 +10,33 @@ interface Turno {
   id: string; inicio: string; fin: string | null; horas: number | null;
   minutosTarde: number | null; minutosAntes: number | null;
   horarioInicio: string | null; horarioFin: string | null;
+  fotoEntradaUrl: string | null; fotoSalidaUrl: string | null;
   usuario: UsuarioRef;
 }
 interface Kiosco {
   token: string; deviceId: string | null; deviceNombre: string | null;
   deviceUltimoUso: string | null; vinculacionHasta: string | null; toleranciaMin: number;
+  pedirFoto: boolean;
 }
 interface Horario { id: string; usuarioId: string; diaSemana: number; horaInicio: string; horaFin: string }
 interface UsuarioLista { id: string; localId?: string; nombre: string; numeroEmpleado?: number }
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 interface TurnoAbierto { id: string; inicio: string; usuario?: UsuarioRef }
+
+/** Miniatura de la foto del fichaje; se abre en grande al tocarla. */
+function Foto({ url, alt }: { url: string | null; alt: string }) {
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" title="Ver la foto del fichaje">
+      <img
+        src={url}
+        alt={alt}
+        loading="lazy"
+        className="h-8 w-8 rounded-full border border-crust-200 object-cover"
+      />
+    </a>
+  );
+}
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-UY", { weekday: "short", day: "2-digit", month: "2-digit" });
 const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" }) : "—");
@@ -90,6 +107,14 @@ export default function TurnosAdmin() {
   const setTolerancia = async (minutos: number) => {
     setKiosco((k) => (k ? { ...k, toleranciaMin: minutos } : k));
     await api.patch("/admin/turnos/kiosco/tolerancia", { minutos }).catch(() => {});
+  };
+  const setPedirFoto = async (pedirFoto: boolean) => {
+    setKiosco((k) => (k ? { ...k, pedirFoto } : k));
+    try {
+      await api.patch("/admin/turnos/kiosco/foto", { pedirFoto });
+    } catch {
+      loadKiosco(); // no se pudo guardar: vuelve al valor real
+    }
   };
   const setHorario = async (usuarioId: string, diaSemana: number, horaInicio?: string, horaFin?: string) => {
     try {
@@ -183,6 +208,23 @@ export default function TurnosAdmin() {
               className="w-20 rounded-lg border border-crust-200 px-2 py-1"
             />
             <span className="text-xs text-crust-400">min de gracia antes de contar tarde / salida temprana</span>
+          </label>
+
+          {/* Foto al marcar */}
+          <label className="mt-3 flex items-start gap-2 text-sm text-crust-600">
+            <input
+              type="checkbox"
+              checked={kiosco?.pedirFoto ?? true}
+              onChange={(e) => setPedirFoto(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Pedir foto al marcar
+              <span className="block text-xs text-crust-400">
+                El tablet saca una foto con la cámara frontal al fichar. Necesita HTTPS y permiso de
+                cámara. Desactivalo si el tablet no tiene cámara.
+              </span>
+            </span>
           </label>
         </div>
       </div>
@@ -306,8 +348,18 @@ export default function TurnosAdmin() {
                   <tr key={t.id} className="border-t border-crust-50">
                     <td data-principal className="px-4 py-2 font-medium text-crust-800">{t.usuario.nombre}</td>
                     <td data-etiqueta="Día" className="px-4 py-2 text-crust-500">{fecha(t.inicio)}</td>
-                    <td data-etiqueta="Entrada" className="px-4 py-2 text-crust-600">{hora(t.inicio)}</td>
-                    <td data-etiqueta="Salida" className="px-4 py-2 text-crust-600">{t.fin ? hora(t.fin) : <span className="text-green-600">en curso</span>}</td>
+                    <td data-etiqueta="Entrada" className="px-4 py-2 text-crust-600">
+                      <span className="flex items-center gap-2">
+                        <Foto url={t.fotoEntradaUrl} alt={`Entrada de ${t.usuario.nombre}`} />
+                        {hora(t.inicio)}
+                      </span>
+                    </td>
+                    <td data-etiqueta="Salida" className="px-4 py-2 text-crust-600">
+                      <span className="flex items-center gap-2">
+                        <Foto url={t.fotoSalidaUrl} alt={`Salida de ${t.usuario.nombre}`} />
+                        {t.fin ? hora(t.fin) : <span className="text-green-600">en curso</span>}
+                      </span>
+                    </td>
                     <td data-etiqueta="Cumplimiento" className="px-4 py-2 text-xs">
                       {t.horarioInicio ? (
                         <span className="flex flex-wrap items-center gap-1">
