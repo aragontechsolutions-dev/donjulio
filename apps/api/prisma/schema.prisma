@@ -820,6 +820,13 @@ model Shift {
   minutosAntes  Int?
   horarioInicio String?
   horarioFin    String?
+  /// Foto tomada por el tablet al marcar (evidencia de quién fichó).
+  fotoEntradaUrl String?
+  fotoSalidaUrl  String?
+  /// Permiso de un solo uso para subir la foto de la marca recién hecha.
+  /// Formato "entrada:<uuid>" o "salida:<uuid>": dice a qué campo va.
+  fotoToken     String?   @unique
+  fotoTokenExp  DateTime?
 
   @@index([usuarioId])
 }
@@ -978,6 +985,8 @@ model KioscoFichaje {
   vinculacionHasta DateTime?
   /// Minutos de gracia para llegadas tarde / salidas tempranas.
   toleranciaMin  Int     @default(10)
+  /// Pedir foto al marcar. Se apaga si el tablet no tiene cámara.
+  pedirFoto      Boolean @default(true)
 }
 
 /// Horario semanal previsto de un trabajador (para detectar tarde/temprano).
