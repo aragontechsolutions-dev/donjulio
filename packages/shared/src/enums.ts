@@ -22,6 +22,17 @@ export enum UnitOfMeasure {
   DOCENA = "DOCENA",
 }
 
+/**
+ * Cómo se cobra un producto en el mostrador.
+ *
+ * Con `KG`, el precio del producto es el precio por kilo y la cantidad
+ * vendida es el peso que marcó la balanza (0,350 = 350 g).
+ */
+export enum UnidadVenta {
+  UNIDAD = "UNIDAD",
+  KG = "KG",
+}
+
 /** Canal por el que ingresa un pedido. */
 export enum OrderChannel {
   WEB = "WEB",

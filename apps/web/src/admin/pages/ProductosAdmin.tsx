@@ -7,6 +7,7 @@ import {
   semaforoFoodCost,
   sugerirIva,
   umbralesPara,
+  UnidadVenta,
   type ProductoCosteo,
   type SemaforoFoodCost,
 } from "@donjulio/shared";
@@ -41,6 +42,7 @@ interface Producto {
   esReventa: boolean;
   costoCompra: string | null;
   controlaStock: boolean;
+  unidadVenta: string;
   /** Unidades producidas sin vender. null si el producto no controla stock. */
   stockProducido: number | null;
   ivaRate: string;
@@ -92,6 +94,7 @@ interface ProductoForm {
   esReventa: boolean;
   costoCompra: string;
   controlaStock: boolean;
+  unidadVenta: string;
   ivaRate: string;
   disponible: boolean;
   destacado: boolean;
@@ -99,7 +102,8 @@ interface ProductoForm {
 
 const FORM_VACIO: ProductoForm = {
   nombre: "", categoriaId: "", descripcion: "", precio: "",
-  esReventa: false, costoCompra: "", controlaStock: false, ivaRate: IvaRate.MINIMA,
+  esReventa: false, costoCompra: "", controlaStock: false, unidadVenta: UnidadVenta.UNIDAD,
+  ivaRate: IvaRate.MINIMA,
   disponible: true, destacado: false,
 };
 
@@ -223,6 +227,7 @@ export default function ProductosAdmin() {
       esReventa: p.esReventa,
       costoCompra: p.costoCompra != null ? String(Number(p.costoCompra)) : "",
       controlaStock: p.controlaStock,
+      unidadVenta: p.unidadVenta ?? UnidadVenta.UNIDAD,
       ivaRate: p.ivaRate,
       disponible: p.disponible,
       destacado: p.destacado,
@@ -305,6 +310,7 @@ export default function ProductosAdmin() {
       esReventa: form.esReventa,
       costoCompra: form.esReventa && form.costoCompra !== "" ? Number(form.costoCompra) : null,
       controlaStock: form.controlaStock,
+      unidadVenta: form.unidadVenta,
       ivaRate: form.ivaRate,
       disponible: form.disponible,
       destacado: form.destacado,
@@ -881,16 +887,37 @@ export default function ProductosAdmin() {
             {/* Precio y costo */}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-crust-700">Precio de venta</span>
+                <span className="mb-1 block text-sm font-medium text-crust-700">
+                  {form.unidadVenta === UnidadVenta.KG ? "Precio por kilo" : "Precio de venta"}
+                </span>
                 <input
                   type="number" step="0.01" min="0"
                   value={form.precio}
                   onChange={(e) => setForm({ ...form, precio: e.target.value })}
-                  placeholder="Ej: 220"
+                  placeholder={form.unidadVenta === UnidadVenta.KG ? "Ej: 420 (el kilo)" : "Ej: 220"}
                   className="w-full rounded-lg border border-crust-200 px-3 py-2 tabular-nums"
                   required
                 />
-                <span className="mt-1 block text-xs text-crust-400">Lo que paga el cliente, IVA incluido.</span>
+                <span className="mt-1 block text-xs text-crust-400">
+                  Lo que paga el cliente, IVA incluido
+                  {form.unidadVenta === UnidadVenta.KG ? ", por kilo." : "."}
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Se vende por</span>
+                <select
+                  value={form.unidadVenta}
+                  onChange={(e) => setForm({ ...form, unidadVenta: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                >
+                  <option value={UnidadVenta.UNIDAD}>Unidad</option>
+                  <option value={UnidadVenta.KG}>Peso (balanza)</option>
+                </select>
+                <span className="mt-1 block text-xs text-crust-400">
+                  Por peso, en el mostrador se escribe lo que marca la balanza y el precio sale de
+                  multiplicarlo por el precio del kilo.
+                </span>
               </label>
 
               {form.esReventa && (

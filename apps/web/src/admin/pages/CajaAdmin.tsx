@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CashMovementType, PaymentMethod, resumirCaja } from "@donjulio/shared";
 import type { ResumenCaja } from "@donjulio/shared";
 import { api } from "../../lib/api";
-import { formatUYU } from "../../lib/format";
+import { formatUYUExacto as formatUYU } from "../../lib/format";
 
 interface Movimiento {
   id: string;

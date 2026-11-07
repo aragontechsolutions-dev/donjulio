@@ -591,7 +591,7 @@ export class SalonService {
     items: {
       id: string;
       subtotal: Prisma.Decimal;
-      cantidad: number;
+      cantidad: Prisma.Decimal;
       precioUnitario: Prisma.Decimal;
       // Guardado al pedir: es el que se declara al cobrar.
       ivaMonto: Prisma.Decimal;
@@ -646,7 +646,7 @@ export class SalonService {
         rutReceptor: dto.rutReceptor,
         lineas: items.map((it) => ({
           descripcion: it.producto.nombre,
-          cantidad: it.cantidad,
+          cantidad: num(it.cantidad),
           precioUnitario: num(it.precioUnitario),
         })),
       });

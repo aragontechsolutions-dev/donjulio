@@ -6,7 +6,8 @@ interface Station { id: string; nombre: string; tipo: string }
 interface KdsItem {
   id: string;
   producto: string;
-  cantidad: number;
+  /** Decimal de la base: llega como texto. */
+  cantidad: number | string;
   notas: string | null;
   status: string;
   estacion: string;

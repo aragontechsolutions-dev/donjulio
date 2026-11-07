@@ -49,6 +49,9 @@ export const CAPACIDADES = {
     roles: [ADMIN, CAJERO, MOZO],
   },
 
+  // ── Mostrador: la venta del día a día, de caja ──
+  "mostrador.vender": { verbo: "POST", ruta: "/admin/mostrador/venta", roles: [ADMIN, CAJERO] },
+
   // ── Reservas ──
   "reservas.cancelar": { verbo: "DELETE", ruta: "/admin/reservas/:id", roles: [ADMIN, CAJERO] },
 

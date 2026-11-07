@@ -32,7 +32,8 @@ interface PosProducto { id: string; nombre: string; precio: string; descripcion:
 interface PosCategoria { id: string; nombre: string; productos: PosProducto[] }
 interface CuentaItem {
   id: string;
-  cantidad: number;
+  /** Decimal de la base: llega como texto. */
+  cantidad: number | string;
   precioUnitario: string;
   subtotal: string;
   ivaRate: string;
