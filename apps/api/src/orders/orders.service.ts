@@ -257,7 +257,17 @@ export class OrdersService {
     return this.prisma.pedido.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: "desc" },
-      include: { items: true, cliente: true },
+      include: {
+        // Con el nombre del producto alcanza para ver qué se pidió sin abrir
+        // cada pedido. El costo del producto no tiene por qué viajar acá.
+        items: {
+          include: {
+            producto: { select: { nombre: true, unidadVenta: true } },
+            modificadores: { select: { nombre: true } },
+          },
+        },
+        cliente: true,
+      },
       take: 200,
     });
   }

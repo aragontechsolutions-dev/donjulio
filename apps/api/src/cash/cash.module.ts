@@ -239,7 +239,30 @@ export class CashService {
       where: { status: CashSessionStatus.CERRADA },
       orderBy: { closedAt: "desc" },
       take: 50,
-      include: { openedBy: true, closedBy: true },
+      include: {
+        openedBy: { select: { id: true, nombre: true } },
+        closedBy: { select: { id: true, nombre: true } },
+      },
+    });
+  }
+
+  /**
+   * Movimientos de un turno, abierto o cerrado.
+   *
+   * Van aparte del historial a propósito: la lista de turnos tiene que abrir
+   * rápido, y los movimientos de cada uno se piden sólo cuando alguien los
+   * mira. El reparto efectivo / no efectivo lo arma el panel con `resumirCaja`,
+   * la misma función que usa el cierre.
+   */
+  async movimientosDe(sessionId: string) {
+    const sesion = await this.prisma.cashSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true },
+    });
+    if (!sesion) throw new NotFoundException("Caja no encontrada");
+    return this.prisma.cashMovement.findMany({
+      where: { cashSessionId: sessionId },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -294,6 +317,12 @@ class CashController {
   @Get("movimientos/:id")
   detalleMovimiento(@Param("id") id: string) {
     return this.cash.detalleMovimiento(id);
+  }
+
+  /** Movimientos de un turno (para mirar uno ya cerrado). */
+  @Get(":id/movimientos")
+  movimientos(@Param("id") id: string) {
+    return this.cash.movimientosDe(id);
   }
 
   @Post("abrir")
