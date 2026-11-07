@@ -15,7 +15,8 @@ interface Cat { id: string; nombre: string; productos: Prod[] }
 interface Silla { id: string; numero: number; nombre: string | null }
 interface CuentaItem {
   id: string;
-  cantidad: number;
+  /** Decimal de la base: llega como texto (0,350 en lo que se vende pesado). */
+  cantidad: number | string;
   subtotal: string;
   sillaId: string | null;
   pagado: boolean;
@@ -232,7 +233,7 @@ export default function Comanda({
       items,
       (it) =>
         `${it.producto.nombre}|${it.modificadores.map((m) => m.nombre).sort().join(",")}|${it.status}|${it.pagado}`,
-      (it) => it.cantidad,
+      (it) => Number(it.cantidad),
     ).map((g) => ({
       id: g.primera.id,
       // Entregar afecta a todos los ítems de la línea, no sólo al primero.

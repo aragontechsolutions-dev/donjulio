@@ -14,7 +14,8 @@ interface Prod { id: string; nombre: string; precio: string; descripcion: string
 interface Cat { id: string; nombre: string; productos: Prod[] }
 interface Silla { id: string; numero: number; nombre: string | null }
 interface CuentaItem {
-  id: string; cantidad: number; subtotal: string; sillaId: string | null; pagado: boolean; status: string;
+  // cantidad y subtotal son decimales de la base: viajan como texto.
+  id: string; cantidad: number | string; subtotal: string; sillaId: string | null; pagado: boolean; status: string;
   producto: { nombre: string }; modificadores: { nombre: string }[];
 }
 interface Estado {
@@ -256,7 +257,7 @@ export default function Autoservicio() {
       items,
       (it) =>
         `${it.producto.nombre}|${it.modificadores.map((m) => m.nombre).sort().join(",")}|${it.status}|${it.pagado}`,
-      (it) => it.cantidad,
+      (it) => Number(it.cantidad),
     ).map((g) => ({
       id: g.primera.id,
       cantidad: g.cantidad,

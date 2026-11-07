@@ -16,6 +16,7 @@ import ProduccionAdmin from "./admin/pages/ProduccionAdmin";
 import MermasAdmin from "./admin/pages/MermasAdmin";
 import TrazabilidadAdmin from "./admin/pages/TrazabilidadAdmin";
 import CajaAdmin from "./admin/pages/CajaAdmin";
+import MostradorAdmin from "./admin/pages/MostradorAdmin";
 import ReportesAdmin from "./admin/pages/ReportesAdmin";
 import SalonAdmin from "./admin/pages/SalonAdmin";
 import KdsAdmin from "./admin/pages/KdsAdmin";
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="produccion" element={<ProduccionAdmin />} />
         <Route path="mermas" element={<MermasAdmin />} />
         <Route path="trazabilidad" element={<TrazabilidadAdmin />} />
+        <Route path="mostrador" element={<MostradorAdmin />} />
         <Route path="caja" element={<CajaAdmin />} />
         <Route path="reportes" element={<ReportesAdmin />} />
         <Route path="salon" element={<SalonAdmin />} />

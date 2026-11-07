@@ -78,6 +78,11 @@ aunque la lógica de las etapas 3–4 se implementará más adelante. Áreas:
   para descartar duplicados de Mercado Pago.
 - **Caja por turno**: `CashSession` por `openedBy`/`closedBy` (arqueo por turno,
   no diario global — control interno).
+- **Venta por peso**: `Producto.unidadVenta` (UNIDAD | KG) y `PedidoItem.cantidad`
+  decimal(12,3). Con KG, `precio` es el precio del kilo y la cantidad es lo que
+  marcó la balanza (0,350 = 350 g); el servidor rechaza fracciones en lo que se
+  vende por unidad. El mostrador no tiene inventario propio: descuenta de los
+  mismos `ProductionLot` que genera la cocina, por FEFO.
 - Índices en todas las FKs y en columnas de filtrado frecuente.
 
 ## 4. Seguridad

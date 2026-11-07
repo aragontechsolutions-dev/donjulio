@@ -17,6 +17,7 @@ const { ADMIN, CAJERO, PRODUCCION, MOZO, DELIVERY } = UserRole;
  */
 export const NAV: NavItem[] = [
   { to: "/admin", label: "Dashboard", icon: "📊", end: true, roles: [ADMIN] },
+  { to: "/admin/mostrador", label: "Mostrador", icon: "🧺", roles: [ADMIN, CAJERO] },
   { to: "/admin/salon", label: "Salón / Mesas", icon: "🍽️", roles: [ADMIN, CAJERO, MOZO] },
   { to: "/admin/kds", label: "Cocina (KDS)", icon: "🔔", roles: [ADMIN, CAJERO, PRODUCCION, MOZO] },
   { to: "/admin/pedidos", label: "Pedidos", icon: "🧾", roles: [ADMIN, CAJERO, PRODUCCION, DELIVERY] },

@@ -42,6 +42,12 @@ enum IvaRate {
   BASICA // 22%
 }
 
+/// Cómo se cobra un producto en el mostrador: por unidad o por peso.
+enum UnidadVenta {
+  UNIDAD
+  KG
+}
+
 enum OrderChannel {
   WEB
   APP_CLIENTE
@@ -262,6 +268,9 @@ model Producto {
   /// cuando no hay stock. Para lo que se prepara al momento (café, tostados)
   /// va en false, que es como se comportaba todo hasta ahora.
   controlaStock    Boolean  @default(false)
+  /// Cómo se cobra en el mostrador. Con KG, `precio` es el precio por kilo y
+  /// lo que se vende es el peso que marcó la balanza.
+  unidadVenta      UnidadVenta @default(UNIDAD)
   requiereOctogono Boolean  @default(false) // Decreto 272/018 (rotulado frontal)
   stationId        String?
   station          Station? @relation(fields: [stationId], references: [id])
@@ -676,7 +685,10 @@ model PedidoItem {
   productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
   stationId        String?
   station          Station?        @relation(fields: [stationId], references: [id])
-  cantidad         Int
+  /// Decimal porque el mostrador vende por balanza: 0,350 son 350 g. En los
+  /// productos por unidad sigue siendo un entero.
+  cantidad         Decimal         @db.Decimal(12, 3)
+  /// Por unidad, o por kilo en lo que se vende pesado.
   precioUnitario   Decimal         @db.Decimal(12, 2)
   subtotal         Decimal         @db.Decimal(12, 2)
   // Tasa y montos congelados al momento de vender: si mañana cambia la tasa

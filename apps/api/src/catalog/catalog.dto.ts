@@ -13,7 +13,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { IvaRate } from "@donjulio/shared";
+import { IvaRate, UnidadVenta } from "@donjulio/shared";
 
 export class CreateCategoriaDto {
   @IsString()
@@ -55,6 +55,8 @@ export class CreateProductoDto {
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
   /** Si se vende de lo producido: bloquea la venta cuando no hay stock. */
   @IsOptional() @IsBoolean() controlaStock?: boolean;
+  /** Por unidad, o por peso en lo que se cobra con balanza. */
+  @IsOptional() @IsEnum(UnidadVenta) unidadVenta?: UnidadVenta;
 }
 
 export class UpdateProductoDto {
@@ -70,6 +72,7 @@ export class UpdateProductoDto {
   @IsOptional() @IsBoolean() esReventa?: boolean;
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
   @IsOptional() @IsBoolean() controlaStock?: boolean;
+  @IsOptional() @IsEnum(UnidadVenta) unidadVenta?: UnidadVenta;
 }
 
 /** Una línea del ajuste masivo de IVA. */

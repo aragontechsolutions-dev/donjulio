@@ -17,6 +17,7 @@ import { MermasModule } from "./mermas/mermas.module";
 import { CashModule } from "./cash/cash.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SalonModule } from "./salon/salon.module";
+import { MostradorModule } from "./mostrador/mostrador.module";
 import { CustomOrdersModule } from "./custom-orders/custom-orders.module";
 import { StaffModule } from "./staff/staff.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -50,6 +51,7 @@ import { HealthController } from "./health.controller";
     CashModule,
     ReportsModule,
     SalonModule,
+    MostradorModule,
     AutoservicioModule,
     CustomOrdersModule,
     StaffModule,

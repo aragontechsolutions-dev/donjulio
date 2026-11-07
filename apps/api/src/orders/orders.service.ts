@@ -17,6 +17,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   tasaAplicable,
+  UnidadVenta,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { PaymentsService } from "../integrations/payments/payments.service";
@@ -209,7 +210,7 @@ export class OrdersService {
         rutReceptor,
         lineas: pedido.items.map((it) => ({
           descripcion: it.producto.nombre,
-          cantidad: it.cantidad,
+          cantidad: num(it.cantidad),
           precioUnitario: num(it.precioUnitario),
         })),
       });
@@ -354,11 +355,28 @@ export class OrdersService {
         .map((id) => modifiers.find((m) => m.id === id))
         .filter((m): m is (typeof modifiers)[number] => !!m);
 
+      // Lo que se vende por unidad no admite medias unidades; lo que se vende
+      // por balanza sí, y el precio del producto es el precio por kilo.
+      const porPeso = producto.unidadVenta === UnidadVenta.KG;
+      const cantidad = Math.round(ci.cantidad * 1000) / 1000;
+      if (cantidad <= 0) {
+        throw new BadRequestException(
+          `La cantidad de “${producto.nombre}” tiene que ser mayor a cero.`,
+        );
+      }
+      if (!porPeso && !Number.isInteger(cantidad)) {
+        throw new BadRequestException(
+          `“${producto.nombre}” se vende por unidad: no se puede vender ${cantidad}.`,
+        );
+      }
+
       const unit =
         num(producto.precio) +
         num(variante?.precioDelta) +
         mods.reduce((a, m) => a + num(m.priceDelta), 0);
-      const lineSubtotal = unit * ci.cantidad;
+      // Se redondea la línea, no sólo el total: 0,347 kg × $420 da centésimos
+      // que ningún billete puede pagar, y el IVA se desglosa sobre lo cobrado.
+      const lineSubtotal = Math.round(unit * cantidad * 100) / 100;
       subtotal += lineSubtotal;
 
       return {
@@ -366,7 +384,7 @@ export class OrdersService {
         productVariantId: variante?.id,
         stationId: producto.stationId ?? undefined,
         sillaId: ci.sillaId,
-        cantidad: ci.cantidad,
+        cantidad,
         precioUnitario: unit,
         subtotal: lineSubtotal,
         ivaRate: tasaAplicable(

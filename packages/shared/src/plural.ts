@@ -1,3 +1,5 @@
+import { UnidadVenta } from "./enums";
+
 /**
  * Cómo se escribe "2 × Medialunas de manteca".
  *
@@ -129,12 +131,37 @@ export function pluralizarNombre(nombre: string): string {
 }
 
 /**
- * Cómo se muestra una línea de pedido: con cantidad y en plural si son varios.
+ * Un peso como lo diría una persona del mostrador: abajo del kilo, en gramos.
  *
- * (1, "Medialuna de manteca") → "Medialuna de manteca"
- * (2, "Medialuna de manteca") → "2 × Medialunas de manteca"
+ * 0.35  → "350 g"
+ * 1.25  → "1,250 kg"
  */
-export function lineaConCantidad(cantidad: number, nombre: string): string {
-  const n = Math.max(1, Math.round(cantidad || 1));
+export function formatearPeso(kg: number | string): string {
+  const n = Math.abs(typeof kg === "number" ? kg : Number(kg)) || 0;
+  if (n < 1) return `${Math.round(n * 1000)} g`;
+  return `${n.toFixed(3).replace(".", ",")} kg`;
+}
+
+/**
+ * Cómo se muestra una línea de pedido: con cantidad y en plural si son varios,
+ * o con el peso si el producto se vende por balanza.
+ *
+ * (1, "Medialuna de manteca")            → "Medialuna de manteca"
+ * (2, "Medialuna de manteca")            → "2 × Medialunas de manteca"
+ * (0.35, "Bizcocho de grasa", KG)        → "350 g de Bizcochos de grasa"
+ *
+ * `cantidad` acepta texto porque los decimales de la base viajan como string.
+ */
+export function lineaConCantidad(
+  cantidad: number | string,
+  nombre: string,
+  unidad: UnidadVenta = UnidadVenta.UNIDAD,
+): string {
+  const c = typeof cantidad === "number" ? cantidad : Number(cantidad);
+  if (unidad === UnidadVenta.KG) {
+    // En plural aunque sea poco: "350 g de bizcochos", no "de bizcocho".
+    return `${formatearPeso(c)} de ${pluralizarNombre(nombre)}`;
+  }
+  const n = Math.max(1, Math.round(c || 1));
   return n > 1 ? `${n} × ${pluralizarNombre(nombre)}` : nombre;
 }

@@ -76,7 +76,7 @@ export class ReportsService {
           cantidad: 0,
           total: 0,
         };
-        cur.cantidad += it.cantidad;
+        cur.cantidad += num(it.cantidad);
         cur.total += num(it.subtotal);
         prodMap.set(it.productoId, cur);
       }
