@@ -280,6 +280,7 @@ export class MostradorService {
           metodoPago: dto.metodoPago,
           monto: total,
           referencia: `Mostrador #${pedido.numero}`,
+          pedidoId: pedido.id,
           usuarioId,
         },
       }),
