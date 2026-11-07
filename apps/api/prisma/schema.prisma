@@ -668,6 +668,7 @@ model Pedido {
   eventos      OrderStatusEvent[]
   comprobantes Comprobante[]
   propinas     Propina[]
+  movimientosCaja CashMovement[]
 
   @@index([status])
   @@index([clienteId])
@@ -814,11 +815,16 @@ model CashMovement {
   metodoPago    PaymentMethod?
   monto         Decimal          @db.Decimal(12, 2)
   referencia    String?
+  /// Venta que originó el movimiento: sin esto, de una línea de caja no se
+  /// puede saber qué se vendió (la referencia es sólo un texto).
+  pedidoId      String?
+  pedido        Pedido?          @relation(fields: [pedidoId], references: [id])
   usuarioId     String?
   usuario       Usuario?         @relation(fields: [usuarioId], references: [id])
   createdAt     DateTime         @default(now())
 
   @@index([cashSessionId])
+  @@index([pedidoId])
 }
 
 model Shift {

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CashMovementType, PaymentMethod, resumirCaja } from "@donjulio/shared";
+import {
+  CashMovementType,
+  lineaConCantidad,
+  PaymentMethod,
+  resumirCaja,
+  UnidadVenta,
+} from "@donjulio/shared";
 import type { ResumenCaja } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import { formatUYUExacto as formatUYU } from "../../lib/format";
@@ -20,6 +26,25 @@ interface Session {
   movimientos: Movimiento[];
   /** Arqueo en vivo calculado por la API (misma cuenta que el cierre). */
   resumen?: ResumenCaja;
+}
+interface ItemVendido {
+  nombre: string;
+  unidadVenta: string;
+  cantidad: number;
+  subtotal: number;
+  modificadores: string[];
+}
+interface DetalleMovimiento {
+  usuario: string | null;
+  /** null en los movimientos que no son una venta del sistema. */
+  venta: {
+    numero: number;
+    canal: string;
+    total: number;
+    neto: number;
+    iva: number;
+    items: ItemVendido[];
+  } | null;
 }
 interface Arqueo {
   expected: number;
@@ -87,6 +112,23 @@ export default function CajaAdmin() {
   const [nuevos, setNuevos] = useState<Set<string>>(new Set());
   // Evita que dos refrescos se pisen si la red va lenta.
   const enVuelo = useRef(false);
+  // Detalle de qué se vendió en cada movimiento. Se pide al abrirlo y queda
+  // guardado: volver a abrirlo no vuelve a pegarle a la API.
+  const [detalleAbierto, setDetalleAbierto] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, DetalleMovimiento>>({});
+
+  const verDetalle = (id: string) => {
+    if (detalleAbierto === id) {
+      setDetalleAbierto(null);
+      return;
+    }
+    setDetalleAbierto(id);
+    if (detalles[id]) return;
+    api
+      .get<DetalleMovimiento>(`/admin/caja/movimientos/${id}`)
+      .then((d) => setDetalles((prev) => ({ ...prev, [id]: d })))
+      .catch(() => setDetalleAbierto(null));
+  };
 
   const load = useCallback(async () => {
     if (enVuelo.current) return;
@@ -421,26 +463,77 @@ export default function CajaAdmin() {
           <h3 className="mb-1 font-semibold text-crust-700">Movimientos ({session.movimientos.length})</h3>
           <p className="mb-3 text-xs text-crust-400">Se actualiza solo: los cobros del mozo aparecen acá sin recargar.</p>
           <ul className="max-h-80 space-y-1 overflow-auto text-sm">
-            {session.movimientos.map((m) => (
-              <li
-                key={m.id}
-                className={`flex items-center justify-between gap-2 border-b border-crust-50 py-1 ${nuevos.has(m.id) ? "-mx-2 rounded-lg bg-amber-50 px-2" : ""}`}
-              >
-                <span className="min-w-0 text-crust-600">
-                  <span className="block truncate">
-                    {tipoLabel(m.tipo)}{m.metodoPago ? ` · ${metodoLabel(m.metodoPago)}` : ""}
-                    {nuevos.has(m.id) && (
-                      <span className="ml-1.5 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-900">nuevo</span>
-                    )}
-                  </span>
-                  <span className="block text-xs text-crust-400">
-                    {new Date(m.createdAt).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}
-                    {m.referencia ? ` · ${m.referencia}` : ""}
-                  </span>
-                </span>
-                <span className={`shrink-0 tabular-nums ${m.tipo === "SALE" || m.tipo === "IN" ? "text-green-600" : "text-red-600"}`}>{formatUYU(m.monto)}</span>
-              </li>
-            ))}
+            {session.movimientos.map((m) => {
+              const abierto = detalleAbierto === m.id;
+              const det = detalles[m.id];
+              return (
+                <li
+                  key={m.id}
+                  className={`border-b border-crust-50 py-1 ${nuevos.has(m.id) ? "-mx-2 rounded-lg bg-amber-50 px-2" : ""}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => verDetalle(m.id)}
+                    aria-expanded={abierto}
+                    className="control-compacto flex w-full items-center justify-between gap-2 text-left hover:bg-crust-50"
+                  >
+                    <span className="min-w-0 text-crust-600">
+                      <span className="block truncate">
+                        <span className={`mr-1 inline-block w-3 text-crust-400 transition-transform ${abierto ? "rotate-90" : ""}`}>›</span>
+                        {tipoLabel(m.tipo)}{m.metodoPago ? ` · ${metodoLabel(m.metodoPago)}` : ""}
+                        {nuevos.has(m.id) && (
+                          <span className="ml-1.5 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-900">nuevo</span>
+                        )}
+                      </span>
+                      <span className="block pl-4 text-xs text-crust-400">
+                        {new Date(m.createdAt).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })}
+                        {m.referencia ? ` · ${m.referencia}` : ""}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 tabular-nums ${m.tipo === "SALE" || m.tipo === "IN" ? "text-green-600" : "text-red-600"}`}>{formatUYU(m.monto)}</span>
+                  </button>
+
+                  {abierto && (
+                    <div className="mb-1 ml-4 mt-1 rounded-lg bg-crust-50 px-3 py-2 text-xs">
+                      {!det ? (
+                        <p className="text-crust-400">Buscando el detalle…</p>
+                      ) : det.venta ? (
+                        <>
+                          <ul className="space-y-1">
+                            {det.venta.items.map((it, i) => (
+                              <li key={i} className="flex justify-between gap-3">
+                                <span className="text-crust-700">
+                                  {lineaConCantidad(
+                                    it.cantidad,
+                                    it.nombre,
+                                    it.unidadVenta === UnidadVenta.KG ? UnidadVenta.KG : UnidadVenta.UNIDAD,
+                                  )}
+                                  {it.modificadores.length > 0 && (
+                                    <span className="block text-crust-400">{it.modificadores.join(", ")}</span>
+                                  )}
+                                </span>
+                                <span className="shrink-0 tabular-nums text-crust-600">{formatUYU(it.subtotal)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 border-t border-crust-200 pt-1 text-crust-500">
+                            Pedido #{det.venta.numero} · neto {formatUYU(det.venta.neto)} · IVA {formatUYU(det.venta.iva)}
+                            {det.usuario ? ` · cobró ${det.usuario}` : ""}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-crust-500">
+                          {m.tipo === "SALE"
+                            ? "Venta cargada a mano: no tiene detalle de productos."
+                            : "Movimiento de caja, sin productos."}
+                          {det.usuario ? ` · ${det.usuario}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
             {session.movimientos.length === 0 && <li className="text-crust-400">Sin movimientos.</li>}
           </ul>
         </div>

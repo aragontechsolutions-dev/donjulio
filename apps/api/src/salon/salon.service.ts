@@ -712,6 +712,7 @@ export class SalonService {
             metodoPago: dto.metodoPago,
             monto: total,
             referencia: `Pedido #${pedido.numero}`,
+            pedidoId,
             usuarioId,
           },
         }),

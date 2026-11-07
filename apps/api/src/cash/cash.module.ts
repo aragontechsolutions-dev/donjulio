@@ -178,6 +178,62 @@ export class CashService {
     };
   }
 
+  /**
+   * Qué se vendió en un movimiento de caja.
+   *
+   * La referencia ("Mostrador #12") sólo sirve para reconocerlo de un vistazo;
+   * el detalle sale del pedido enlazado. Se devuelve lo justo para la pantalla:
+   * los costos del producto no tienen por qué viajar a la caja.
+   */
+  async detalleMovimiento(id: string) {
+    const mov = await this.prisma.cashMovement.findUnique({
+      where: { id },
+      include: {
+        usuario: { select: { nombre: true } },
+        pedido: {
+          include: {
+            items: {
+              include: {
+                producto: { select: { nombre: true, unidadVenta: true } },
+                modificadores: { select: { nombre: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!mov) throw new NotFoundException("Movimiento no encontrado");
+
+    return {
+      id: mov.id,
+      tipo: mov.tipo,
+      metodoPago: mov.metodoPago,
+      monto: num(mov.monto),
+      referencia: mov.referencia,
+      createdAt: mov.createdAt,
+      usuario: mov.usuario?.nombre ?? null,
+      // Los movimientos viejos (y los que no son venta) no tienen pedido.
+      venta: mov.pedido
+        ? {
+            numero: mov.pedido.numero,
+            canal: mov.pedido.channel,
+            total: num(mov.pedido.total),
+            neto: num(mov.pedido.neto),
+            iva: num(mov.pedido.ivaTotal),
+            items: mov.pedido.items.map((it) => ({
+              nombre: it.producto.nombre,
+              unidadVenta: it.producto.unidadVenta,
+              cantidad: num(it.cantidad),
+              precioUnitario: num(it.precioUnitario),
+              subtotal: num(it.subtotal),
+              ivaRate: it.ivaRate,
+              modificadores: it.modificadores.map((m) => m.nombre),
+            })),
+          }
+        : null,
+    };
+  }
+
   history() {
     return this.prisma.cashSession.findMany({
       where: { status: CashSessionStatus.CERRADA },
@@ -232,6 +288,12 @@ class CashController {
   @Get("historial")
   history() {
     return this.cash.history();
+  }
+
+  /** Qué se vendió en ese movimiento. */
+  @Get("movimientos/:id")
+  detalleMovimiento(@Param("id") id: string) {
+    return this.cash.detalleMovimiento(id);
   }
 
   @Post("abrir")
