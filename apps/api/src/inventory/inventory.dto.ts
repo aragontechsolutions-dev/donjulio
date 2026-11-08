@@ -45,6 +45,20 @@ export class StockEntryDto {
   @IsOptional() @IsString() vencimiento?: string;
 }
 
+/**
+ * Entrada de mercadería comprada hecha (reventa): suma al mismo stock del que
+ * descuenta la venta, el que llena la producción. Sin esto habría que cargar
+ * el mismo artículo dos veces, como insumo y como producto.
+ */
+export class EntradaProductoDto {
+  @IsNumber() @Min(0.001) cantidad!: number;
+  /** Lo que costó comprarlo: actualiza el costo del producto. */
+  @IsOptional() @IsNumber() @Min(0) costoUnitario?: number;
+  /** Nº de remito o lote, para poder rastrear la compra. */
+  @IsOptional() @IsString() lote?: string;
+  @IsOptional() @IsString() vencimiento?: string;
+}
+
 /** Ajuste absoluto: fija el stock a un valor (arqueo de inventario). */
 export class StockAdjustDto {
   @IsNumber() @Min(0) stockReal!: number;

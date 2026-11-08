@@ -101,7 +101,7 @@ const UNIDAD_ALIAS: Record<string, UnidadVenta> = {
 const plano = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
-/** Mismo slug que usa el catálogo, para poder reconocer un producto ya cargado. */
+/** Dirección web del producto. Sólo para los que se crean. */
 const aSlug = (s: string) =>
   plano(s)
     .replace(/[^a-z0-9]+/g, "-")
@@ -152,6 +152,45 @@ export class ImportacionService {
     return `${lineas.join("\r\n")}\r\n`;
   }
 
+  /**
+   * El catálogo actual en el formato de la plantilla.
+   *
+   * Sirve para editarlo en una planilla y volver a subirlo (el emparejamiento
+   * es por nombre, así que actualiza), y para llevarse el catálogo entero al
+   * mudar la base de servidor.
+   */
+  async exportarCsv(): Promise<string> {
+    const productos = await this.prisma.producto.findMany({
+      orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],
+      include: {
+        categoria: { select: { nombre: true } },
+        proveedor: { select: { nombre: true } },
+      },
+    });
+    const siNoTxt = (b: boolean) => (b ? "si" : "no");
+    const lineas = [
+      lineaCsv(ENCABEZADOS),
+      ...productos.map((p) =>
+        lineaCsv([
+          p.nombre,
+          p.categoria.nombre,
+          // Sin separador de miles ni símbolo: así vuelve a entrar sin tocarlo.
+          p.precio.toString(),
+          p.ivaRate,
+          p.unidadVenta,
+          p.descripcion ?? "",
+          siNoTxt(p.esReventa),
+          p.costoCompra?.toString() ?? "",
+          siNoTxt(p.controlaStock),
+          siNoTxt(p.disponible),
+          siNoTxt(p.destacado),
+          p.proveedor?.nombre ?? "",
+        ]),
+      ),
+    ];
+    return `${lineas.join("\r\n")}\r\n`;
+  }
+
   async procesar(csv: string, aplicar: boolean) {
     // Un .xlsx renombrado a .csv llega como binario: se nota por los NUL.
     if (csv.includes("\u0000")) {
@@ -179,16 +218,20 @@ export class ImportacionService {
     const [categorias, proveedores, productos] = await Promise.all([
       this.prisma.categoria.findMany({ select: { id: true, nombre: true, slug: true } }),
       this.prisma.proveedor.findMany({ select: { id: true, nombre: true } }),
-      this.prisma.producto.findMany({ select: { id: true, slug: true } }),
+      this.prisma.producto.findMany({ select: { id: true, nombre: true, slug: true } }),
     ]);
     const catPorNombre = new Map(categorias.map((c) => [plano(c.nombre), c]));
     const provPorNombre = new Map(proveedores.map((p) => [plano(p.nombre), p]));
-    const prodPorSlug = new Map(productos.map((p) => [p.slug, p]));
+    // Por nombre y no por slug: los slugs se escriben a mano ("torta-choco"),
+    // así que recalcularlos desde el nombre no reconocería el producto y la
+    // importación terminaría duplicando el catálogo en vez de actualizarlo.
+    const prodPorNombre = new Map(productos.map((p) => [plano(p.nombre), p]));
+    const slugsUsados = new Set(productos.map((p) => p.slug));
 
     // Categorías y proveedores que habría que crear, sin repetir.
     const categoriasNuevas = new Map<string, string>();
     const proveedoresNuevos = new Map<string, string>();
-    const slugsVistos = new Set<string>();
+    const nombresVistos = new Set<string>();
 
     const revisadas: FilaRevisada[] = filas.map((f, i) => {
       const errores: string[] = [];
@@ -218,11 +261,11 @@ export class ImportacionService {
         errores.push("El costo de compra no es un número.");
       }
 
-      const slug = aSlug(nombre);
-      if (slug && slugsVistos.has(slug)) {
+      const clave = plano(nombre);
+      if (clave && nombresVistos.has(clave)) {
         errores.push("El nombre está repetido en el archivo.");
       }
-      if (slug) slugsVistos.add(slug);
+      if (clave) nombresVistos.add(clave);
 
       if (categoria && !catPorNombre.has(plano(categoria))) {
         categoriasNuevas.set(plano(categoria), categoria);
@@ -233,7 +276,7 @@ export class ImportacionService {
         avisos.push(`Se va a crear el proveedor “${proveedor}”.`);
       }
 
-      const existe = slug ? prodPorSlug.has(slug) : false;
+      const existe = clave ? prodPorNombre.has(clave) : false;
       if (existe) avisos.push("Ya existe: se actualizan sus datos.");
 
       return {
@@ -272,7 +315,7 @@ export class ImportacionService {
       );
     }
 
-    const creados = await this.aplicar(revisadas, filas, catPorNombre, provPorNombre, prodPorSlug);
+    const creados = await this.aplicar(revisadas, filas, catPorNombre, provPorNombre, prodPorNombre, slugsUsados);
     return { aplicado: true, resumen, filas: revisadas, ...creados };
   }
 
@@ -282,7 +325,8 @@ export class ImportacionService {
     filas: Record<string, string>[],
     catPorNombre: Map<string, { id: string; nombre: string }>,
     provPorNombre: Map<string, { id: string; nombre: string }>,
-    prodPorSlug: Map<string, { id: string; slug: string }>,
+    prodPorNombre: Map<string, { id: string; nombre: string; slug: string }>,
+    slugsUsados: Set<string>,
   ) {
     // 1. Las categorías y proveedores que faltan, antes que nada.
     const ordenBase = await this.prisma.categoria.count();
@@ -329,11 +373,16 @@ export class ImportacionService {
         destacado: siNo(f.destacado) ?? false,
         proveedorId,
       };
-      const slug = aSlug(r.nombre);
-      const existente = prodPorSlug.get(slug);
-      return existente
-        ? this.prisma.producto.update({ where: { id: existente.id }, data: datos })
-        : this.prisma.producto.create({ data: { ...datos, slug } });
+      const existente = prodPorNombre.get(plano(r.nombre));
+      if (existente) {
+        return this.prisma.producto.update({ where: { id: existente.id }, data: datos });
+      }
+      // Slug libre: el del nombre puede estar tomado por otro producto.
+      const base = aSlug(r.nombre) || "producto";
+      let slug = base;
+      for (let n = 2; slugsUsados.has(slug); n++) slug = `${base}-${n}`;
+      slugsUsados.add(slug);
+      return this.prisma.producto.create({ data: { ...datos, slug } });
     });
     await this.prisma.$transaction(ops);
 
@@ -356,12 +405,12 @@ export class ImportacionService {
 
 @UseGuards(RolesGuard)
 @Roles(UserRole.ADMIN)
-@Controller("admin/productos/importar")
+@Controller("admin/productos")
 class ImportacionController {
   constructor(private readonly svc: ImportacionService) {}
 
   /** Plantilla vacía con ejemplos, para llenar en Excel o Google Sheets. */
-  @Get("plantilla")
+  @Get("importar/plantilla")
   @Header("Content-Type", "text/csv; charset=utf-8")
   @Header("Content-Disposition", 'attachment; filename="productos-don-julio.csv"')
   plantilla() {
@@ -369,7 +418,15 @@ class ImportacionController {
     return `﻿${this.svc.plantillaCsv()}`;
   }
 
-  @Post()
+  /** El catálogo actual, en el mismo formato que la plantilla. */
+  @Get("exportar")
+  @Header("Content-Type", "text/csv; charset=utf-8")
+  @Header("Content-Disposition", 'attachment; filename="catalogo-don-julio.csv"')
+  async exportar() {
+    return `\ufeff${await this.svc.exportarCsv()}`;
+  }
+
+  @Post("importar")
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_CSV_BYTES } }))
   importar(
     @Body() dto: ImportarDto,
