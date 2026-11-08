@@ -16,7 +16,9 @@
     "prisma:studio": "dotenv -e ../../.env -- prisma studio",
     "prisma:seed": "dotenv -e ../../.env -- ts-node prisma/seed.ts",
     "reset:produccion": "dotenv -e ../../.env -- ts-node prisma/reset-produccion.ts",
-    "provision:supabase": "dotenv -e ../../.env -- ts-node scripts/provision-supabase-users.ts"
+    "provision:supabase": "dotenv -e ../../.env -- ts-node scripts/provision-supabase-users.ts",
+    "migrar:storage": "dotenv -e ../../.env -- ts-node scripts/migrar-storage.ts",
+    "copiar:base": "dotenv -e ../../.env -- ts-node scripts/copiar-base.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

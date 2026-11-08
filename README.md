@@ -173,6 +173,12 @@ bucket de Storage, aprovisionar usuarios con roles, RLS, y desplegar en Render y
 Vercel). Archivos de despliegue incluidos: `render.yaml`, `apps/web/vercel.json`,
 `apps/pwa-mozo/vercel.json`.
 
+Para mudar la base de un proyecto Supabase a otro (por ejemplo acercarla a la
+región de la API, que es la diferencia entre 1,9 s y 0,4 s por consulta), la
+guía es **`docs/MIGRACION-USA.md`**, con los scripts `copiar:base` (copia los
+datos tabla por tabla, sin pg_dump ni Docker) y `migrar:storage` (muda las
+imágenes y corrige las URLs guardadas).
+
 ## Contexto Uruguay / Maldonado
 
 El sistema está pensado para el marco local: facturación electrónica (CFE) de
