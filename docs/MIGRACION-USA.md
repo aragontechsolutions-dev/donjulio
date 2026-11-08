@@ -203,10 +203,30 @@ Con el `.env` apuntando a la base nueva:
 pnpm --filter @donjulio/api prisma:deploy
 ```
 
-Eso crea las tablas vacías. El catálogo se importa después de poder entrar al
-panel (paso 7), desde **Productos → Carga masiva**, con el CSV que exportaste en
-el paso 0. La importación crea las categorías y los proveedores que falten, así
-que no hay que prepararlos antes.
+Eso crea las tablas vacías. Pero una base vacía no tiene con quién entrar al
+panel, y el catálogo se importa **desde** el panel: hay que crear primero al
+usuario. El seed no sirve acá, porque además de los usuarios carga catálogo de
+demo, mesas e insumos que después habría que borrar. Para una base que va a
+tener datos reales:
+
+```powershell
+$env:USUARIO_EMAIL="henry@donjulio.uy"
+$env:USUARIO_PASSWORD="<la contraseña que quieras, 8+ caracteres>"
+$env:USUARIO_NOMBRE="Henry"
+$env:USUARIO_ROL="ADMIN"
+pnpm --filter @donjulio/api crear:admin
+```
+
+Crea nada más que esa fila. Imprime también el número de empleado que le quedó
+para fichar en el tablet. Si se corre dos veces, la segunda corrige el rol, el
+nombre y la contraseña (sirve para recuperar el acceso si se perdió la clave).
+
+Con eso ya se puede entrar y subir el CSV desde **Productos → Carga masiva**.
+La importación crea las categorías y los proveedores que falten, así que no hay
+que prepararlos antes: de cada producto vienen el nombre, la categoría, el
+precio, el IVA, si se vende por unidad o por kilo, la descripción, si es
+reventa con su costo, si lleva stock, si está disponible, si es destacado, el
+proveedor y la foto.
 
 El CSV incluye la columna **Imagen** con la dirección de la foto de cada
 producto, así que las fotos se recuperan solas al importar. Para que esas
@@ -215,8 +235,8 @@ bucket (paso 7 con `SOLO_ARCHIVOS=1`), importar el CSV, y recién después
 reescribir las URLs (paso 7 con `SOLO_URLS=1`).
 
 Si exportaste el CSV con una versión anterior del sistema no va a tener esa
-columna: volvé a exportarlo desde el panel antes de mudarte, o cargá las fotos
-a mano después.
+columna: volvé a exportarlo desde el panel **antes** de borrar el proyecto
+viejo, o cargá las fotos a mano después.
 
 ---
 
@@ -235,8 +255,8 @@ Después, hay una distinción que cambia los pasos. En Render, mirá la variable
 
 El login lo hace la API con su propio JWT contra la tabla `Usuario`. El UID de
 Supabase Auth no se usa para nada. Con las rutas A y B el usuario ya vino en la
-copia y no hay nada que hacer. Con la C hay que crearlo (panel → Usuarios, o el
-seed) y ponerle una contraseña.
+copia y no hay nada que hacer. Con la C se crea con `crear:admin`, que es parte
+del paso 4C porque sin él no hay con quién entrar al panel.
 
 ### Si `AUTH_PROVIDER=supabase`
 
@@ -353,21 +373,38 @@ En este orden, y recién después borrar nada:
 4. Las miniaturas de los productos se ven (si no, falta el paso 7).
 5. Abrir caja, hacer una venta de mostrador de prueba, cerrarla. Es el camino
    que toca más tablas de una vez.
-6. En la ruta C: importar el CSV del catálogo y revisar precios, IVA y
-   "se vende por" de dos o tres productos.
+6. En la ruta C: el CSV ya importado, con los precios, el IVA y el
+   "se vende por" revisados en dos o tres productos.
 7. Escanear un QR de mesa y ver que el autoservicio levante el menú.
 
 ## 10. Borrar el proyecto viejo
 
-**Recién cuando los 7 puntos del paso 9 pasen**, y dejando pasar unos días por
-si aparece algo. El proyecto viejo no molesta: en free no cuesta nada y queda
-como respaldo caliente.
+Es lo **último**, no lo primero, y no tiene vuelta atrás. Mientras no se haya
+hecho el paso 8, el proyecto viejo **es** el sistema en producción: borrarlo
+deja el local sin software.
 
-Para borrarlo: Settings → General → Delete project. No tiene vuelta atrás.
+Aunque no quieras conservar ningún dato, el proyecto viejo sigue guardando dos
+cosas que el CSV no lleva:
 
-Antes de borrarlo, confirmá que las miniaturas del panel ya **no** apunten al
-dominio viejo: click derecho en una foto → copiar dirección de la imagen, y
-mirar que diga `<ref-nuevo>.supabase.co`.
+- **Los archivos de las fotos.** El CSV lleva la dirección de cada foto, no la
+  foto. Si el proyecto viejo ya no está, esas direcciones no llevan a ninguna
+  parte y hay que volver a subir cada imagen a mano.
+- **La posibilidad de volver atrás.** Es el único respaldo de lo que había.
+
+En free no cuesta nada tenerlo ahí, así que no hay apuro.
+
+Lista para borrarlo tranquilo:
+
+- [ ] El CSV del catálogo está bajado **y abierto**, con la columna `Imagen`
+      llena (si falta, exportalo de nuevo del panel viejo antes de nada).
+- [ ] Las fotos ya están en el bucket del proyecto nuevo (paso 7).
+- [ ] Los 7 puntos del paso 9 pasan contra el proyecto nuevo.
+- [ ] Las miniaturas del panel **no** apuntan al dominio viejo: click derecho
+      en una foto → copiar dirección de la imagen, y que diga
+      `<ref-nuevo>.supabase.co`.
+- [ ] Pasaron unos días operando sobre la base nueva sin sorpresas.
+
+Recién ahí: Settings → General → Delete project.
 
 ## Si algo sale mal
 
