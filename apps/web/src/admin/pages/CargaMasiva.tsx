@@ -124,7 +124,8 @@ export default function CargaMasiva({ onCerrar, onAplicado }: { onCerrar: () => 
             <p className="mb-2 text-crust-500">
               La <b>plantilla</b> viene vacía, con los encabezados y tres ejemplos. El{" "}
               <b>catálogo actual</b> trae todos tus productos en el mismo formato: lo editás y lo
-              volvés a subir, o te lo llevás si mudás la base de servidor.
+              volvés a subir, o te lo llevás si mudás la base de servidor. Incluye la dirección de
+              cada foto, así que las fotos también viajan.
             </p>
             <div className="flex flex-wrap gap-2">
               <button
