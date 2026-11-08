@@ -55,8 +55,8 @@ const MEDIOS: [PaymentMethod, string][] = [
 ];
 /** Billetes uruguayos frecuentes, para el vuelto. */
 const BILLETES = [200, 500, 1000, 2000];
-/** Pesos de atajo para la balanza, en gramos. */
-const PESOS_RAPIDOS = [100, 250, 500, 1000];
+/** Pesos de atajo, en kilos: lo que marca la balanza. */
+const PESOS_RAPIDOS = [0.25, 0.5, 1, 2];
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 /** Compara sin acentos ni mayúsculas, como busca una persona apurada. */
@@ -69,7 +69,7 @@ export default function MostradorAdmin() {
   const [catSel, setCatSel] = useState<string>("");
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
   const [pesando, setPesando] = useState<ProductoMostrador | null>(null);
-  const [gramos, setGramos] = useState("");
+  const [kilos, setKilos] = useState("");
   const [metodo, setMetodo] = useState<PaymentMethod>(PaymentMethod.EFECTIVO);
   const [recibido, setRecibido] = useState("");
   const [cobrando, setCobrando] = useState(false);
@@ -128,7 +128,7 @@ export default function MostradorAdmin() {
   const elegir = (p: ProductoMostrador) => {
     if (sinStock(p)) return;
     if (p.unidadVenta === UnidadVenta.KG) {
-      setGramos("");
+      setKilos("");
       setPesando(p);
       return;
     }
@@ -137,11 +137,12 @@ export default function MostradorAdmin() {
 
   const confirmarPeso = () => {
     if (!pesando) return;
-    const g = Number(gramos);
-    if (!Number.isFinite(g) || g <= 0) return;
-    agregar(pesando, Math.round(g) / 1000);
+    const kg = Number(kilos);
+    if (!Number.isFinite(kg) || kg <= 0) return;
+    // La balanza no da más de tres decimales (el gramo).
+    agregar(pesando, Math.round(kg * 1000) / 1000);
     setPesando(null);
-    setGramos("");
+    setKilos("");
     buscarRef.current?.focus();
   };
 
@@ -504,34 +505,34 @@ export default function MostradorAdmin() {
             </p>
 
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-crust-700">Peso de la balanza (gramos)</span>
+              <span className="mb-1 block text-sm font-medium text-crust-700">Peso de la balanza (kg)</span>
               <input
-                type="number" min="1" step="1" inputMode="numeric" autoFocus placeholder="Ej: 350"
-                value={gramos}
-                onChange={(e) => setGramos(e.target.value)}
+                type="number" min="0.001" step="0.001" inputMode="decimal" autoFocus placeholder="Ej: 0,350"
+                value={kilos}
+                onChange={(e) => setKilos(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") confirmarPeso(); }}
                 className="w-full rounded-xl border border-crust-200 px-3 py-3 text-2xl tabular-nums"
               />
             </label>
 
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {PESOS_RAPIDOS.map((g) => (
+              {PESOS_RAPIDOS.map((kg) => (
                 <button
-                  key={g}
-                  onClick={() => setGramos(String(g))}
+                  key={kg}
+                  onClick={() => setKilos(String(kg))}
                   className="control-compacto rounded-md border border-crust-200 px-2.5 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100"
                 >
-                  {g >= 1000 ? `${g / 1000} kg` : `${g} g`}
+                  {String(kg).replace(".", ",")} kg
                 </button>
               ))}
             </div>
 
             <div className="mt-3 flex items-baseline justify-between rounded-xl bg-crust-50 px-3 py-2">
               <span className="text-sm text-crust-600">
-                {Number(gramos) > 0 ? formatearPeso(Number(gramos) / 1000) : "—"}
+                {Number(kilos) > 0 ? formatearPeso(Number(kilos)) : "—"}
               </span>
               <span className="font-display text-xl font-bold text-crust-900 tabular-nums">
-                {formatUYU(((Number(gramos) || 0) / 1000) * pesando.precio)}
+                {formatUYU((Number(kilos) || 0) * pesando.precio)}
               </span>
             </div>
 
@@ -544,7 +545,7 @@ export default function MostradorAdmin() {
               </button>
               <button
                 onClick={confirmarPeso}
-                disabled={!(Number(gramos) > 0)}
+                disabled={!(Number(kilos) > 0)}
                 className="flex-1 rounded-xl bg-dj-terracota py-3 font-semibold text-white hover:bg-dj-cobre disabled:opacity-50"
               >
                 Agregar

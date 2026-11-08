@@ -14,7 +14,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { lineaConCantidad, pluralizarNombre } = require("../packages/shared/dist/cjs/index.js");
+const { formatearPeso, lineaConCantidad, pluralizarNombre, UnidadVenta } = require("../packages/shared/dist/cjs/index.js");
 
 const CASOS = [
   // núcleo + complemento: sólo se pluraliza el núcleo
@@ -70,8 +70,29 @@ if (lineaConCantidad(2, "Medialuna de manteca") !== "2 × Medialunas de manteca"
   console.error("✗ con cantidad 2 debería mostrarse «2 × Medialunas de manteca»");
 }
 
+// Peso: siempre en kilos, que es la unidad de la balanza. Mostrar gramos en
+// una pantalla y kilos en otra obliga a convertir de cabeza en el mostrador.
+const PESOS = [
+  [0.35, "0,350 kg"],
+  [1.25, "1,250 kg"],
+  [2, "2,000 kg"],
+  [0.008, "0,008 kg"],
+];
+for (const [kg, esperado] of PESOS) {
+  const obtenido = formatearPeso(kg);
+  if (obtenido !== esperado) {
+    fallas++;
+    console.error(`✗ formatearPeso(${kg}) → "${obtenido}" (se esperaba "${esperado}")`);
+  }
+}
+const porPeso = lineaConCantidad(0.35, "Bizcocho de grasa", UnidadVenta.KG);
+if (porPeso !== "0,350 kg de Bizcochos de grasa") {
+  fallas++;
+  console.error(`✗ línea por peso → "${porPeso}"`);
+}
+
 if (fallas > 0) {
   console.error(`\n${fallas} caso(s) de plural fallando.`);
   process.exit(1);
 }
-console.log(`Plurales OK: ${CASOS.length + 2} casos.`);
+console.log(`Plurales OK: ${CASOS.length + 2 + PESOS.length + 1} casos.`);
