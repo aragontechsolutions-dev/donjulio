@@ -8,6 +8,7 @@ import {
   INSUMOS_POR_PAGINA,
   ListInsumosQueryDto,
   StockAdjustDto,
+  EntradaProductoDto,
   StockEntryDto,
   UpdateInsumoDto,
 } from "./inventory.dto";
@@ -263,6 +264,52 @@ export class InventoryService {
       }),
     );
     return ops;
+  }
+
+  /**
+   * Entrada de mercadería que se compra ya hecha y se revende.
+   *
+   * Va al mismo stock que la producción (`ProductionLot`), que es de donde
+   * descuenta la venta: un lote sin orden de producción es, justamente, una
+   * compra. Así una botella se carga una sola vez, como producto, y no hay
+   * que duplicarla también como insumo para poder darle entrada.
+   */
+  async registrarEntradaProducto(productoId: string, dto: EntradaProductoDto) {
+    const producto = await this.prisma.producto.findUnique({
+      where: { id: productoId },
+      select: { id: true, nombre: true, controlaStock: true },
+    });
+    if (!producto) throw new NotFoundException("Producto no encontrado");
+    if (!producto.controlaStock) {
+      throw new BadRequestException(
+        `“${producto.nombre}” no lleva control de stock, así que no tiene sentido darle entrada. Activá “Lleva control de stock” en su ficha.`,
+      );
+    }
+
+    const hoy = new Date();
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.productionLot.create({
+        data: {
+          productoId,
+          lote: dto.lote?.trim() || `COMPRA-${hoy.toISOString().slice(0, 10)}`,
+          qty: dto.cantidad,
+          expiresAt: dto.vencimiento ? new Date(dto.vencimiento) : null,
+        },
+      }),
+    ];
+    // El último costo de compra es la mejor referencia para el margen.
+    if (dto.costoUnitario != null) {
+      ops.push(
+        this.prisma.producto.update({
+          where: { id: productoId },
+          data: { costoCompra: dto.costoUnitario },
+        }),
+      );
+    }
+    await this.prisma.$transaction(ops);
+
+    const stock = await this.stockProductos([productoId]);
+    return { ok: true, productoId, stock: stock.get(productoId) ?? 0 };
   }
 
   async registrarEntrada(insumoId: string, dto: StockEntryDto, usuarioId?: string) {

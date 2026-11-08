@@ -141,6 +141,8 @@ export default function ProductosAdmin() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [cargaMasiva, setCargaMasiva] = useState(false);
+  const [entrada, setEntrada] = useState<Producto | null>(null);
+  const [entradaForm, setEntradaForm] = useState({ cantidad: "", costoUnitario: "", lote: "", vencimiento: "" });
   const [costeo, setCosteo] = useState<Record<string, ProductoCosteo>>({});
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -675,6 +677,15 @@ export default function ProductosAdmin() {
                       >
                         Editar
                       </button>
+                      {p.controlaStock && (
+                        <button
+                          onClick={() => setEntrada(p)}
+                          className="ml-1 rounded-lg px-2 py-1 text-xs font-semibold text-crust-600 hover:bg-crust-100"
+                          title="Cargar una compra al stock"
+                        >
+                          Entrada
+                        </button>
+                      )}
                       <button
                         onClick={() => abrirRotulado(p)}
                         className={`ml-1 rounded-lg px-2 py-1 text-xs font-semibold ${
@@ -870,24 +881,33 @@ export default function ProductosAdmin() {
                 </label>
               </div>
 
-              {!form.esReventa && (
-                <label className="mt-3 flex items-start gap-2 rounded-lg border border-crust-100 bg-crust-50 p-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={form.controlaStock}
-                    onChange={(e) => setForm({ ...form, controlaStock: e.target.checked })}
-                  />
-                  <span>
-                    <b className="block text-sm text-crust-800">Se vende de lo producido</b>
-                    <span className="text-xs text-crust-500">
-                      La venta descuenta de las tandas producidas y se bloquea si no hay stock.
-                      Marcalo para el pan y la pastelería que horneás por tanda; dejalo sin marcar
-                      para lo que se prepara al momento (café, tostados).
-                    </span>
+              {/* También para la reventa: una botella comprada necesita llevar
+                  stock, y antes esto sólo aparecía en lo elaborado. */}
+              <label className="mt-3 flex items-start gap-2 rounded-lg border border-crust-100 bg-crust-50 p-3">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={form.controlaStock}
+                  onChange={(e) => setForm({ ...form, controlaStock: e.target.checked })}
+                />
+                <span>
+                  <b className="block text-sm text-crust-800">Lleva control de stock</b>
+                  <span className="text-xs text-crust-500">
+                    {form.esReventa ? (
+                      <>
+                        La venta descuenta de lo que compraste y se bloquea si no hay. Las compras
+                        se cargan con el botón <b>Entrada</b> de la tabla.
+                      </>
+                    ) : (
+                      <>
+                        La venta descuenta de las tandas producidas y se bloquea si no hay stock.
+                        Marcalo para el pan y la pastelería que horneás por tanda; dejalo sin marcar
+                        para lo que se prepara al momento (café, tostados).
+                      </>
+                    )}
                   </span>
-                </label>
-              )}
+                </span>
+              </label>
 
               {editando !== "nuevo" && !form.esReventa && !editando.receta && (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -1296,6 +1316,115 @@ export default function ProductosAdmin() {
 
       {cargaMasiva && (
         <CargaMasiva onCerrar={() => setCargaMasiva(false)} onAplicado={load} />
+      )}
+
+      {/* Entrada de mercadería: suma al mismo stock del que descuenta la venta. */}
+      {entrada && (
+        <Modal
+          onClose={() => setEntrada(null)}
+          title={`Entrada de stock · ${entrada.nombre}`}
+          subtitle="Mercadería comprada que entra al stock de venta"
+          ancho="max-w-lg"
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const cantidad = Number(entradaForm.cantidad);
+              if (!(cantidad > 0)) return;
+              try {
+                await api.post(
+                  `/admin/inventario/productos/${entrada.id}/entrada`,
+                  {
+                    cantidad,
+                    ...(entradaForm.costoUnitario !== "" ? { costoUnitario: Number(entradaForm.costoUnitario) } : {}),
+                    ...(entradaForm.lote.trim() ? { lote: entradaForm.lote.trim() } : {}),
+                    ...(entradaForm.vencimiento ? { vencimiento: entradaForm.vencimiento } : {}),
+                  },
+                  { sinToast: true },
+                );
+                showToast("success", `Entrada cargada en “${entrada.nombre}” ✓`);
+                setEntrada(null);
+                setEntradaForm({ cantidad: "", costoUnitario: "", lote: "", vencimiento: "" });
+                load();
+              } catch {
+                /* el toast de error lo dispara el api client */
+              }
+            }}
+            className="space-y-3"
+          >
+            <p className="text-sm text-crust-500">
+              Stock ahora: <b className="text-crust-700">{entrada.stockProducido ?? 0}</b>
+              {entrada.unidadVenta === UnidadVenta.KG ? " kg" : " u"}. Lo que cargues acá se suma al
+              stock del que descuenta la venta.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">
+                  Cantidad que entra {entrada.unidadVenta === UnidadVenta.KG ? "(kg)" : "(unidades)"}
+                </span>
+                <input
+                  type="number" step="0.001" min="0.001" inputMode="decimal" autoFocus required
+                  value={entradaForm.cantidad}
+                  onChange={(e) => setEntradaForm({ ...entradaForm, cantidad: e.target.value })}
+                  placeholder={entrada.unidadVenta === UnidadVenta.KG ? "Ej: 12,5" : "Ej: 24"}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2 tabular-nums"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Costo de compra</span>
+                <input
+                  type="number" step="0.01" min="0" inputMode="decimal"
+                  value={entradaForm.costoUnitario}
+                  onChange={(e) => setEntradaForm({ ...entradaForm, costoUnitario: e.target.value })}
+                  placeholder="Opcional"
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2 tabular-nums"
+                />
+                <span className="mt-1 block text-xs text-crust-400">
+                  Si lo cargás, queda como el costo del producto.
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Remito o lote</span>
+                <input
+                  value={entradaForm.lote}
+                  onChange={(e) => setEntradaForm({ ...entradaForm, lote: e.target.value })}
+                  placeholder="Opcional"
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Vence el</span>
+                <input
+                  type="date"
+                  value={entradaForm.vencimiento}
+                  onChange={(e) => setEntradaForm({ ...entradaForm, vencimiento: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                />
+                <span className="mt-1 block text-xs text-crust-400">
+                  Se vende primero lo que vence antes.
+                </span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEntrada(null)}
+                className="rounded-xl border border-crust-200 px-5 py-2.5 font-semibold text-crust-700 hover:bg-crust-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={!(Number(entradaForm.cantidad) > 0)}
+                className="flex-1 rounded-xl bg-dj-terracota py-2.5 font-semibold text-white hover:bg-dj-cobre disabled:opacity-50"
+              >
+                Cargar entrada
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import { InventoryService } from "./inventory.service";
 import {
   BulkEntryDto,
   CreateInsumoDto,
+  EntradaProductoDto,
   ListInsumosQueryDto,
   StockAdjustDto,
   StockEntryDto,
@@ -58,6 +59,12 @@ export class InventoryController {
   @Post("entradas")
   entradas(@Body() dto: BulkEntryDto, @CurrentUser() user: AuthUser) {
     return this.inv.registrarEntradas(dto, user.id);
+  }
+
+  /** Entrada de mercadería comprada hecha: suma al stock del producto. */
+  @Post("productos/:id/entrada")
+  entradaProducto(@Param("id") id: string, @Body() dto: EntradaProductoDto) {
+    return this.inv.registrarEntradaProducto(id, dto);
   }
 
   @Post("insumos/:id/entrada")

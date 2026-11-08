@@ -52,10 +52,10 @@ export default function CargaMasiva({ onCerrar, onAplicado }: { onCerrar: () => 
   const [trabajando, setTrabajando] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  /** La plantilla se baja con fetch porque necesita el token de la sesión. */
-  const bajarPlantilla = async () => {
+  /** Las descargas van con fetch porque necesitan el token de la sesión. */
+  const bajar = async (ruta: string, nombre: string, queEs: string) => {
     try {
-      const r = await fetch(`${BASE}/admin/productos/importar/plantilla`, {
+      const r = await fetch(`${BASE}${ruta}`, {
         headers: { authorization: `Bearer ${tokenStore.get() ?? ""}` },
       });
       if (!r.ok) throw new Error();
@@ -63,11 +63,11 @@ export default function CargaMasiva({ onCerrar, onAplicado }: { onCerrar: () => 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "productos-don-julio.csv";
+      a.download = nombre;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      showToast("error", "No se pudo descargar la plantilla.");
+      showToast("error", `No se pudo descargar ${queEs}.`);
     }
   };
 
@@ -120,17 +120,26 @@ export default function CargaMasiva({ onCerrar, onAplicado }: { onCerrar: () => 
 
         <ol className="space-y-3 text-sm">
           <li className="rounded-xl border border-crust-100 bg-crust-50 p-3">
-            <p className="font-semibold text-crust-800">1. Descargá la plantilla</p>
+            <p className="font-semibold text-crust-800">1. Partí de una planilla</p>
             <p className="mb-2 text-crust-500">
-              Viene con los encabezados y tres ejemplos. Abrila en Excel o Google Sheets, borrá los
-              ejemplos y cargá tus productos debajo.
+              La <b>plantilla</b> viene vacía, con los encabezados y tres ejemplos. El{" "}
+              <b>catálogo actual</b> trae todos tus productos en el mismo formato: lo editás y lo
+              volvés a subir, o te lo llevás si mudás la base de servidor.
             </p>
-            <button
-              onClick={bajarPlantilla}
-              className="rounded-lg border border-crust-200 bg-white px-3 py-1.5 font-medium text-crust-700 hover:bg-crust-100"
-            >
-              Descargar plantilla CSV
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => bajar("/admin/productos/importar/plantilla", "productos-don-julio.csv", "la plantilla")}
+                className="rounded-lg border border-crust-200 bg-white px-3 py-1.5 font-medium text-crust-700 hover:bg-crust-100"
+              >
+                Descargar plantilla vacía
+              </button>
+              <button
+                onClick={() => bajar("/admin/productos/exportar", "catalogo-don-julio.csv", "el catálogo")}
+                className="rounded-lg border border-crust-200 bg-white px-3 py-1.5 font-medium text-crust-700 hover:bg-crust-100"
+              >
+                Descargar catálogo actual
+              </button>
+            </div>
           </li>
 
           <li className="rounded-xl border border-crust-100 bg-crust-50 p-3">
