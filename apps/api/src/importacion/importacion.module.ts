@@ -50,26 +50,95 @@ const COLUMNAS = [
   "proveedor",
 ] as const;
 
-/** Encabezados tal cual se escriben en el archivo que descarga el usuario. */
+/**
+ * Encabezados del archivo que se descarga: en castellano, como los leería
+ * cualquiera en una planilla. Los nombres internos siguen aceptándose al
+ * importar (ver ALIAS_COLUMNA), así que un archivo viejo sigue entrando.
+ */
 const ENCABEZADOS = [
-  "nombre",
-  "categoria",
-  "precio",
-  "iva",
-  "unidadVenta",
-  "descripcion",
-  "esReventa",
-  "costoCompra",
-  "controlaStock",
-  "disponible",
-  "destacado",
-  "proveedor",
+  "Producto",
+  "Categoría",
+  "Precio",
+  "IVA",
+  "Se vende por",
+  "Descripción",
+  "Es reventa",
+  "Costo de compra",
+  "Lleva stock",
+  "Disponible",
+  "Destacado",
+  "Proveedor",
 ];
 
+/**
+ * Cómo se llama cada columna en el archivo → nombre interno.
+ *
+ * Las claves están normalizadas (sin acentos, sin espacios, en minúscula),
+ * que es como las deja el parser. Se aceptan varias formas porque nadie
+ * escribe el encabezado igual dos veces.
+ */
+const ALIAS_COLUMNA: Record<string, string> = {
+  producto: "nombre",
+  nombre: "nombre",
+  articulo: "nombre",
+  categoria: "categoria",
+  rubro: "categoria",
+  precio: "precio",
+  preciodeventa: "precio",
+  precioventa: "precio",
+  iva: "iva",
+  tasadeiva: "iva",
+  tasaiva: "iva",
+  sevendepor: "unidadventa",
+  unidadventa: "unidadventa",
+  unidad: "unidadventa",
+  descripcion: "descripcion",
+  esreventa: "esreventa",
+  reventa: "esreventa",
+  secomprahecho: "esreventa",
+  costodecompra: "costocompra",
+  costocompra: "costocompra",
+  costo: "costocompra",
+  llevastock: "controlastock",
+  controlastock: "controlastock",
+  stock: "controlastock",
+  disponible: "disponible",
+  destacado: "destacado",
+  proveedor: "proveedor",
+};
+
+/**
+ * Punto y coma, no coma.
+ *
+ * El Excel en español usa `;` como separador de listas: con comas abre todo
+ * el renglón en una sola celda y el archivo se vuelve ilegible para quien se
+ * guía por columnas. Al importar da igual, porque el separador se detecta.
+ */
+const SEPARADOR = ";";
+
+/** Decimales con coma, que es como los escribe y los lee un Excel en español. */
+const numeroCsv = (n: unknown) => (n == null ? "" : String(n).replace(".", ","));
+
+/**
+ * Cómo se escriben los valores en el archivo que se descarga.
+ *
+ * "10%" y "Kilo" en vez de MINIMA y KG: el que llena la planilla no tiene por
+ * qué conocer los nombres internos. Al importar se aceptan las dos formas.
+ */
+const IVA_TEXTO: Record<string, string> = {
+  [IvaRate.BASICA]: "22%",
+  [IvaRate.MINIMA]: "10%",
+  [IvaRate.EXENTO]: "Exento",
+};
+const UNIDAD_TEXTO: Record<string, string> = {
+  [UnidadVenta.UNIDAD]: "Unidad",
+  [UnidadVenta.KG]: "Kilo",
+};
+
 const EJEMPLOS = [
-  ["Pan de campo", "Panes", "120", "MINIMA", "UNIDAD", "Masa madre, corteza crocante", "no", "", "si", "si", "no", ""],
-  ["Bizcochos de grasa", "Bizcochos", "420", "MINIMA", "KG", "Precio por kilo", "no", "", "si", "si", "no", ""],
-  ["Agua mineral 500ml", "Cafetería", "70", "BASICA", "UNIDAD", "", "si", "38", "no", "si", "no", "Distribuidora del Este"],
+  ["Pan de campo", "Panes", "120", "10%", "Unidad", "Masa madre, corteza crocante", "no", "", "si", "si", "no", ""],
+  ["Bizcochos de grasa", "Bizcochos", "420", "10%", "Kilo", "Precio por kilo", "no", "", "si", "si", "no", ""],
+  ["Agua mineral 500ml", "Cafetería", "70", "22%", "Unidad", "", "si", "38", "no", "si", "no", "Distribuidora del Este"],
 ];
 
 /** Sinónimos aceptados para la tasa de IVA. */
@@ -97,6 +166,15 @@ const UNIDAD_ALIAS: Record<string, UnidadVenta> = {
   peso: UnidadVenta.KG,
   balanza: UnidadVenta.KG,
 };
+
+/** Pasa los encabezados del archivo a los nombres internos. */
+function renombrarColumnas(fila: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(fila)) {
+    out[ALIAS_COLUMNA[k] ?? k] = v;
+  }
+  return out;
+}
 
 const plano = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
@@ -146,8 +224,8 @@ export class ImportacionService {
   /** La plantilla que se descarga: encabezados, ejemplos y la ayuda al pie. */
   plantillaCsv(): string {
     const lineas = [
-      lineaCsv(ENCABEZADOS),
-      ...EJEMPLOS.map((e) => lineaCsv(e)),
+      lineaCsv(ENCABEZADOS, SEPARADOR),
+      ...EJEMPLOS.map((e) => lineaCsv(e, SEPARADOR)),
     ];
     return `${lineas.join("\r\n")}\r\n`;
   }
@@ -169,23 +247,24 @@ export class ImportacionService {
     });
     const siNoTxt = (b: boolean) => (b ? "si" : "no");
     const lineas = [
-      lineaCsv(ENCABEZADOS),
+      lineaCsv(ENCABEZADOS, SEPARADOR),
       ...productos.map((p) =>
         lineaCsv([
           p.nombre,
           p.categoria.nombre,
-          // Sin separador de miles ni símbolo: así vuelve a entrar sin tocarlo.
-          p.precio.toString(),
-          p.ivaRate,
-          p.unidadVenta,
+          // Sin separador de miles ni símbolo, y con coma decimal: así el
+          // Excel en español lo toma como número y no como texto.
+          numeroCsv(p.precio),
+          IVA_TEXTO[p.ivaRate] ?? p.ivaRate,
+          UNIDAD_TEXTO[p.unidadVenta] ?? p.unidadVenta,
           p.descripcion ?? "",
           siNoTxt(p.esReventa),
-          p.costoCompra?.toString() ?? "",
+          numeroCsv(p.costoCompra),
           siNoTxt(p.controlaStock),
           siNoTxt(p.disponible),
           siNoTxt(p.destacado),
           p.proveedor?.nombre ?? "",
-        ]),
+        ], SEPARADOR),
       ),
     ];
     return `${lineas.join("\r\n")}\r\n`;
@@ -198,7 +277,7 @@ export class ImportacionService {
         "El archivo no es un CSV. Si lo armaste en Excel, usá “Guardar como → CSV”.",
       );
     }
-    const filas = filasDeCsv(csv);
+    const filas = filasDeCsv(csv).map(renombrarColumnas);
     if (filas.length === 0) {
       throw new BadRequestException(
         "El archivo no tiene filas. Descargá la plantilla y cargá los productos debajo de los encabezados.",
@@ -211,7 +290,7 @@ export class ImportacionService {
     }
     if (!Object.keys(filas[0]).includes("nombre")) {
       throw new BadRequestException(
-        "No se encontró la columna “nombre”. ¿Descargaste la plantilla? Los encabezados tienen que estar en la primera fila.",
+        "No se encontró la columna “Producto”. ¿Descargaste la plantilla? Los encabezados tienen que estar en la primera fila.",
       );
     }
 

@@ -29,6 +29,20 @@ interface Session {
   /** Arqueo en vivo calculado por la API (misma cuenta que el cierre). */
   resumen?: ResumenCaja;
 }
+interface ProductoVendido {
+  productoId: string;
+  nombre: string;
+  unidadVenta: string;
+  cantidad: number;
+  total: number;
+}
+interface Vendido {
+  productos: ProductoVendido[];
+  total: number;
+  ventas: number;
+  /** Ventas cargadas a mano, que no tienen productos. */
+  sinDetalle: { cantidad: number; total: number };
+}
 interface Arqueo {
   expected: number;
   difference: number;
@@ -76,6 +90,10 @@ export default function CajaAdmin() {
   const [nuevos, setNuevos] = useState<Set<string>>(new Set());
   // Evita que dos refrescos se pisen si la red va lenta.
   const enVuelo = useRef(false);
+  // Qué se vendió en el turno. Se vuelve a pedir sólo cuando cambió la
+  // cantidad de movimientos: no tiene sentido rehacer la suma cada 5 s.
+  const [vendido, setVendido] = useState<Vendido | null>(null);
+  const movsContados = useRef(-1);
   const load = useCallback(async () => {
     if (enVuelo.current) return;
     enVuelo.current = true;
@@ -84,6 +102,16 @@ export default function CajaAdmin() {
       setSession(s);
       setSyncCaida(false);
       setUltimaSync(new Date());
+      if (!s) {
+        setVendido(null);
+        movsContados.current = -1;
+      } else if (s.movimientos.length !== movsContados.current) {
+        movsContados.current = s.movimientos.length;
+        api
+          .get<Vendido>(`/admin/caja/${s.id}/vendido`)
+          .then(setVendido)
+          .catch(() => {});
+      }
       const ids = new Set((s?.movimientos ?? []).map((m) => m.id));
       if (vistos.current === null) {
         // Primera carga: nada es "nuevo", ya estaba ahí al entrar.
@@ -462,6 +490,53 @@ export default function CajaAdmin() {
           {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
           <button onClick={cerrar} disabled={closing === "" || (requiereMotivo && !justificacion.trim())} className="w-full rounded-lg bg-crust-800 py-2.5 font-semibold text-white hover:bg-crust-900 disabled:cursor-not-allowed disabled:opacity-50">Cerrar y arquear</button>
         </div>
+      </div>
+
+      {/* Lo vendido en el turno, sumado por producto */}
+      <div className="mt-6 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
+        <h3 className="font-semibold text-crust-700">Lo vendido en el turno</h3>
+        <p className="mb-3 text-xs text-crust-400">
+          Sumado por producto. Sirve para controlar la vitrina al cerrar: lo producido menos lo
+          vendido tiene que ser lo que queda.
+        </p>
+
+        {!vendido || (vendido.productos.length === 0 && vendido.sinDetalle.cantidad === 0) ? (
+          <p className="py-4 text-center text-sm text-crust-400">Todavía no se vendió nada.</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-crust-50 text-sm sm:columns-2 sm:gap-8 [&>li]:break-inside-avoid">
+              {vendido.productos.map((p) => (
+                <li key={p.productoId} className="flex justify-between gap-3 py-1.5">
+                  <span className="min-w-0 text-crust-700">
+                    {lineaConCantidad(
+                      p.cantidad,
+                      p.nombre,
+                      p.unidadVenta === UnidadVenta.KG ? UnidadVenta.KG : UnidadVenta.UNIDAD,
+                    )}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-crust-600">{formatUYU(p.total)}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-3 flex items-baseline justify-between border-t border-crust-100 pt-2">
+              <span className="text-sm font-semibold text-crust-700">
+                {vendido.ventas} {vendido.ventas === 1 ? "venta" : "ventas"} con detalle
+              </span>
+              <span className="font-display text-xl font-bold text-crust-900 tabular-nums">
+                {formatUYU(vendido.total)}
+              </span>
+            </div>
+
+            {vendido.sinDetalle.cantidad > 0 && (
+              <p className="mt-2 text-xs text-crust-400">
+                Además hay {vendido.sinDetalle.cantidad}{" "}
+                {vendido.sinDetalle.cantidad === 1 ? "venta cargada" : "ventas cargadas"} a mano por{" "}
+                {formatUYU(vendido.sinDetalle.total)}, sin detalle de productos.
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <HistorialCaja />
