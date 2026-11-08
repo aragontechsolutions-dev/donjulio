@@ -48,6 +48,7 @@ const COLUMNAS = [
   "disponible",
   "destacado",
   "proveedor",
+  "imagen",
 ] as const;
 
 /**
@@ -68,6 +69,10 @@ const ENCABEZADOS = [
   "Disponible",
   "Destacado",
   "Proveedor",
+  // Va al final porque es larga y nadie la escribe a mano: sale llena al
+  // exportar y se vuelve a cargar tal cual, así las fotos sobreviven a una
+  // mudanza de base.
+  "Imagen",
 ];
 
 /**
@@ -105,6 +110,12 @@ const ALIAS_COLUMNA: Record<string, string> = {
   disponible: "disponible",
   destacado: "destacado",
   proveedor: "proveedor",
+  imagen: "imagen",
+  imagenurl: "imagen",
+  "imagen(url)": "imagen",
+  urldeimagen: "imagen",
+  urlimagen: "imagen",
+  foto: "imagen",
 };
 
 /**
@@ -136,9 +147,9 @@ const UNIDAD_TEXTO: Record<string, string> = {
 };
 
 const EJEMPLOS = [
-  ["Pan de campo", "Panes", "120", "10%", "Unidad", "Masa madre, corteza crocante", "no", "", "si", "si", "no", ""],
-  ["Bizcochos de grasa", "Bizcochos", "420", "10%", "Kilo", "Precio por kilo", "no", "", "si", "si", "no", ""],
-  ["Agua mineral 500ml", "Cafetería", "70", "22%", "Unidad", "", "si", "38", "no", "si", "no", "Distribuidora del Este"],
+  ["Pan de campo", "Panes", "120", "10%", "Unidad", "Masa madre, corteza crocante", "no", "", "si", "si", "no", "", ""],
+  ["Bizcochos de grasa", "Bizcochos", "420", "10%", "Kilo", "Precio por kilo", "no", "", "si", "si", "no", "", ""],
+  ["Agua mineral 500ml", "Cafetería", "70", "22%", "Unidad", "", "si", "38", "no", "si", "no", "Distribuidora del Este", ""],
 ];
 
 /** Sinónimos aceptados para la tasa de IVA. */
@@ -264,6 +275,7 @@ export class ImportacionService {
           siNoTxt(p.disponible),
           siNoTxt(p.destacado),
           p.proveedor?.nombre ?? "",
+          p.imagenUrl ?? "",
         ], SEPARADOR),
       ),
     ];
@@ -338,6 +350,11 @@ export class ImportacionService {
       const costoCompra = numeroDeTexto(f.costocompra);
       if (esReventa && costoCompra == null && (f.costocompra ?? "").trim() !== "") {
         errores.push("El costo de compra no es un número.");
+      }
+
+      const imagen = (f.imagen ?? "").trim();
+      if (imagen && !/^https?:\/\//i.test(imagen)) {
+        errores.push("La imagen tiene que ser una dirección que empiece con http:// o https://.");
       }
 
       const clave = plano(nombre);
@@ -438,6 +455,7 @@ export class ImportacionService {
       const proveedorId = r.proveedor ? (provPorNombre.get(plano(r.proveedor))?.id ?? null) : null;
       const esReventa = siNo(f.esreventa) ?? false;
       const costoCompra = numeroDeTexto(f.costocompra);
+      const imagen = (f.imagen ?? "").trim();
       const datos = {
         nombre: r.nombre,
         categoriaId,
@@ -451,6 +469,10 @@ export class ImportacionService {
         disponible: siNo(f.disponible) ?? true,
         destacado: siNo(f.destacado) ?? false,
         proveedorId,
+        // La celda vacía no borra la foto: un archivo editado a mano suele
+        // venir sin esta columna, y no es razón para dejar el producto pelado.
+        // Para sacarla se usa la pantalla del producto.
+        ...(imagen ? { imagenUrl: imagen } : {}),
       };
       const existente = prodPorNombre.get(plano(r.nombre));
       if (existente) {

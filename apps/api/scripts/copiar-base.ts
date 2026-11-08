@@ -18,6 +18,7 @@
  * avisa; con VACIAR_DESTINO=1 los borra antes de copiar (ojo con eso).
  *
  * Variables opcionales:
+ *   SIN_OPERACIONES=1  trae la configuración y el catálogo, no el historial.
  *   VACIAR_DESTINO=1   borra lo que haya en el destino antes de copiar.
  *   LOTE=500           cuántas filas por insert (bajarlo si hay timeouts).
  *   SOLO=Producto,...  copiar nada más esas tablas.
@@ -27,6 +28,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 const origenUrl = process.env.DATABASE_URL_ORIGEN;
 const destinoUrl = process.env.DATABASE_URL;
 const vaciar = process.env.VACIAR_DESTINO === "1";
+const sinOperaciones = process.env.SIN_OPERACIONES === "1";
 const lote = Math.max(1, Number(process.env.LOTE ?? 500) || 500);
 const soloEstas = (process.env.SOLO ?? "")
   .split(",")
@@ -57,6 +59,41 @@ const M2M = { tabla: "_CategoriaToProveedor", a: "A", b: "B" };
  * así que no frenan la copia; se reemplazan por las del origen.
  */
 const SEMBRADAS_POR_MIGRACION = new Set(["FiscalConfig"]);
+
+/**
+ * Lo que pasó por la caja, no lo que está configurado.
+ *
+ * Con `SIN_OPERACIONES=1` estas tablas no se copian: la base nueva arranca sin
+ * ventas, cajas, turnos, lotes ni encargos, pero con el catálogo, las recetas,
+ * los insumos, los proveedores, las mesas con sus QR ya impresos, el plano del
+ * salón, la landing y el kiosco de fichaje. Es para estrenar la base sin tener
+ * que volver a configurar el local a mano.
+ *
+ * Ninguna de las tablas que quedan apunta a estas, así que sacarlas no deja
+ * referencias colgadas.
+ */
+const OPERACIONES = [
+  "Cliente",
+  "Pedido",
+  "PedidoItem",
+  "PedidoItemModifier",
+  "OrderStatusEvent",
+  "Payment",
+  "WebhookEvent",
+  "Propina",
+  "Comprobante",
+  "CashSession",
+  "CashMovement",
+  "Shift",
+  "CustomOrder",
+  "Deposito",
+  "Reserva",
+  "MovimientoStock",
+  "InsumoLote",
+  "ProductionLot",
+  "OrdenProduccion",
+  "Merma",
+];
 
 /**
  * Ordena las tablas para que ninguna se inserte antes que aquello a lo que
@@ -114,7 +151,11 @@ const delegado = (p: PrismaClient, modelo: string) =>
   const destino = cliente(destinoUrl);
   try {
     const todas = ordenarPorDependencias();
-    const tablas = soloEstas.length ? todas.filter((t) => soloEstas.includes(t)) : todas;
+    let tablas = soloEstas.length ? todas.filter((t) => soloEstas.includes(t)) : todas;
+    if (sinOperaciones) {
+      tablas = tablas.filter((t) => !OPERACIONES.includes(t));
+      console.log(`Sin operaciones: se saltean ${OPERACIONES.length} tabla(s) de historial.\n`);
+    }
     if (soloEstas.length) {
       const desconocidas = soloEstas.filter((t) => !todas.includes(t));
       if (desconocidas.length) {
@@ -124,8 +165,10 @@ const delegado = (p: PrismaClient, modelo: string) =>
     }
 
     // ── Chequeo previo: el destino tiene que estar vacío ──
+    // Se miran TODAS las tablas, no sólo las que se van a copiar: si el destino
+    // ya tiene ventas, saltearlas con SIN_OPERACIONES no lo vuelve seguro.
     const conDatos: string[] = [];
-    for (const t of tablas) {
+    for (const t of todas) {
       if ((await delegado(destino, t).count()) > 0) conDatos.push(t);
     }
     const m2mDestino = Number(
@@ -142,8 +185,10 @@ const delegado = (p: PrismaClient, modelo: string) =>
     }
     if (conDatos.length) {
       console.log(`Vaciando el destino (${conDatos.join(", ")})…`);
-      // TRUNCATE con CASCADE y todas juntas: no importa el orden.
-      const lista = [...new Set([...tablas.map((t) => `"${t}"`), `"${M2M.tabla}"`])].join(", ");
+      // TRUNCATE con CASCADE y todas juntas: no importa el orden. Se vacían
+      // todas, no sólo las que se copian: dejar ventas apuntando a productos
+      // borrados sería peor que no vaciar nada.
+      const lista = [...todas.map((t) => `"${t}"`), `"${M2M.tabla}"`].join(", ");
       await destino.$executeRawUnsafe(`TRUNCATE TABLE ${lista} CASCADE`);
     }
 
@@ -168,7 +213,9 @@ const delegado = (p: PrismaClient, modelo: string) =>
     }
 
     // ── La tabla intermedia de la m2m, que no es un modelo de Prisma ──
-    if (!soloEstas.length) {
+    // Sólo si vienen las dos puntas: sin categorías o sin proveedores, los
+    // pares no tendrían a qué apuntar.
+    if (tablas.includes("Categoria") && tablas.includes("Proveedor")) {
       const pares = await origen.$queryRawUnsafe<Record<string, string>[]>(
         `SELECT "${M2M.a}", "${M2M.b}" FROM "${M2M.tabla}"`,
       );

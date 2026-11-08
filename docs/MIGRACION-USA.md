@@ -83,26 +83,42 @@ paso 6).
 
 ## 3. Elegir la ruta
 
-Hay dos formas de llenar la base nueva. No son equivalentes:
+Hay tres formas de llenar la base nueva. No son equivalentes:
 
-### Ruta A — Copia completa (recomendada)
+### Ruta A — Copia completa
 
-Se copia la base vieja tal cual. Vienen los productos **y también** los
-insumos, las recetas, los proveedores, las zonas, las mesas con sus QR, el
-plano del salón, el contenido de la landing, los horarios, las estaciones de
-cocina, el kiosco de fichaje y el historial de ventas y cajas. El usuario
-`henry@donjulio.uy` de la tabla `Usuario` viene incluido.
+Se copia la base vieja tal cual, historial incluido: productos, insumos,
+recetas, proveedores, zonas, mesas con sus QR, plano del salón, landing,
+horarios, estaciones, kiosco de fichaje, y además las ventas, cajas y turnos
+que ya pasaron. El usuario `henry@donjulio.uy` de la tabla `Usuario` viene
+incluido.
 
-### Ruta B — Arranque limpio + CSV
+### Ruta B — Configuración sí, historial no (recomendada)
 
-Base vacía y se importa el catálogo desde el CSV. Queda todo prolijo, sin
-historial viejo, pero el CSV **sólo lleva productos**: insumos, recetas,
-proveedores, mesas y QR, plano del salón, landing, horarios y estaciones hay
-que volver a cargarlos a mano desde el panel.
+La misma copia, pero sin lo que pasó por la caja. Viene todo lo que está
+**configurado** —catálogo con sus fotos, recetas, insumos, proveedores con sus
+RUT y contactos, mesas con los **mismos tokens de QR**, plano del salón,
+landing, horarios, estaciones, octógonos, modificadores, números de empleado y
+PIN de fichaje— y la base arranca **sin una sola venta, caja, turno, lote ni
+encargo**.
 
-**Si no querés borrar el historial a propósito, andá por la A.** Es menos
-trabajo y no se pierde nada. La B tiene sentido si querés estrenar la base sin
-las ventas de prueba.
+Es la que buscás si los datos de prueba sobran pero la configuración no: el
+primer movimiento de la base nueva es una operación real.
+
+### Ruta C — Arranque limpio + CSV
+
+Base vacía y se importa el catálogo desde el CSV. El CSV lleva los productos
+con todos sus datos y la dirección de su foto, pero **nada más**: recetas,
+insumos, proveedores (más allá del nombre), mesas y QR, plano del salón,
+landing, horarios, estaciones, octógonos y modificadores hay que volver a
+cargarlos a mano desde el panel.
+
+Tiene sentido si además de las ventas querés rehacer la configuración, o si el
+catálogo que vas a cargar no es el que está en la base vieja.
+
+> **Ojo con los QR ya impresos.** Cada mesa tiene un token único en su QR. En
+> las rutas A y B los tokens viajan y los QR pegados en las mesas siguen
+> andando; en la C se generan nuevos y hay que volver a imprimirlos.
 
 > En los comandos de acá en adelante, las variables que se escriben en la
 > consola (`$env:...` en PowerShell) tienen prioridad sobre lo que esté en el
@@ -111,7 +127,7 @@ las ventas de prueba.
 
 ---
 
-## 4A. Ruta A: copiar la base
+## 4AB. Rutas A y B: copiar la base
 
 En el `.env` local, poné `DATABASE_URL` y `DIRECT_URL` apuntando a la base
 **nueva** (paso 2) y creá el esquema:
@@ -128,21 +144,43 @@ $env:DATABASE_URL_ORIGEN="postgresql://postgres:<PASS-VIEJA>@db.<ref-viejo>.supa
 pnpm --filter @donjulio/api copiar:base
 ```
 
-El script lee las 48 tablas del proyecto viejo y las escribe en el nuevo, en el
+**Para la ruta B** (sin historial), agregá una variable más antes de correrlo:
+
+```powershell
+$env:SIN_OPERACIONES="1"
+```
+
+El script lee las tablas del proyecto viejo y las escribe en el nuevo en el
 orden correcto (primero las categorías, después los productos, después los
-ítems de pedido) y respetando los decimales, las fechas y las relaciones. No
+ítems de pedido), respetando los decimales, las fechas y las relaciones. No
 necesita pg_dump, psql ni Docker: usa Prisma, que ya está instalado.
 
 Va imprimiendo tabla por tabla y termina con el total:
 
 ```
+Sin operaciones: se saltean 20 tabla(s) de historial.
+
   ✓ Categoria: 6/6
   ✓ Producto: 11/11
-  ✓ PedidoItem: 1/1
+  ✓ Receta: 2/2
   ...
-69 fila(s) copiada(s) en 24 tabla(s) con datos.
+64 fila(s) copiada(s) en 19 tabla(s) con datos.
 Todo copiado.
 ```
+
+Con `SIN_OPERACIONES=1` quedan afuera estas 20: `Cliente`, `Pedido`,
+`PedidoItem`, `PedidoItemModifier`, `OrderStatusEvent`, `Payment`,
+`WebhookEvent`, `Propina`, `Comprobante`, `CashSession`, `CashMovement`,
+`Shift`, `CustomOrder`, `Deposito`, `Reserva`, `MovimientoStock`, `InsumoLote`,
+`ProductionLot`, `OrdenProduccion` y `Merma`. Es decir: ni ventas, ni pagos, ni
+cajas, ni turnos fichados, ni stock cargado, ni encargos, ni reservas, ni
+clientes de prueba. Nada de lo que se conserva apunta a esas tablas, así que no
+quedan referencias colgadas.
+
+Ojo con una consecuencia: **los lotes de stock también son operaciones**, así
+que la base nueva arranca con stock en cero. Los productos que llevan stock hay
+que darles la entrada inicial desde el panel (o producir la primera tanda) antes
+de venderlos en el mostrador.
 
 En las dos puntas conviene usar la conexión **directa** (puerto 5432), no el
 pooler: son muchas consultas seguidas.
@@ -157,7 +195,7 @@ pnpm --filter @donjulio/api copiar:base
 
 Seguí en el paso 5.
 
-## 4B. Ruta B: base vacía + CSV
+## 4C. Ruta C: base vacía + CSV
 
 Con el `.env` apuntando a la base nueva:
 
@@ -167,21 +205,37 @@ pnpm --filter @donjulio/api prisma:deploy
 
 Eso crea las tablas vacías. El catálogo se importa después de poder entrar al
 panel (paso 7), desde **Productos → Carga masiva**, con el CSV que exportaste en
-el paso 0. La importación crea las categorías que falten, así que no hay que
-prepararlas antes.
+el paso 0. La importación crea las categorías y los proveedores que falten, así
+que no hay que prepararlos antes.
+
+El CSV incluye la columna **Imagen** con la dirección de la foto de cada
+producto, así que las fotos se recuperan solas al importar. Para que esas
+direcciones no apunten al proyecto viejo, el orden es: copiar los archivos del
+bucket (paso 7 con `SOLO_ARCHIVOS=1`), importar el CSV, y recién después
+reescribir las URLs (paso 7 con `SOLO_URLS=1`).
+
+Si exportaste el CSV con una versión anterior del sistema no va a tener esa
+columna: volvé a exportarlo desde el panel antes de mudarte, o cargá las fotos
+a mano después.
 
 ---
 
 ## 5. El usuario `henry@donjulio.uy`
 
-Acá hay una distinción que cambia los pasos. En Render, mirá la variable
+Si copiaste la base (rutas A o B), junto con henry vinieron también los
+usuarios de demo del seed (`admin@`, `caja@`, `mozo@donjulio.uy`, todos con la
+misma contraseña conocida). **Borralos o desactivalos** desde el panel →
+Usuarios antes de empezar a operar: son tres puertas abiertas con la llave
+puesta.
+
+Después, hay una distinción que cambia los pasos. En Render, mirá la variable
 `AUTH_PROVIDER`:
 
 ### Si `AUTH_PROVIDER=local`
 
 El login lo hace la API con su propio JWT contra la tabla `Usuario`. El UID de
-Supabase Auth no se usa para nada. Con la Ruta A el usuario ya vino en la copia
-y no hay nada que hacer. Con la Ruta B hay que crearlo (panel → Usuarios, o el
+Supabase Auth no se usa para nada. Con las rutas A y B el usuario ya vino en la
+copia y no hay nada que hacer. Con la C hay que crearlo (panel → Usuarios, o el
 seed) y ponerle una contraseña.
 
 ### Si `AUTH_PROVIDER=supabase`
@@ -272,7 +326,7 @@ reescribe.
 | `SUPABASE_JWT_SECRET` | el nuevo (sólo si `AUTH_PROVIDER=supabase`) |
 
 Guardar dispara un redeploy. El `startCommand` corre `prisma migrate deploy`,
-así que si la Ruta A dejó algo sin migrar, se completa ahí.
+así que si quedó algo sin migrar, se completa ahí.
 
 **Vercel** (los dos proyectos: web y PWA de mozos) → Settings → Environment
 Variables:
@@ -299,7 +353,7 @@ En este orden, y recién después borrar nada:
 4. Las miniaturas de los productos se ven (si no, falta el paso 7).
 5. Abrir caja, hacer una venta de mostrador de prueba, cerrarla. Es el camino
    que toca más tablas de una vez.
-6. En la Ruta B: importar el CSV del catálogo y revisar precios, IVA y
+6. En la ruta C: importar el CSV del catálogo y revisar precios, IVA y
    "se vende por" de dos o tres productos.
 7. Escanear un QR de mesa y ver que el autoservicio levante el menú.
 
