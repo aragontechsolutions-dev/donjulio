@@ -26,6 +26,7 @@ export const NAV: NavItem[] = [
   { to: "/admin/produccion", label: "Producción", icon: "👨‍🍳", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/recetas", label: "Recetas y costos", icon: "📖", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/insumos", label: "Insumos / Stock", icon: "📦", roles: [ADMIN, PRODUCCION] },
+  { to: "/admin/proveedores", label: "Proveedores", icon: "🚚", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/mermas", label: "Mermas", icon: "🗑️", roles: [ADMIN, CAJERO, PRODUCCION] },
   { to: "/admin/trazabilidad", label: "Trazabilidad", icon: "🔎", roles: [ADMIN, PRODUCCION] },
   { to: "/admin/caja", label: "Caja", icon: "💵", roles: [ADMIN, CAJERO] },

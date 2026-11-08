@@ -246,6 +246,8 @@ model Categoria {
 
   productos   Producto[]
   promociones Promocion[]
+  /// Proveedores a los que se les compra este rubro.
+  proveedores Proveedor[]
 }
 
 model Producto {
@@ -271,6 +273,10 @@ model Producto {
   /// Cómo se cobra en el mostrador. Con KG, `precio` es el precio por kilo y
   /// lo que se vende es el peso que marcó la balanza.
   unidadVenta      UnidadVenta @default(UNIDAD)
+  /// A quién se le compra (sobre todo en la reventa). Uno principal: si se
+  /// compra a varios, el resto se anota en las notas del proveedor.
+  proveedorId      String?
+  proveedor        Proveedor? @relation(fields: [proveedorId], references: [id])
   requiereOctogono Boolean  @default(false) // Decreto 272/018 (rotulado frontal)
   stationId        String?
   station          Station? @relation(fields: [stationId], references: [id])
@@ -288,6 +294,7 @@ model Producto {
 
   @@index([categoriaId])
   @@index([destacado])
+  @@index([proveedorId])
 }
 
 model ProductVariant {
@@ -409,13 +416,27 @@ model ConfigContacto {
 // ─────────────────── Insumos, proveedores y stock ───────────────────
 
 model Proveedor {
-  id       String  @id @default(uuid())
-  nombre   String
-  contacto String?
-  telefono String?
-  email    String?
+  id        String   @id @default(uuid())
+  nombre    String
+  /// RUT: es lo que identifica al proveedor en la factura de compra.
+  rut       String?
+  /// Persona con la que se habla, que no siempre es el nombre de la empresa.
+  contacto  String?
+  telefono  String?
+  email     String?
+  direccion String?
+  /// Días de reparto, condiciones de pago, lo que haga falta recordar.
+  notas     String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  insumos Insumo[]
+  /// Rubros que se le compran. Se declaran aparte de los productos porque un
+  /// proveedor nuevo se carga antes de saber qué artículos se le van a pedir.
+  categorias Categoria[]
+  /// Lo que efectivamente se le compra.
+  insumos    Insumo[]
+  productos  Producto[]
 }
 
 model Insumo {

@@ -78,6 +78,15 @@ aunque la lógica de las etapas 3–4 se implementará más adelante. Áreas:
   para descartar duplicados de Mercado Pago.
 - **Caja por turno**: `CashSession` por `openedBy`/`closedBy` (arqueo por turno,
   no diario global — control interno).
+- **Proveedores**: lo que se le compra a cada uno sale de `Insumo.proveedorId` y
+  `Producto.proveedorId` (uno principal por artículo), más una many-to-many con
+  `Categoria` para declarar los rubros de un proveedor al que todavía no se le
+  cargó nada. Un proveedor con compras no se borra: se desactiva.
+- **Carga masiva de productos**: CSV en dos pasos (revisar → aplicar), todo o
+  nada. El parser de `@donjulio/shared` contempla lo que exporta Excel en
+  español: separador `;`, decimales con coma, BOM y CRLF. El emparejamiento es
+  por slug del nombre, así que volver a subir el archivo actualiza en vez de
+  duplicar.
 - **Venta por peso**: `Producto.unidadVenta` (UNIDAD | KG) y `PedidoItem.cantidad`
   decimal(12,3). Con KG, `precio` es el precio del kilo y la cantidad es lo que
   marcó la balanza (0,350 = 350 g); el servidor rechaza fracciones en lo que se

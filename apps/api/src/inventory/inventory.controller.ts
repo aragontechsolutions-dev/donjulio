@@ -15,7 +15,6 @@ import { InventoryService } from "./inventory.service";
 import {
   BulkEntryDto,
   CreateInsumoDto,
-  CreateProveedorDto,
   ListInsumosQueryDto,
   StockAdjustDto,
   StockEntryDto,
@@ -27,16 +26,6 @@ import {
 @Controller("admin/inventario")
 export class InventoryController {
   constructor(private readonly inv: InventoryService) {}
-
-  @Get("proveedores")
-  listProveedores() {
-    return this.inv.listProveedores();
-  }
-
-  @Post("proveedores")
-  createProveedor(@Body() dto: CreateProveedorDto) {
-    return this.inv.createProveedor(dto);
-  }
 
   /** Lista liviana y completa, para los selectores de recetas y mermas.
    *  Va antes que las rutas con :id para que "opciones" no se lea como un id. */

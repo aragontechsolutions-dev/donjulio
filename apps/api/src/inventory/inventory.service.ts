@@ -5,7 +5,6 @@ import { PrismaService } from "../prisma/prisma.service";
 import {
   BulkEntryDto,
   CreateInsumoDto,
-  CreateProveedorDto,
   INSUMOS_POR_PAGINA,
   ListInsumosQueryDto,
   StockAdjustDto,
@@ -33,15 +32,6 @@ const escaparLike = (s: string) => s.replace(/([\\%_])/g, "\\$1");
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
-
-  // ---------- Proveedores ----------
-  listProveedores() {
-    return this.prisma.proveedor.findMany({ orderBy: { nombre: "asc" } });
-  }
-
-  createProveedor(dto: CreateProveedorDto) {
-    return this.prisma.proveedor.create({ data: dto });
-  }
 
   // ---------- Insumos ----------
   /**

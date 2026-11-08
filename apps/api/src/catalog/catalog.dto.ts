@@ -57,6 +57,8 @@ export class CreateProductoDto {
   @IsOptional() @IsBoolean() controlaStock?: boolean;
   /** Por unidad, o por peso en lo que se cobra con balanza. */
   @IsOptional() @IsEnum(UnidadVenta) unidadVenta?: UnidadVenta;
+  /** A quién se le compra (sobre todo en la reventa). */
+  @IsOptional() @IsString() proveedorId?: string | null;
 }
 
 export class UpdateProductoDto {
@@ -73,6 +75,7 @@ export class UpdateProductoDto {
   @IsOptional() @IsNumber() @Min(0) costoCompra?: number | null;
   @IsOptional() @IsBoolean() controlaStock?: boolean;
   @IsOptional() @IsEnum(UnidadVenta) unidadVenta?: UnidadVenta;
+  @IsOptional() @IsString() proveedorId?: string | null;
 }
 
 /** Una línea del ajuste masivo de IVA. */
