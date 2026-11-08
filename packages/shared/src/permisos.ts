@@ -95,9 +95,20 @@ export const CAPACIDADES = {
     ruta: "/admin/productos/:id/rotulado",
     roles: [ADMIN, PRODUCCION],
   },
+  "productos.importar": {
+    verbo: "POST",
+    ruta: "/admin/productos/importar",
+    roles: [ADMIN],
+  },
   "categorias.crear": { verbo: "POST", ruta: "/admin/categorias", roles: [ADMIN] },
   "categorias.editar": { verbo: "PATCH", ruta: "/admin/categorias/:id", roles: [ADMIN] },
   "categorias.eliminar": { verbo: "DELETE", ruta: "/admin/categorias/:id", roles: [ADMIN] },
+
+  // ── Proveedores: producción consulta a quién se le compra; el alta es del admin ──
+  "proveedores.ver": { verbo: "GET", ruta: "/admin/proveedores", roles: [ADMIN, PRODUCCION] },
+  "proveedores.crear": { verbo: "POST", ruta: "/admin/proveedores", roles: [ADMIN] },
+  "proveedores.editar": { verbo: "PATCH", ruta: "/admin/proveedores/:id", roles: [ADMIN] },
+  "proveedores.eliminar": { verbo: "DELETE", ruta: "/admin/proveedores/:id", roles: [ADMIN] },
 } as const satisfies Record<string, Capacidad>;
 
 export type Accion = keyof typeof CAPACIDADES;

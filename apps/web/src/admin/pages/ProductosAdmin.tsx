@@ -12,6 +12,7 @@ import {
   type SemaforoFoodCost,
 } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import CargaMasiva from "./CargaMasiva";
 import { useAuth } from "../../lib/auth";
 import { showToast } from "../../lib/toast";
 import { formatUYU } from "../../lib/format";
@@ -43,6 +44,7 @@ interface Producto {
   costoCompra: string | null;
   controlaStock: boolean;
   unidadVenta: string;
+  proveedorId: string | null;
   /** Unidades producidas sin vender. null si el producto no controla stock. */
   stockProducido: number | null;
   ivaRate: string;
@@ -95,6 +97,7 @@ interface ProductoForm {
   costoCompra: string;
   controlaStock: boolean;
   unidadVenta: string;
+  proveedorId: string;
   ivaRate: string;
   disponible: boolean;
   destacado: boolean;
@@ -103,6 +106,7 @@ interface ProductoForm {
 const FORM_VACIO: ProductoForm = {
   nombre: "", categoriaId: "", descripcion: "", precio: "",
   esReventa: false, costoCompra: "", controlaStock: false, unidadVenta: UnidadVenta.UNIDAD,
+  proveedorId: "",
   ivaRate: IvaRate.MINIMA,
   disponible: true, destacado: false,
 };
@@ -131,9 +135,12 @@ export default function ProductosAdmin() {
     puede(user?.role, "categorias.crear") &&
     puede(user?.role, "categorias.editar") &&
     puede(user?.role, "categorias.eliminar");
+  const puedeImportar = puede(user?.role, "productos.importar");
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
+  const [cargaMasiva, setCargaMasiva] = useState(false);
   const [costeo, setCosteo] = useState<Record<string, ProductoCosteo>>({});
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -170,6 +177,12 @@ export default function ProductosAdmin() {
       ]);
       setProductos(ps);
       setCategorias(cs);
+      // Para el selector de proveedor de cada producto. Sin permiso no viene,
+      // y el selector queda vacío sin romper nada.
+      api
+        .get<{ id: string; nombre: string }[]>("/admin/proveedores")
+        .then(setProveedores)
+        .catch(() => {});
       // El costeo recorre las recetas: se pide aparte para no demorar la tabla.
       api
         .get<ProductoCosteo[]>("/admin/productos/costeo")
@@ -228,6 +241,7 @@ export default function ProductosAdmin() {
       costoCompra: p.costoCompra != null ? String(Number(p.costoCompra)) : "",
       controlaStock: p.controlaStock,
       unidadVenta: p.unidadVenta ?? UnidadVenta.UNIDAD,
+      proveedorId: p.proveedorId ?? "",
       ivaRate: p.ivaRate,
       disponible: p.disponible,
       destacado: p.destacado,
@@ -311,6 +325,7 @@ export default function ProductosAdmin() {
       costoCompra: form.esReventa && form.costoCompra !== "" ? Number(form.costoCompra) : null,
       controlaStock: form.controlaStock,
       unidadVenta: form.unidadVenta,
+      proveedorId: form.proveedorId || null,
       ivaRate: form.ivaRate,
       disponible: form.disponible,
       destacado: form.destacado,
@@ -490,6 +505,14 @@ export default function ProductosAdmin() {
             className="rounded-lg border border-crust-200 px-4 py-2 text-sm font-semibold text-crust-700 hover:bg-crust-100"
           >
             Categorías
+          </button>
+          )}
+          {puedeImportar && (
+          <button
+            onClick={() => setCargaMasiva(true)}
+            className="rounded-lg border border-crust-200 px-4 py-2 text-sm font-semibold text-crust-700 hover:bg-crust-100"
+          >
+            Carga masiva
           </button>
           )}
           <button
@@ -920,6 +943,24 @@ export default function ProductosAdmin() {
                 </span>
               </label>
 
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Proveedor</span>
+                <select
+                  value={form.proveedorId}
+                  onChange={(e) => setForm({ ...form, proveedorId: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                >
+                  <option value="">— Sin proveedor —</option>
+                  {proveedores.map((pv) => (
+                    <option key={pv.id} value={pv.id}>{pv.nombre}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs text-crust-400">
+                  A quién se le compra. Sobre todo para la reventa; se gestiona en{" "}
+                  <b>Proveedores</b>.
+                </span>
+              </label>
+
               {form.esReventa && (
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium text-crust-700">Costo de compra</span>
@@ -1251,6 +1292,10 @@ export default function ProductosAdmin() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {cargaMasiva && (
+        <CargaMasiva onCerrar={() => setCargaMasiva(false)} onAplicado={load} />
       )}
     </div>
   );

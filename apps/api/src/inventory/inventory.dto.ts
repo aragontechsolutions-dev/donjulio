@@ -18,13 +18,6 @@ import { UnitOfMeasure } from "@donjulio/shared";
 /** Opciones de "insumos por página" que ofrece el panel. */
 export const INSUMOS_POR_PAGINA = [10, 20, 50, 100] as const;
 
-export class CreateProveedorDto {
-  @IsString() nombre!: string;
-  @IsOptional() @IsString() contacto?: string;
-  @IsOptional() @IsString() telefono?: string;
-  @IsOptional() @IsString() email?: string;
-}
-
 export class CreateInsumoDto {
   @IsString() nombre!: string;
   @IsEnum(UnitOfMeasure) unidad!: UnitOfMeasure;

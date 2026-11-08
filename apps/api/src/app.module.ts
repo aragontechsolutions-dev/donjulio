@@ -11,6 +11,8 @@ import { OrdersModule } from "./orders/orders.module";
 import { PaymentsModule } from "./integrations/payments/payments.module";
 import { BillingModule } from "./integrations/billing/billing.module";
 import { InventoryModule } from "./inventory/inventory.module";
+import { ProveedoresModule } from "./proveedores/proveedores.module";
+import { ImportacionModule } from "./importacion/importacion.module";
 import { RecipesModule } from "./recipes/recipes.module";
 import { ProductionModule } from "./production/production.module";
 import { MermasModule } from "./mermas/mermas.module";
@@ -45,6 +47,8 @@ import { HealthController } from "./health.controller";
     PaymentsModule,
     BillingModule,
     InventoryModule,
+    ProveedoresModule,
+    ImportacionModule,
     RecipesModule,
     ProductionModule,
     MermasModule,

@@ -105,6 +105,37 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  /**
+   * POST multipart genérico (archivo + campos). El navegador fija el
+   * Content-Type con su boundary, así que no se toca.
+   */
+  postForm: async <T>(path: string, form: FormData, opts: RequestOpts = {}): Promise<T> => {
+    const token = tokenStore.get();
+    let res: Response;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+    } catch {
+      showToast("error", "Sin conexión con el servidor. Reintentá en unos segundos.");
+      throw new ApiError(0, "Sin conexión con el servidor");
+    }
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        const body = await res.json();
+        if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
+      } catch {
+        /* sin body */
+      }
+      showToast("error", message);
+      throw new ApiError(res.status, message);
+    }
+    if (!opts.sinToast) showToast("success", successMsg("POST"));
+    return res.json() as Promise<T>;
+  },
   /** Sube un archivo (multipart). El navegador fija el Content-Type. */
   upload: async <T>(path: string, file: File): Promise<T> => {
     const token = tokenStore.get();
