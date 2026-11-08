@@ -148,12 +148,19 @@ export function siNo(valor: string | undefined | null): boolean | null {
   return null;
 }
 
-/** Arma una línea de CSV escapando lo que haga falta. */
+/**
+ * Arma una línea de CSV, entrecomillando sólo lo necesario.
+ *
+ * Lo necesario es: el separador **que se está usando**, comillas o saltos de
+ * línea. Escapar cualquier separador posible llenaría de comillas un archivo
+ * separado por `;` cada vez que aparece una coma — y los decimales en español
+ * llevan coma, así que saldrían todos los precios entrecomillados.
+ */
 export function lineaCsv(celdas: (string | number)[], separador = ","): string {
   return celdas
     .map((c) => {
       const s = String(c ?? "");
-      return /["\n\r]|[,;\t]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      return s.includes(separador) || /["\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     })
     .join(separador);
 }

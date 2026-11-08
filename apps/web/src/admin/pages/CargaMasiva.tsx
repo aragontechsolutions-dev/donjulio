@@ -145,7 +145,9 @@ export default function CargaMasiva({ onCerrar, onAplicado }: { onCerrar: () => 
           <li className="rounded-xl border border-crust-100 bg-crust-50 p-3">
             <p className="font-semibold text-crust-800">2. Subí el archivo lleno</p>
             <p className="mb-2 text-crust-500">
-              Se revisa y te muestro qué va a pasar con cada fila. Todavía no se guarda nada.
+              Se revisa y te muestro qué va a pasar con cada fila. Todavía no se guarda nada. Al
+              guardar desde Excel elegí <b>CSV</b>; el separador y los decimales con coma ya vienen
+              como los usa tu Excel.
             </p>
             <input
               ref={inputRef}

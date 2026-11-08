@@ -28,6 +28,7 @@ import { RolesGuard } from "../auth/guards";
 const num = (d: Prisma.Decimal | number | null | undefined): number =>
   d == null ? 0 : typeof d === "number" ? d : d.toNumber();
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 class OpenSessionDto {
   @IsNumber() @Min(0) openingFloat!: number;
@@ -247,6 +248,65 @@ export class CashService {
   }
 
   /**
+   * Qué productos se vendieron en el turno, sumados.
+   *
+   * Responde la pregunta de la cajera: "¿qué vendí hoy?". Sale de los pedidos
+   * enlazados a los movimientos del turno, agrupando por producto. Las ventas
+   * cargadas a mano en el formulario no tienen productos, así que se informan
+   * aparte en vez de quedar afuera sin avisar.
+   */
+  async vendidoEnTurno(sessionId: string) {
+    const movimientos = await this.prisma.cashMovement.findMany({
+      where: { cashSessionId: sessionId, tipo: CashMovementType.SALE },
+      select: { pedidoId: true, monto: true },
+    });
+    // Un pedido cobrado en partes deja un movimiento por cobro: se cuenta una
+    // sola vez. (Una mesa que queda abierta de un turno al otro se cuenta
+    // entera en los dos; es raro y preferible a no contarla en ninguno.)
+    const pedidoIds = [...new Set(movimientos.filter((m) => m.pedidoId).map((m) => m.pedidoId!))];
+    const aMano = movimientos.filter((m) => !m.pedidoId);
+
+    const items = pedidoIds.length
+      ? await this.prisma.pedidoItem.findMany({
+          where: { pedidoId: { in: pedidoIds } },
+          select: {
+            cantidad: true,
+            subtotal: true,
+            producto: { select: { id: true, nombre: true, unidadVenta: true } },
+          },
+        })
+      : [];
+
+    const porProducto = new Map<
+      string,
+      { productoId: string; nombre: string; unidadVenta: string; cantidad: number; total: number }
+    >();
+    for (const it of items) {
+      const acc = porProducto.get(it.producto.id) ?? {
+        productoId: it.producto.id,
+        nombre: it.producto.nombre,
+        unidadVenta: it.producto.unidadVenta,
+        cantidad: 0,
+        total: 0,
+      };
+      acc.cantidad = round3(acc.cantidad + num(it.cantidad));
+      acc.total = round2(acc.total + num(it.subtotal));
+      porProducto.set(it.producto.id, acc);
+    }
+
+    const productos = [...porProducto.values()].sort((a, b) => b.total - a.total);
+    return {
+      productos,
+      // Lo que suman los productos, que puede diferir del efectivo del turno.
+      total: round2(productos.reduce((a, p) => a + p.total, 0)),
+      ventas: pedidoIds.length,
+      // Ventas sin detalle (cargadas a mano): se muestran para que los números
+      // cierren con el arqueo.
+      sinDetalle: { cantidad: aMano.length, total: round2(aMano.reduce((a, m) => a + num(m.monto), 0)) },
+    };
+  }
+
+  /**
    * Movimientos de un turno, abierto o cerrado.
    *
    * Van aparte del historial a propósito: la lista de turnos tiene que abrir
@@ -317,6 +377,12 @@ class CashController {
   @Get("movimientos/:id")
   detalleMovimiento(@Param("id") id: string) {
     return this.cash.detalleMovimiento(id);
+  }
+
+  /** Qué productos se vendieron en el turno. */
+  @Get(":id/vendido")
+  vendido(@Param("id") id: string) {
+    return this.cash.vendidoEnTurno(id);
   }
 
   /** Movimientos de un turno (para mirar uno ya cerrado). */

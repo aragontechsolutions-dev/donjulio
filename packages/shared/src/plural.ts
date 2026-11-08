@@ -131,14 +131,17 @@ export function pluralizarNombre(nombre: string): string {
 }
 
 /**
- * Un peso como lo diría una persona del mostrador: abajo del kilo, en gramos.
+ * Un peso, siempre en kilos y con tres decimales.
  *
- * 0.35  → "350 g"
+ * Es la unidad de la balanza: el visor marca 0,350 y eso es lo que se escribe
+ * y lo que se lee después en el ticket. Mostrar "350 g" en un lado y kilos en
+ * otro obliga a convertir de cabeza en el mostrador.
+ *
+ * 0.35  → "0,350 kg"
  * 1.25  → "1,250 kg"
  */
 export function formatearPeso(kg: number | string): string {
   const n = Math.abs(typeof kg === "number" ? kg : Number(kg)) || 0;
-  if (n < 1) return `${Math.round(n * 1000)} g`;
   return `${n.toFixed(3).replace(".", ",")} kg`;
 }
 
