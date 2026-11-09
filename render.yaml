@@ -32,17 +32,20 @@ services:
       - key: CORS_ORIGIN # URLs de Vercel (web y pwa), separadas por coma
         sync: false
 
-      # ── FASE 1: arranque con Auth LOCAL (JWT propio) ──
-      # Más simple y sin dependencias externas para el primer deploy.
+      # ── Auth: "local" (JWT propio) o "supabase" (Supabase Auth) ──
+      # Va sin `value` A PROPÓSITO. Con un valor fijo acá, cada sincronización
+      # del blueprint lo vuelve a aplicar y pisa lo que esté puesto en el
+      # dashboard: una cuenta que ya pasó a Supabase Auth volvería a "local"
+      # sola, y nadie podría entrar al panel. Se define en el dashboard.
       - key: AUTH_PROVIDER
-        value: local
+        sync: false
       - key: JWT_SECRET
         generateValue: true # Render genera un secreto fuerte
       - key: JWT_EXPIRES_IN
         value: "12h"
 
-      # ── FASE 2 (flip a Supabase Auth): poné AUTH_PROVIDER=supabase
-      #    y completá SUPABASE_JWT_SECRET (Settings → API → JWT Settings, HS256).
+      # Con AUTH_PROVIDER=supabase: el "JWT Secret" del proyecto
+      # (Settings → API → JWT Settings, HS256).
       - key: SUPABASE_JWT_SECRET
         sync: false
 
@@ -56,20 +59,22 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY # secreta; sólo en el backend
         sync: false
 
+      # mock | mercadopago. Sin `value`: ver la nota de AUTH_PROVIDER.
       - key: PAYMENTS_PROVIDER
-        value: mock
+        sync: false
 
       # ── Terminal de tarjetas del mostrador (Mercado Pago Point) ──
       # Vacío = sin posnet integrado, la cajera cobra a mano como siempre.
       # Para prenderlo: "mercadopago" + MP_ACCESS_TOKEN y MP_TERMINAL_ID.
       # Ver docs/MERCADOPAGO-POINT.md.
       - key: TERMINAL_PROVIDER
-        value: ""
+        sync: false
       - key: MP_TERMINAL_ID
         sync: false
       - key: MP_ACCESS_TOKEN # secreta; sólo en el backend
         sync: false
       - key: MP_WEBHOOK_SECRET # firma de los avisos de Mercado Pago
         sync: false
+      # mock | surtec | uruware. Sin `value`: ver la nota de AUTH_PROVIDER.
       - key: BILLING_PROVIDER
-        value: mock
+        sync: false
