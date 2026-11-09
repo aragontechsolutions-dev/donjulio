@@ -72,7 +72,13 @@ export default function UsuariosAdmin() {
     setError(null);
     setOk(null);
     try {
-      await api.patch("/admin/config/sesion", sesion);
+      // Sólo los minutos: lo que devuelve el GET trae además el `id` del
+      // singleton, y la API rechaza cualquier campo que no esté en el DTO.
+      // Enteros, porque un "1,5" del input tampoco pasaría la validación.
+      const minutos = Object.fromEntries(
+        CAMPOS_SESION.map(({ k }) => [k, Math.max(0, Math.min(1440, Math.round(Number(sesion[k]) || 0)))]),
+      );
+      await api.patch("/admin/config/sesion", minutos);
       setOk("Política de sesión guardada. Se aplica al volver a iniciar sesión.");
     } catch (e) {
       setError((e as Error).message);
