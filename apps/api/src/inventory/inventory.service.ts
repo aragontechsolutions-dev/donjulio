@@ -267,6 +267,55 @@ export class InventoryService {
   }
 
   /**
+   * Los productos vistos desde el stock.
+   *
+   * La página de stock mostraba sólo insumos, que es lo que se compra para
+   * producir. Pero lo que se compra ya hecho para revender —una botella de
+   * agua, una cerveza— es un producto, no un insumo, y también necesita que
+   * alguien le cargue la entrada. Sin esta lista no había dónde hacerlo.
+   *
+   * Vienen todos, también los que hoy no llevan control de stock: son
+   * justamente los que hay que encontrar para activárselo.
+   */
+  async productosParaStock(q?: string) {
+    const texto = q?.trim();
+    const productos = await this.prisma.producto.findMany({
+      where: texto
+        ? { nombre: { contains: texto, mode: "insensitive" } }
+        : undefined,
+      orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],
+      select: {
+        id: true,
+        nombre: true,
+        controlaStock: true,
+        esReventa: true,
+        unidadVenta: true,
+        costoCompra: true,
+        categoria: { select: { nombre: true } },
+        proveedor: { select: { nombre: true } },
+        receta: { select: { id: true } },
+      },
+    });
+    const stock = await this.stockProductos(
+      productos.filter((p) => p.controlaStock).map((p) => p.id),
+    );
+    return productos.map((p) => ({
+      id: p.id,
+      nombre: p.nombre,
+      categoria: p.categoria.nombre,
+      unidadVenta: p.unidadVenta,
+      controlaStock: p.controlaStock,
+      esReventa: p.esReventa,
+      costoCompra: p.costoCompra == null ? null : num(p.costoCompra),
+      proveedor: p.proveedor?.nombre ?? null,
+      /** Null cuando no lleva control: no es cero, es que no se cuenta. */
+      stock: p.controlaStock ? (stock.get(p.id) ?? 0) : null,
+      /** Con receta, el stock lo genera la producción, no una compra. */
+      seProduce: !!p.receta,
+    }));
+  }
+
+  /**
    * Entrada de mercadería que se compra ya hecha y se revende.
    *
    * Va al mismo stock que la producción (`ProductionLot`), que es de donde

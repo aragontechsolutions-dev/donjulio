@@ -61,6 +61,12 @@ export class InventoryController {
     return this.inv.registrarEntradas(dto, user.id);
   }
 
+  /** Los productos vistos desde el stock (lo que se revende y lo producido). */
+  @Get("productos")
+  productosParaStock(@Query("q") q?: string) {
+    return this.inv.productosParaStock(q);
+  }
+
   /** Entrada de mercadería comprada hecha: suma al stock del producto. */
   @Post("productos/:id/entrada")
   entradaProducto(@Param("id") id: string, @Body() dto: EntradaProductoDto) {

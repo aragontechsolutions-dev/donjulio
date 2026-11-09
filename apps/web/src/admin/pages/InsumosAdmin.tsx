@@ -5,6 +5,7 @@ import { formatUYU } from "../../lib/format";
 import { showToast } from "../../lib/toast";
 import { useDebounced } from "../../lib/useDebounced";
 import Modal from "../../lib/Modal";
+import ProductosStock from "./ProductosStock";
 import Buscador from "../../lib/Buscador";
 
 interface Insumo {
@@ -69,6 +70,9 @@ export default function InsumosAdmin() {
   const q = useDebounced(busqueda, 300);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(POR_PAGINA[0]);
+
+  // Insumos (lo que se compra para producir) o productos terminados.
+  const [vista, setVista] = useState<"insumos" | "productos">("insumos");
 
   // Modal de Entrada / Ajuste sobre un insumo puntual.
   const [modal, setModal] = useState<{ type: "entrada" | "ajuste"; insumo: Insumo } | null>(null);
@@ -259,15 +263,44 @@ export default function InsumosAdmin() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold text-crust-800">Insumos y Stock</h1>
-        <button
-          onClick={abrirRemito}
-          className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre"
-        >
-          + Entrada múltiple
-        </button>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold text-crust-800">Stock</h1>
+        {vista === "insumos" && (
+          <button
+            onClick={abrirRemito}
+            className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre"
+          >
+            + Entrada múltiple
+          </button>
+        )}
       </div>
+
+      {/* Dos cosas distintas que viven en la misma pantalla: lo que se compra
+          para producir, y lo que se vende. */}
+      <div className="mb-6 flex gap-1 border-b border-crust-100">
+        {([
+          ["insumos", "Insumos", "Lo que se compra para producir"],
+          ["productos", "Productos", "Lo que se vende"],
+        ] as const).map(([clave, label, ayuda]) => (
+          <button
+            key={clave}
+            onClick={() => setVista(clave)}
+            title={ayuda}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+              vista === clave
+                ? "border-dj-terracota text-dj-terracota"
+                : "border-transparent text-crust-500 hover:text-crust-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {vista === "productos" && <ProductosStock />}
+
+      {vista === "insumos" && (
+       <>
 
       {(reorden.length > 0 || vencimientos.length > 0) && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
@@ -461,6 +494,9 @@ export default function InsumosAdmin() {
           </div>
         </div>
       </div>
+
+       </>
+      )}
 
       {/* ---------- Entrada múltiple ---------- */}
       {remito && (
