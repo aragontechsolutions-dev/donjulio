@@ -211,3 +211,36 @@ export enum ReservaStatus {
   CANCELADA = "CANCELADA",
   NO_SHOW = "NO_SHOW",
 }
+
+/**
+ * Estado de un cobro enviado a la terminal de tarjetas (Point Smart).
+ *
+ * El cobro no es instantáneo: el monto viaja a la terminal, el cliente apoya
+ * la tarjeta y la respuesta vuelve después. Por eso hay un estado que seguir y
+ * no un simple "pagado / no pagado".
+ */
+export enum EstadoCobroTerminal {
+  /** Creado en la base, todavía no aceptado por la terminal. */
+  PENDIENTE = "PENDIENTE",
+  /** La terminal lo tiene en pantalla y espera al cliente. */
+  ENVIADO = "ENVIADO",
+  /** Cobrado. Si además tiene pedido, la venta ya quedó registrada. */
+  APROBADO = "APROBADO",
+  /** La tarjeta fue rechazada. */
+  RECHAZADO = "RECHAZADO",
+  /** Lo canceló la cajera o el cliente en la terminal. */
+  CANCELADO = "CANCELADO",
+  /** Nadie respondió en la terminal dentro del plazo. */
+  EXPIRADO = "EXPIRADO",
+  /** Falló la comunicación con Mercado Pago. No se cobró. */
+  ERROR = "ERROR",
+}
+
+/** Estados en los que el cobro ya terminó, salga como salga. */
+export const COBRO_TERMINAL_CERRADO: EstadoCobroTerminal[] = [
+  EstadoCobroTerminal.APROBADO,
+  EstadoCobroTerminal.RECHAZADO,
+  EstadoCobroTerminal.CANCELADO,
+  EstadoCobroTerminal.EXPIRADO,
+  EstadoCobroTerminal.ERROR,
+];

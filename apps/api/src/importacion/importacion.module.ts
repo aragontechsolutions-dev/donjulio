@@ -375,6 +375,13 @@ export class ImportacionService {
       const existe = clave ? prodPorNombre.has(clave) : false;
       if (existe) avisos.push("Ya existe: se actualizan sus datos.");
 
+      // Comprarlo hecho y no contarlo es casi siempre un olvido de la
+      // planilla: la columna quedó vacía y después no hay dónde darle
+      // entrada. Mejor decirlo acá que descubrirlo buscando en Stock.
+      if (esReventa && !(siNo(f.controlastock) ?? false)) {
+        avisos.push('Se compra hecho pero no lleva stock: poné "si" en «Lleva stock» para poder contarlo.');
+      }
+
       return {
         // +2: la fila 1 son los encabezados y las personas cuentan desde 1.
         fila: i + 2,

@@ -47,6 +47,37 @@ interface Ticket {
   items: { nombre: string; cantidad: number; subtotal: number }[];
 }
 
+/** Si el local tiene posnet integrado y a cuál se le mandan los cobros. */
+interface EstadoTerminal {
+  habilitado: boolean;
+  proveedor: string | null;
+  terminalId: string | null;
+}
+
+/** Un cobro mandado a la terminal, mientras se espera al cliente. */
+interface CobroTerminal {
+  id: string;
+  estado: "PENDIENTE" | "ENVIADO" | "APROBADO" | "RECHAZADO" | "CANCELADO" | "EXPIRADO" | "ERROR";
+  monto: number;
+  metodo: string;
+  detalle: string | null;
+  pedidoId: string | null;
+  creadoEn: string;
+  cerrado: boolean;
+  ticket?: Ticket | null;
+}
+
+/** Qué se le dice a la cajera según cómo terminó el cobro. */
+const FIN_COBRO: Record<string, string> = {
+  RECHAZADO: "La tarjeta fue rechazada.",
+  CANCELADO: "El cobro se canceló.",
+  EXPIRADO: "Nadie respondió en la terminal.",
+  ERROR: "No se pudo usar la terminal.",
+};
+
+/** Medios que se cobran apoyando la tarjeta en el posnet. */
+const CON_TARJETA: PaymentMethod[] = [PaymentMethod.DEBITO, PaymentMethod.CREDITO];
+
 const MEDIOS: [PaymentMethod, string][] = [
   [PaymentMethod.EFECTIVO, "Efectivo"],
   [PaymentMethod.DEBITO, "Débito"],
@@ -74,6 +105,9 @@ export default function MostradorAdmin() {
   const [recibido, setRecibido] = useState("");
   const [cobrando, setCobrando] = useState(false);
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [terminal, setTerminal] = useState<EstadoTerminal | null>(null);
+  const [cobroTerminal, setCobroTerminal] = useState<CobroTerminal | null>(null);
+  const [huerfanos, setHuerfanos] = useState<CobroTerminal[]>([]);
   const [verCarrito, setVerCarrito] = useState(false);
   const buscarRef = useRef<HTMLInputElement | null>(null);
 
@@ -83,8 +117,38 @@ export default function MostradorAdmin() {
       .get<{ abierta: boolean }>("/admin/caja/estado")
       .then((e) => setCajaAbierta(e.abierta))
       .catch(() => setCajaAbierta(null));
+    api.get<EstadoTerminal>("/admin/mostrador/terminal").then(setTerminal).catch(() => {});
+    // Cobros aprobados sin venta: tendría que ser siempre vacío, y si no lo
+    // es hay plata cobrada sin ticket, así que se avisa arriba de todo.
+    api
+      .get<CobroTerminal[]>("/admin/mostrador/terminal/pendientes")
+      .then(setHuerfanos)
+      .catch(() => {});
   };
   useEffect(cargar, []);
+
+  // Mientras hay un cobro en la terminal, se pregunta cómo viene. La venta la
+  // registra el servidor al aprobarse, así que esto sólo mira.
+  useEffect(() => {
+    if (!cobroTerminal || cobroTerminal.cerrado) return;
+    const t = setInterval(async () => {
+      try {
+        const c = await api.get<CobroTerminal>(
+          `/admin/mostrador/terminal/cobro/${cobroTerminal.id}`,
+        );
+        setCobroTerminal(c);
+        if (c.estado === "APROBADO" && c.ticket) {
+          setTicket(c.ticket);
+          setCobroTerminal(null);
+          limpiar();
+          cargar();
+        }
+      } catch {
+        /* un pinchazo de red no corta la espera: se reintenta */
+      }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [cobroTerminal]);
 
   const total = useMemo(
     () => Math.round(carrito.reduce((a, l) => a + l.precio * l.cantidad, 0) * 100) / 100,
@@ -160,18 +224,36 @@ export default function MostradorAdmin() {
     setVerCarrito(false);
   };
 
+  /** El carrito como lo espera la API. */
+  const itemsParaApi = () =>
+    carrito.map((l) => ({
+      productoId: l.producto.id,
+      cantidad: l.cantidad,
+      ...(l.modificadorIds.length ? { modificadorIds: l.modificadorIds } : {}),
+    }));
+
+  /** Con posnet integrado, el débito y el crédito van por la terminal. */
+  const porTerminal = !!terminal?.habilitado && CON_TARJETA.includes(metodo);
+
   const cobrar = async () => {
     if (carrito.length === 0 || cobrando) return;
     setCobrando(true);
     try {
+      if (porTerminal) {
+        // El monto se lo manda el servidor a la terminal y la venta se
+        // registra sola al aprobarse: acá sólo se abre la espera.
+        const cobro = await api.post<CobroTerminal>(
+          "/admin/mostrador/terminal/cobro",
+          { items: itemsParaApi(), metodoPago: metodo },
+          { sinToast: true },
+        );
+        setCobroTerminal(cobro);
+        return;
+      }
       const res = await api.post<Ticket>(
         "/admin/mostrador/venta",
         {
-          items: carrito.map((l) => ({
-            productoId: l.producto.id,
-            cantidad: l.cantidad,
-            ...(l.modificadorIds.length ? { modificadorIds: l.modificadorIds } : {}),
-          })),
+          items: itemsParaApi(),
           metodoPago: metodo,
           ...(esEfectivo && recibido !== "" ? { recibido: Number(recibido) } : {}),
         },
@@ -182,6 +264,47 @@ export default function MostradorAdmin() {
       cargar(); // el stock cambió
     } catch {
       /* el toast de error lo dispara el api client */
+    } finally {
+      setCobrando(false);
+    }
+  };
+
+  /** Bajar el cobro de la terminal: la cajera o el cliente se arrepintieron. */
+  const cancelarCobro = async () => {
+    if (!cobroTerminal) return;
+    try {
+      const c = await api.post<CobroTerminal>(
+        `/admin/mostrador/terminal/cobro/${cobroTerminal.id}/cancelar`,
+        {},
+        { sinToast: true },
+      );
+      setCobroTerminal(c);
+    } catch {
+      /* si no se pudo cancelar puede ser que el cliente ya haya pagado */
+    }
+  };
+
+  /**
+   * Seguir sin la terminal: se cobra en el posnet a mano y se registra la
+   * venta igual. Es la salida cuando la terminal no responde, para que no
+   * quede gente esperando en el mostrador.
+   */
+  const cobrarAMano = async () => {
+    if (!cobroTerminal) return;
+    if (!cobroTerminal.cerrado) await cancelarCobro();
+    setCobroTerminal(null);
+    setCobrando(true);
+    try {
+      const res = await api.post<Ticket>(
+        "/admin/mostrador/venta",
+        { items: itemsParaApi(), metodoPago: metodo },
+        { sinToast: true },
+      );
+      setTicket(res);
+      limpiar();
+      cargar();
+    } catch {
+      /* el toast lo dispara el api client */
     } finally {
       setCobrando(false);
     }
@@ -253,6 +376,31 @@ export default function MostradorAdmin() {
         <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           No hay caja abierta, así que no se puede cobrar. Abrila en <b>Caja</b> y volvé.
         </p>
+      )}
+
+      {/* Plata cobrada en la terminal que no llegó a quedar como venta. No se
+          puede resolver sola: alguien tiene que registrarla o devolverla. */}
+      {huerfanos.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold">
+            {huerfanos.length === 1
+              ? "Hay un cobro con tarjeta sin venta registrada."
+              : `Hay ${huerfanos.length} cobros con tarjeta sin venta registrada.`}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {huerfanos.map((c) => (
+              <li key={c.id} className="tabular-nums">
+                {formatUYU(c.monto)} · {new Date(c.creadoEn).toLocaleString("es-UY", {
+                  day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                })}
+                {c.detalle ? ` · ${c.detalle}` : ""}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs">
+            Al cliente se le cobró. Registrá la venta a mano o devolvele la plata desde Mercado Pago.
+          </p>
+        </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
@@ -480,10 +628,95 @@ export default function MostradorAdmin() {
             }
             className="mt-2 w-full rounded-xl bg-dj-terracota py-3.5 text-lg font-semibold text-white hover:bg-dj-cobre disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {cobrando ? "Cobrando…" : `Cobrar ${formatUYU(total)}`}
+            {cobrando
+              ? "Cobrando…"
+              : porTerminal
+                ? `Cobrar ${formatUYU(total)} en la terminal`
+                : `Cobrar ${formatUYU(total)}`}
           </button>
         </div>
       </div>
+
+      {/* ── Esperando a que el cliente pague en la terminal ── */}
+      {cobroTerminal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-crust-900/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-terminal"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+            {!cobroTerminal.cerrado ? (
+              <>
+                <div
+                  className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-crust-200 border-t-dj-terracota"
+                  aria-hidden="true"
+                />
+                <h3 id="titulo-terminal" className="mt-4 font-display text-xl font-bold text-crust-900">
+                  Esperando en la terminal
+                </h3>
+                <p className="mt-1 text-sm text-crust-500">
+                  Pedile al cliente que apoye o inserte la tarjeta.
+                </p>
+              </>
+            ) : cobroTerminal.estado === "APROBADO" ? (
+              <>
+                <p className="text-4xl" aria-hidden="true">✅</p>
+                <h3 id="titulo-terminal" className="mt-2 font-display text-xl font-bold text-crust-900">
+                  Pago aprobado
+                </h3>
+                <p className="mt-1 text-sm text-crust-500">Registrando la venta…</p>
+              </>
+            ) : (
+              <>
+                <p className="text-4xl" aria-hidden="true">⚠️</p>
+                <h3 id="titulo-terminal" className="mt-2 font-display text-xl font-bold text-crust-900">
+                  {FIN_COBRO[cobroTerminal.estado] ?? "El cobro no se completó."}
+                </h3>
+                <p className="mt-1 text-sm text-crust-500">
+                  No se cobró nada. Podés volver a intentar o cobrar con el posnet.
+                </p>
+              </>
+            )}
+
+            <p className="mt-4 font-display text-3xl font-bold text-crust-900 tabular-nums">
+              {formatUYU(cobroTerminal.monto)}
+            </p>
+            {cobroTerminal.detalle && (
+              <p className="mt-2 rounded-lg bg-crust-50 px-3 py-2 text-xs text-crust-600">
+                {cobroTerminal.detalle}
+              </p>
+            )}
+
+            <div className="mt-5 grid gap-2">
+              {!cobroTerminal.cerrado && (
+                <button
+                  onClick={cancelarCobro}
+                  className="w-full rounded-xl border border-crust-200 py-2.5 font-medium text-crust-700 hover:bg-crust-100"
+                >
+                  Cancelar el cobro
+                </button>
+              )}
+              {cobroTerminal.estado !== "APROBADO" && (
+                <>
+                  <button
+                    onClick={cobrarAMano}
+                    className="w-full rounded-xl bg-dj-terracota py-2.5 font-semibold text-white hover:bg-dj-cobre"
+                  >
+                    Cobré con el posnet: registrar la venta
+                  </button>
+                  <button
+                    onClick={() => setCobroTerminal(null)}
+                    className="w-full py-1 text-sm text-crust-500 underline"
+                  >
+                    Volver al carrito
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Peso de la balanza ── */}
       {pesando && (

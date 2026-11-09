@@ -29,6 +29,9 @@ interface DetalleMovimiento {
     neto: number;
     iva: number;
     items: ItemVendido[];
+    /** Id de la operación en el medio de pago, para conciliar. */
+    operacionExterna?: string | null;
+    cobradoCon?: string | null;
   } | null;
 }
 
@@ -174,6 +177,15 @@ export default function MovimientosCaja({
                       {formatUYU(det.venta.iva)}
                       {det.usuario ? ` · cobró ${det.usuario}` : ""}
                     </p>
+                    {det.venta.operacionExterna && (
+                      // Para cruzar esta venta con la que figura en el panel
+                      // del medio de pago sin tener que buscar por monto y
+                      // hora, que es como se cometen los errores.
+                      <p className="mt-1 break-all text-[11px] text-crust-400">
+                        Operación {det.venta.cobradoCon ?? "externa"}:{" "}
+                        <span className="font-mono">{det.venta.operacionExterna}</span>
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p className="text-crust-500">

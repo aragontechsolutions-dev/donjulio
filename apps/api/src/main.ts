@@ -58,6 +58,17 @@ async function bootstrap() {
   await app.listen(port, "0.0.0.0");
   // eslint-disable-next-line no-console
   console.log(`🥖 Don Julio API escuchando en el puerto ${port} (prefijo /api)`);
+  // En qué modo quedó cada pieza. Si el panel usa Supabase Auth y la API
+  // quedó en "local", el login entra pero /auth/me devuelve 401 y nadie
+  // puede usar el sistema; verlo acá ahorra deducirlo desde el navegador.
+  // eslint-disable-next-line no-console
+  console.log(
+    "   auth: " + config.get("AUTH_PROVIDER", "local") +
+      " · storage: " + config.get("STORAGE_PROVIDER", "local") +
+      " · pagos: " + config.get("PAYMENTS_PROVIDER", "mock") +
+      " · terminal: " + (config.get("TERMINAL_PROVIDER") || "ninguna") +
+      " · CFE: " + config.get("BILLING_PROVIDER", "mock"),
+  );
 }
 
 bootstrap();
