@@ -10,6 +10,9 @@ interface Usuario {
   localId?: string;
   numeroEmpleado?: number;
   pinHash?: boolean;
+  /** Bloqueada por errar la contraseña de más. */
+  bloqueada?: boolean;
+  intentosFallidos?: number;
 }
 
 const ROLES = Object.values(UserRole);
@@ -155,6 +158,18 @@ export default function UsuariosAdmin() {
     }
   };
 
+  const desbloquear = async (u: Usuario) => {
+    setError(null);
+    setOk(null);
+    try {
+      await api.post(`/admin/usuarios/${u.id}/desbloquear`, {}, { sinToast: true });
+      setOk(`Cuenta de ${u.email} desbloqueada. Ya puede volver a entrar.`);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   const eliminar = async (u: Usuario) => {
     if (!confirm(`¿Eliminar a ${u.email}?`)) return;
     setError(null);
@@ -220,7 +235,23 @@ export default function UsuariosAdmin() {
                     {u.numeroEmpleado ?? "—"}
                   </span>
                 </td>
-                <td data-principal className="px-4 py-3 font-medium text-crust-800">{u.nombre}</td>
+                <td data-principal className="px-4 py-3 font-medium text-crust-800">
+                  {u.nombre}
+                  {u.bloqueada ? (
+                    <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                      bloqueada
+                    </span>
+                  ) : (u.intentosFallidos ?? 0) > 0 ? (
+                    // Avisa antes del bloqueo: con esto el encargado puede
+                    // acercarse a preguntar en vez de enterarse después.
+                    <span
+                      className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800"
+                      title="Intentos fallidos seguidos"
+                    >
+                      {u.intentosFallidos} fallido{u.intentosFallidos === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </td>
                 <td data-etiqueta="Email" className="px-4 py-3 text-crust-500">{u.email}</td>
                 <td data-etiqueta="Rol" className="px-4 py-3">
                   <select value={u.role} onChange={(e) => cambiarRol(u, e.target.value)} className="rounded-lg border border-crust-200 px-2 py-1 text-sm">
@@ -231,6 +262,11 @@ export default function UsuariosAdmin() {
                   <button onClick={() => definirPin(u)} className={`mr-2 rounded-lg border px-3 py-1.5 text-sm ${u.pinHash ? "border-crust-200 text-crust-700 hover:bg-crust-100" : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>
                     {u.pinHash ? "Cambiar PIN" : "Asignar PIN"}
                   </button>
+                  {u.bloqueada && (
+                    <button onClick={() => desbloquear(u)} className="mr-2 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100">
+                      Desbloquear
+                    </button>
+                  )}
                   <button onClick={() => resetear(u)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1.5 text-sm text-crust-700 hover:bg-crust-100">Resetear contraseña</button>
                   <button onClick={() => eliminar(u)} className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
                 </td>

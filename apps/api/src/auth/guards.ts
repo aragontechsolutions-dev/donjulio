@@ -47,6 +47,20 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
   >();
   private static readonly TOKEN_TTL_MS = 5 * 60 * 1000;
   private static readonly TOKEN_CACHE_MAX = 500;
+  /**
+   * Si la cuenta está bloqueada o dada de baja, por email.
+   *
+   * Se consulta en cada request, también cuando el token ya estaba validado:
+   * bloquear a alguien tiene que echarlo del sistema, no esperar a que se le
+   * venza el token (12 h en modo local, 1 h en Supabase). El TTL corto es el
+   * precio: hasta medio minuto de margen, a cambio de no ir a la base en
+   * cada llamada.
+   */
+  private readonly estadoCache = new Map<
+    string,
+    { bloqueada: boolean; activo: boolean; exp: number }
+  >();
+  private static readonly ESTADO_TTL_MS = 30 * 1000;
 
   constructor(
     private reflector: Reflector,
@@ -72,6 +86,40 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
     return this.supabase;
   }
 
+  /**
+   * Corta el paso si la cuenta está bloqueada o dada de baja.
+   *
+   * Va acá y no en el login porque con Supabase Auth el login no pasa por la
+   * API: sin esto, bloquear a alguien en el panel no tendría ningún efecto y
+   * la persona seguiría trabajando con el token que ya tenía.
+   */
+  private async verificarEstado(email: string): Promise<void> {
+    if (!email) return;
+    const clave = email.toLowerCase();
+    let estado = this.estadoCache.get(clave);
+    if (!estado || estado.exp <= Date.now()) {
+      const u = await this.prisma.usuario.findUnique({
+        where: { email: clave },
+        select: { activo: true, bloqueadaEn: true },
+      });
+      // Sin fila todavía (primer login con Supabase): la crea el flujo normal.
+      estado = {
+        bloqueada: !!u?.bloqueadaEn,
+        activo: u?.activo ?? true,
+        exp: Date.now() + JwtAuthGuard.ESTADO_TTL_MS,
+      };
+      this.estadoCache.set(clave, estado);
+    }
+    if (estado.bloqueada) {
+      throw new ForbiddenException(
+        "La cuenta está bloqueada. Pedile a un administrador que la desbloquee.",
+      );
+    }
+    if (!estado.activo) {
+      throw new ForbiddenException("La cuenta está dada de baja.");
+    }
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -88,6 +136,7 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       // Cache-hit: el token ya fue validado hace poco; evitamos el round-trip.
       const cached = this.tokenCache.get(token);
       if (cached && cached.exp > Date.now()) {
+        await this.verificarEstado(cached.user.email);
         req.user = cached.user;
         return true;
       }
@@ -125,6 +174,8 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
         this.userIdCache.set(email, localId);
       }
 
+      await this.verificarEstado(email);
+
       const mustChangePassword =
         (u.user_metadata as Record<string, unknown>)?.must_change_password === true;
       const payload: AuthUserPayload = { id: localId, email, nombre, role, mustChangePassword };
@@ -142,7 +193,14 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       return true;
     }
 
-    return (await super.canActivate(context)) as boolean;
+    const ok = (await super.canActivate(context)) as boolean;
+    if (ok) {
+      // El JWT propio dura 12 h: sin este chequeo, bloquear a alguien no lo
+      // sacaría del sistema hasta el día siguiente.
+      const req = context.switchToHttp().getRequest();
+      await this.verificarEstado(String(req.user?.email ?? ""));
+    }
+    return ok;
   }
 }
 

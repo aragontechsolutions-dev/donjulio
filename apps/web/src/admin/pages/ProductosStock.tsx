@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { UnidadVenta } from "@donjulio/shared";
 import { api } from "../../lib/api";
 import Modal from "../../lib/Modal";
+import Paginador, { usePaginacion } from "../../lib/Paginador";
 import { formatUYU } from "../../lib/format";
 
 /**
@@ -61,8 +62,10 @@ export default function ProductosStock() {
 
   // Los que llevan stock arriba: son los que se miran todos los días. Abajo,
   // los que no lo llevan, que es donde hay que ir a activarlo.
-  const conStock = visibles.filter((p) => p.controlaStock);
-  const sinStock = visibles.filter((p) => !p.controlaStock);
+  const conStock = useMemo(() => visibles.filter((p) => p.controlaStock), [visibles]);
+  const sinStock = useMemo(() => visibles.filter((p) => !p.controlaStock), [visibles]);
+  // Se pagina la tabla de arriba, que es la que crece con el catálogo.
+  const pag = usePaginacion(conStock);
 
   const abrirEntrada = (p: ProductoStock) => {
     setForm({ cantidad: "", costoUnitario: p.costoCompra ? String(p.costoCompra) : "", lote: "", vencimiento: "" });
@@ -137,7 +140,7 @@ export default function ProductosStock() {
                     </td>
                   </tr>
                 )}
-                {conStock.map((p) => (
+                {pag.visibles.map((p) => (
                   <tr key={p.id} className="border-b border-crust-50 last:border-0">
                     <td className="px-4 py-3 font-medium text-crust-800">{p.nombre}</td>
                     <td className="px-4 py-3 text-crust-500">{p.categoria}</td>
@@ -176,6 +179,7 @@ export default function ProductosStock() {
                 ))}
               </tbody>
             </table>
+            {conStock.length > 0 && <Paginador {...pag} nombre="productos" />}
           </div>
 
           {sinStock.length > 0 && (
