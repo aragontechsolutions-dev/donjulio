@@ -199,6 +199,9 @@ export class CashService {
                 modificadores: { select: { nombre: true } },
               },
             },
+            // Para poder cruzar lo que muestra Mercado Pago con lo que
+            // muestra el sistema sin entrar a la base.
+            pagos: { select: { provider: true, mpPaymentId: true } },
           },
         },
       },
@@ -230,6 +233,12 @@ export class CashService {
               ivaRate: it.ivaRate,
               modificadores: it.modificadores.map((m) => m.nombre),
             })),
+            // Identificador de la operación del lado del medio de pago, para
+            // la conciliación: con esto se encuentra la misma venta en el
+            // panel de Mercado Pago, y al revés.
+            operacionExterna:
+              mov.pedido.pagos.find((p) => p.mpPaymentId)?.mpPaymentId ?? null,
+            cobradoCon: mov.pedido.pagos[0]?.provider ?? null,
           }
         : null,
     };

@@ -91,10 +91,11 @@ Variables en Render (ninguna va en el frontend):
 
 El `MP_TERMINAL_ID` tiene formato `{tipo}__{serie}`, con **doble** guión bajo,
 y la serie es la que está impresa en la etiqueta de atrás del equipo. Para el
-Point Smart del local (Newland N950, serie `NCD500430546`) debería ser algo
-como `NEWLAND_N950__NCD500430546`.
+Point Smart del local (Newland N950, serie `NCD500430546`) sería algo como
+`NEWLAND_N950__NCD500430546`, pero **el soporte de Mercado Pago no confirmó
+ese valor**: hay que tomarlo de la lista, no armarlo a mano.
 
-Conviene no armarlo a mano sino tomarlo de la lista, con el token ya puesto:
+Con el token ya puesto:
 
 ```
 GET /api/admin/terminal/terminales
@@ -164,10 +165,41 @@ Queda por confirmar contra la terminal real:
   reconozca se trata como "sigue en la terminal", nunca como aprobado.
 - **El formato del vencimiento** (`expiration_time: "PT15M"`).
 
-Para probar sin cobrarle a nadie, la documentación menciona un endpoint que
-simula el resultado de una order en ambiente de prueba
-(`POST /v1/orders/{id}/events`). Vale confirmarlo con Mercado Pago: evitaría
-tener que pasar tarjetas reales y devolver la plata durante la homologación.
+**No hay simulación para Point.** Se consultó por `POST /v1/orders/{id}/events`
+y Mercado Pago respondió que no hay referencia oficial de que aplique a una
+terminal física: la documentación de pruebas de Orders API apunta a flujos de
+ecommerce. Para validar de punta a punta hace falta **al menos una operación
+real en la terminal**, con tarjeta de verdad y devolución posterior. Conviene
+hacerla con el monto más chico del catálogo.
+
+## El circuito de calidad
+
+Mercado Pago mide la integración sobre cinco ejes: experiencia del comprador,
+conciliación financiera, aprobación de pagos, escalabilidad y seguridad. El
+resultado llega separado en acciones obligatorias, recomendadas y buenas
+prácticas, y la medición necesita el Order ID de una operación productiva
+hecha en la terminal física.
+
+De los requisitos que la documentación nombra explícitamente, el sistema ya
+cumple dos:
+
+| Requisito | Dónde está |
+| --- | --- |
+| **Webhooks configurados** | `POST /api/terminal/webhook`, con firma verificada. Falta darlo de alta en el panel |
+| **Referencia externa para correlacionar las orders** | Cada order viaja con `external_reference` = el id del cobro, que enlaza con la venta |
+
+La conciliación va en los dos sentidos, que es lo que hace falta para cuadrar
+una caja:
+
+- **De Mercado Pago al sistema**: la `external_reference` de la order lleva al
+  cobro, y el cobro a la venta.
+- **Del sistema a Mercado Pago**: el detalle del movimiento de caja muestra el
+  identificador de la operación, así que desde una línea de la caja se busca
+  directo en el panel de Mercado Pago, sin cruzar por monto y hora —que es
+  justo como se cometen los errores al conciliar.
+
+Queda pendiente de la medición real: escalabilidad y los detalles de
+experiencia del comprador, que se evalúan recién con la operación productiva.
 
 ## Dónde está cada cosa
 
