@@ -58,5 +58,18 @@ services:
 
       - key: PAYMENTS_PROVIDER
         value: mock
+
+      # ── Terminal de tarjetas del mostrador (Mercado Pago Point) ──
+      # Vacío = sin posnet integrado, la cajera cobra a mano como siempre.
+      # Para prenderlo: "mercadopago" + MP_ACCESS_TOKEN y MP_TERMINAL_ID.
+      # Ver docs/MERCADOPAGO-POINT.md.
+      - key: TERMINAL_PROVIDER
+        value: ""
+      - key: MP_TERMINAL_ID
+        sync: false
+      - key: MP_ACCESS_TOKEN # secreta; sólo en el backend
+        sync: false
+      - key: MP_WEBHOOK_SECRET # firma de los avisos de Mercado Pago
+        sync: false
       - key: BILLING_PROVIDER
         value: mock

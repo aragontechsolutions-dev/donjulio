@@ -9,9 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Conexión de la app: en Supabase, usar el pooler (pgbouncer, puerto 6543).
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Conexión directa (puerto 5432) para migraciones. En local puede ser igual
   // a DATABASE_URL; en Supabase apunta al host directo sin pgbouncer.
   directUrl = env("DIRECT_URL")
@@ -188,44 +188,56 @@ enum PromoTipoDescuento {
 
 // ──────────────────────── Usuarios y clientes ────────────────────────
 
+/// Estado de un cobro enviado a la terminal de tarjetas (Point Smart).
+enum EstadoCobroTerminal {
+  PENDIENTE
+  ENVIADO
+  APROBADO
+  RECHAZADO
+  CANCELADO
+  EXPIRADO
+  ERROR
+}
+
 model Usuario {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  nombre       String
-  role         UserRole @default(CAJERO)
-  activo       Boolean  @default(true)
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  nombre         String
+  role           UserRole @default(CAJERO)
+  activo         Boolean  @default(true)
   // Fichaje en el tablet del local: número correlativo + PIN de 4 dígitos.
-  numeroEmpleado Int    @unique @default(autoincrement())
+  numeroEmpleado Int      @unique @default(autoincrement())
   pinHash        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relaciones operativas
   movimientosStock  MovimientoStock[]
   ordenesProduccion OrdenProduccion[]
   mermas            Merma[]
-  pedidosComoMozo   Pedido[]          @relation("PedidoMozo")
+  pedidosComoMozo   Pedido[]           @relation("PedidoMozo")
   eventosPedido     OrderStatusEvent[]
-  cajasAbiertas     CashSession[]     @relation("CajaAbiertaPor")
-  cajasCerradas     CashSession[]     @relation("CajaCerradaPor")
+  cajasAbiertas     CashSession[]      @relation("CajaAbiertaPor")
+  cajasCerradas     CashSession[]      @relation("CajaCerradaPor")
   movimientosCaja   CashMovement[]
   turnos            Shift[]
   horarios          HorarioTrabajo[]
   propinas          Propina[]
+  cobrosTerminal    CobroTerminal[]
 }
 
 model Cliente {
-  id                 String   @id @default(uuid())
-  nombre             String
-  telefono           String?
-  email              String?
-  direccion          String?
+  id                  String    @id @default(uuid())
+  nombre              String
+  telefono            String?
+  email               String?
+  direccion           String?
   // Ley 18.331 (URCDP): consentimiento informado del titular.
-  consentimientoDatos Boolean  @default(false)
-  consentimientoAt   DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  consentimientoDatos Boolean   @default(false)
+  consentimientoAt    DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   pedidos      Pedido[]
   customOrders CustomOrder[]
@@ -251,37 +263,37 @@ model Categoria {
 }
 
 model Producto {
-  id               String   @id @default(uuid())
+  id               String      @id @default(uuid())
   categoriaId      String
-  categoria        Categoria @relation(fields: [categoriaId], references: [id])
+  categoria        Categoria   @relation(fields: [categoriaId], references: [id])
   nombre           String
-  slug             String   @unique
+  slug             String      @unique
   descripcion      String?
-  precio           Decimal  @db.Decimal(12, 2)
+  precio           Decimal     @db.Decimal(12, 2)
   imagenUrl        String?
-  destacado        Boolean  @default(false)
-  disponible       Boolean  @default(true)
-  ivaRate          IvaRate  @default(MINIMA)
-  esReventa        Boolean  @default(false) // reventa (embotellados) vs elaborado
+  destacado        Boolean     @default(false)
+  disponible       Boolean     @default(true)
+  ivaRate          IvaRate     @default(MINIMA)
+  esReventa        Boolean     @default(false) // reventa (embotellados) vs elaborado
   /// Cuánto cuesta comprarlo, sólo para productos de reventa. Los elaborados
   /// sacan su costo de la receta asociada.
-  costoCompra      Decimal? @db.Decimal(12, 4)
+  costoCompra      Decimal?    @db.Decimal(12, 4)
   /// Si se vende de lo producido: la venta descuenta de los lotes y se bloquea
   /// cuando no hay stock. Para lo que se prepara al momento (café, tostados)
   /// va en false, que es como se comportaba todo hasta ahora.
-  controlaStock    Boolean  @default(false)
+  controlaStock    Boolean     @default(false)
   /// Cómo se cobra en el mostrador. Con KG, `precio` es el precio por kilo y
   /// lo que se vende es el peso que marcó la balanza.
   unidadVenta      UnidadVenta @default(UNIDAD)
   /// A quién se le compra (sobre todo en la reventa). Uno principal: si se
   /// compra a varios, el resto se anota en las notas del proveedor.
   proveedorId      String?
-  proveedor        Proveedor? @relation(fields: [proveedorId], references: [id])
-  requiereOctogono Boolean  @default(false) // Decreto 272/018 (rotulado frontal)
+  proveedor        Proveedor?  @relation(fields: [proveedorId], references: [id])
+  requiereOctogono Boolean     @default(false) // Decreto 272/018 (rotulado frontal)
   stationId        String?
-  station          Station? @relation(fields: [stationId], references: [id])
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  station          Station?    @relation(fields: [stationId], references: [id])
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   receta          Receta?
   rotulado        RotuladoProducto?
@@ -298,11 +310,11 @@ model Producto {
 }
 
 model ProductVariant {
-  id         String  @id @default(uuid())
-  productoId String
-  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  nombre     String   // ej. "Grande", "500 g"
-  precioDelta Decimal @db.Decimal(12, 2) @default(0)
+  id          String   @id @default(uuid())
+  productoId  String
+  producto    Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  nombre      String // ej. "Grande", "500 g"
+  precioDelta Decimal  @default(0) @db.Decimal(12, 2)
 
   itemsPedido PedidoItem[]
 
@@ -310,23 +322,23 @@ model ProductVariant {
 }
 
 model ModifierGroup {
-  id        String  @id @default(uuid())
-  nombre    String  // ej. "Tipo de leche"
-  minSelect Int     @default(0)
-  maxSelect Int     @default(1)
+  id        String @id @default(uuid())
+  nombre    String // ej. "Tipo de leche"
+  minSelect Int    @default(0)
+  maxSelect Int    @default(1)
 
   modifiers Modifier[]
   productos ProductModifierGroup[]
 }
 
 model Modifier {
-  id         String  @id @default(uuid())
+  id         String        @id @default(uuid())
   groupId    String
   group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  nombre     String  // ej. "Leche vegetal"
-  priceDelta Decimal @db.Decimal(12, 2) @default(0)
+  nombre     String // ej. "Leche vegetal"
+  priceDelta Decimal       @default(0) @db.Decimal(12, 2)
   insumoId   String?
-  insumo     Insumo? @relation(fields: [insumoId], references: [id])
+  insumo     Insumo?       @relation(fields: [insumoId], references: [id])
 
   itemsPedido PedidoItemModifier[]
 
@@ -335,7 +347,7 @@ model Modifier {
 
 model ProductModifierGroup {
   productoId String
-  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  producto   Producto      @relation(fields: [productoId], references: [id], onDelete: Cascade)
   groupId    String
   group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
@@ -344,19 +356,19 @@ model ProductModifierGroup {
 }
 
 model Promocion {
-  id             String   @id @default(uuid())
-  nombre         String
-  descripcion    String?
-  productoId     String?
-  producto       Producto? @relation(fields: [productoId], references: [id])
-  categoriaId    String?
-  categoria      Categoria? @relation(fields: [categoriaId], references: [id])
-  tipoDescuento  PromoTipoDescuento
-  valor          Decimal   @db.Decimal(12, 2) // % o monto según tipo
-  vigenciaDesde  DateTime
-  vigenciaHasta  DateTime
-  activa         Boolean   @default(true)
-  createdAt      DateTime  @default(now())
+  id            String             @id @default(uuid())
+  nombre        String
+  descripcion   String?
+  productoId    String?
+  producto      Producto?          @relation(fields: [productoId], references: [id])
+  categoriaId   String?
+  categoria     Categoria?         @relation(fields: [categoriaId], references: [id])
+  tipoDescuento PromoTipoDescuento
+  valor         Decimal            @db.Decimal(12, 2) // % o monto según tipo
+  vigenciaDesde DateTime
+  vigenciaHasta DateTime
+  activa        Boolean            @default(true)
+  createdAt     DateTime           @default(now())
 
   @@index([activa, vigenciaDesde, vigenciaHasta])
 }
@@ -371,11 +383,11 @@ model ContenidoLanding {
 }
 
 model Galeria {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   imagenUrl String
   titulo    String?
-  orden     Int      @default(0)
-  activa    Boolean  @default(true)
+  orden     Int     @default(0)
+  activa    Boolean @default(true)
 }
 
 model Testimonio {
@@ -388,29 +400,29 @@ model Testimonio {
 }
 
 model Horario {
-  id       String @id @default(uuid())
-  diaSemana Int    // 0=domingo … 6=sábado
-  apertura String // "07:00"
-  cierre   String // "20:00"
-  cerrado  Boolean @default(false)
+  id        String  @id @default(uuid())
+  diaSemana Int // 0=domingo … 6=sábado
+  apertura  String // "07:00"
+  cierre    String // "20:00"
+  cerrado   Boolean @default(false)
 
   @@unique([diaSemana])
 }
 
 model ConfigContacto {
-  id         String  @id @default(uuid())
-  direccion  String?
-  telefono   String?
-  whatsapp   String?
-  email      String?
-  instagram  String?
-  facebook   String?
-  mapsUrl    String?
-  lat        Float?
-  lng        Float?
+  id        String   @id @default(uuid())
+  direccion String?
+  telefono  String?
+  whatsapp  String?
+  email     String?
+  instagram String?
+  facebook  String?
+  mapsUrl   String?
+  lat       Float?
+  lng       Float?
   /// Nivel de zoom con el que se muestra el mapa público (1 = mundo, 19 = calle).
-  mapZoom    Int?
-  updatedAt  DateTime @updatedAt
+  mapZoom   Int?
+  updatedAt DateTime @updatedAt
 }
 
 // ─────────────────── Insumos, proveedores y stock ───────────────────
@@ -429,7 +441,9 @@ model Proveedor {
   notas     String?
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Con default a nivel de base: la tabla ya tenía filas cuando se agregó
+  // la columna, y sin default la migración no podía aplicarse.
+  updatedAt DateTime @updatedAt @default(now())
 
   /// Rubros que se le compran. Se declaran aparte de los productos porque un
   /// proveedor nuevo se carga antes de saber qué artículos se le van a pedir.
@@ -444,18 +458,18 @@ model Insumo {
   nombre        String
   unidad        UnitOfMeasure
   costoUnitario Decimal       @db.Decimal(12, 4)
-  stockActual   Decimal       @db.Decimal(12, 3) @default(0)
-  puntoReorden  Decimal       @db.Decimal(12, 3) @default(0)
+  stockActual   Decimal       @default(0) @db.Decimal(12, 3)
+  puntoReorden  Decimal       @default(0) @db.Decimal(12, 3)
   proveedorId   String?
   proveedor     Proveedor?    @relation(fields: [proveedorId], references: [id])
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  lotes            InsumoLote[]
-  movimientos      MovimientoStock[]
+  lotes              InsumoLote[]
+  movimientos        MovimientoStock[]
   recetaIngredientes RecetaIngrediente[]
-  modifiers        Modifier[]
-  mermas           Merma[]
+  modifiers          Modifier[]
+  mermas             Merma[]
 
   @@index([proveedorId])
 }
@@ -482,7 +496,7 @@ model MovimientoStock {
   insumo            Insumo            @relation(fields: [insumoId], references: [id])
   tipo              StockMovementType
   cantidad          Decimal           @db.Decimal(12, 3)
-  costoUnitario     Decimal           @db.Decimal(12, 4) @default(0)
+  costoUnitario     Decimal           @default(0) @db.Decimal(12, 4)
   motivo            String?
   // Lote de insumo consumido/ingresado (trazabilidad).
   insumoLoteId      String?
@@ -502,20 +516,20 @@ model MovimientoStock {
 // ─────────────── Recetas / BOM multinivel (sub-recetas) ───────────────
 
 model Receta {
-  id           String        @id @default(uuid())
-  nombre       String
+  id            String        @id @default(uuid())
+  nombre        String
   // Un producto terminado tiene una receta; las sub-recetas no tienen producto.
-  productoId   String?       @unique
-  producto     Producto?     @relation(fields: [productoId], references: [id])
-  isSubRecipe  Boolean       @default(false)
-  yieldQty     Decimal       @db.Decimal(12, 3) @default(1) // rendimiento del lote
-  yieldUnit    UnitOfMeasure @default(UNIDAD)
-  mermaPct     Decimal       @db.Decimal(5, 2) @default(0) // % de merma esperada
-  manoObraCosto Decimal      @db.Decimal(12, 2) @default(0)
-  overheadCosto Decimal      @db.Decimal(12, 2) @default(0)
-  notas        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  productoId    String?       @unique
+  producto      Producto?     @relation(fields: [productoId], references: [id])
+  isSubRecipe   Boolean       @default(false)
+  yieldQty      Decimal       @default(1) @db.Decimal(12, 3) // rendimiento del lote
+  yieldUnit     UnitOfMeasure @default(UNIDAD)
+  mermaPct      Decimal       @default(0) @db.Decimal(5, 2) // % de merma esperada
+  manoObraCosto Decimal       @default(0) @db.Decimal(12, 2)
+  overheadCosto Decimal       @default(0) @db.Decimal(12, 2)
+  notas         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   // BOM: ingredientes de esta receta (insumos o sub-recetas)
   ingredientes RecetaIngrediente[] @relation("RecetaParent")
@@ -543,17 +557,17 @@ model RecetaIngrediente {
 }
 
 model OrdenProduccion {
-  id             String                @id @default(uuid())
-  recetaId       String
-  receta         Receta                @relation(fields: [recetaId], references: [id])
-  cantidadLotes  Decimal               @db.Decimal(12, 3) @default(1)
-  status         ProductionOrderStatus @default(PLANIFICADA)
+  id              String                @id @default(uuid())
+  recetaId        String
+  receta          Receta                @relation(fields: [recetaId], references: [id])
+  cantidadLotes   Decimal               @default(1) @db.Decimal(12, 3)
+  status          ProductionOrderStatus @default(PLANIFICADA)
   planificadaPara DateTime?
-  iniciadaAt     DateTime?
-  terminadaAt    DateTime?
-  usuarioId      String?
-  usuario        Usuario?              @relation(fields: [usuarioId], references: [id])
-  createdAt      DateTime              @default(now())
+  iniciadaAt      DateTime?
+  terminadaAt     DateTime?
+  usuarioId       String?
+  usuario         Usuario?              @relation(fields: [usuarioId], references: [id])
+  createdAt       DateTime              @default(now())
 
   movimientos MovimientoStock[]
   lotes       ProductionLot[]
@@ -589,7 +603,7 @@ model Merma {
   productionLot   ProductionLot? @relation(fields: [productionLotId], references: [id])
   motivo          MermaMotivo
   cantidad        Decimal        @db.Decimal(12, 3)
-  costo           Decimal        @db.Decimal(12, 2) @default(0)
+  costo           Decimal        @default(0) @db.Decimal(12, 2)
   usuarioId       String?
   usuario         Usuario?       @relation(fields: [usuarioId], references: [id])
   createdAt       DateTime       @default(now())
@@ -609,24 +623,24 @@ model Station {
 }
 
 model Zona {
-  id     String  @id @default(uuid())
+  id     String @id @default(uuid())
   nombre String
 
   mesas Mesa[]
 }
 
 model Mesa {
-  id         String      @id @default(uuid())
-  numero     Int
-  zonaId     String?
-  zona       Zona?       @relation(fields: [zonaId], references: [id])
-  capacidad  Int         @default(4)
-  status     TableStatus @default(LIBRE)
+  id           String      @id @default(uuid())
+  numero       Int
+  zonaId       String?
+  zona         Zona?       @relation(fields: [zonaId], references: [id])
+  capacidad    Int         @default(4)
+  status       TableStatus @default(LIBRE)
   // Posición y forma en el plano del salón (editor visual).
-  posX       Int         @default(20)
-  posY       Int         @default(20)
-  forma      String      @default("CUADRADA") // CUADRADA | CIRCULAR
-  qrToken    String      @unique @default(uuid()) // token para el autoservicio por mesa (QR/tablet)
+  posX         Int         @default(20)
+  posY         Int         @default(20)
+  forma        String      @default("CUADRADA") // CUADRADA | CIRCULAR
+  qrToken      String      @unique @default(uuid()) // token para el autoservicio por mesa (QR/tablet)
   pideCuentaAt DateTime? // el cliente pidió la cuenta desde el autoservicio (se limpia al cobrar)
 
   pedidos  Pedido[]
@@ -656,40 +670,41 @@ model Silla {
 // ─────────────────────── Pedidos y ventas ───────────────────────
 
 model Pedido {
-  id          String       @id @default(uuid())
-  numero      Int          @unique @default(autoincrement())
-  channel     OrderChannel
-  orderType   OrderType
-  status      OrderStatus  @default(CARRITO)
-  clienteId   String?
-  cliente     Cliente?     @relation(fields: [clienteId], references: [id])
-  mesaId      String?
-  mesa        Mesa?        @relation(fields: [mesaId], references: [id])
-  mozoId      String?
-  mozo        Usuario?     @relation("PedidoMozo", fields: [mozoId], references: [id])
-  subtotal    Decimal      @db.Decimal(12, 2) @default(0)
-  descuento   Decimal      @db.Decimal(12, 2) @default(0)
-  total       Decimal      @db.Decimal(12, 2) @default(0)
+  id             String       @id @default(uuid())
+  numero         Int          @unique @default(autoincrement())
+  channel        OrderChannel
+  orderType      OrderType
+  status         OrderStatus  @default(CARRITO)
+  clienteId      String?
+  cliente        Cliente?     @relation(fields: [clienteId], references: [id])
+  mesaId         String?
+  mesa           Mesa?        @relation(fields: [mesaId], references: [id])
+  mozoId         String?
+  mozo           Usuario?     @relation("PedidoMozo", fields: [mozoId], references: [id])
+  subtotal       Decimal      @default(0) @db.Decimal(12, 2)
+  descuento      Decimal      @default(0) @db.Decimal(12, 2)
+  total          Decimal      @default(0) @db.Decimal(12, 2)
   // Desglose de IVA, abierto por tasa como lo pide el comprobante fiscal.
   // Los precios se cargan con IVA incluido: esto es lo que sale de adentro
   // del total, no algo que se le sume.
-  neto           Decimal   @db.Decimal(12, 2) @default(0)
-  ivaTotal       Decimal   @db.Decimal(12, 2) @default(0)
-  netoIvaMinima  Decimal   @db.Decimal(12, 2) @default(0)
-  ivaMinima      Decimal   @db.Decimal(12, 2) @default(0)
-  netoIvaBasica  Decimal   @db.Decimal(12, 2) @default(0)
-  ivaBasica      Decimal   @db.Decimal(12, 2) @default(0)
-  montoNoGravado Decimal   @db.Decimal(12, 2) @default(0)
-  notas       String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  neto           Decimal      @default(0) @db.Decimal(12, 2)
+  ivaTotal       Decimal      @default(0) @db.Decimal(12, 2)
+  netoIvaMinima  Decimal      @default(0) @db.Decimal(12, 2)
+  ivaMinima      Decimal      @default(0) @db.Decimal(12, 2)
+  netoIvaBasica  Decimal      @default(0) @db.Decimal(12, 2)
+  ivaBasica      Decimal      @default(0) @db.Decimal(12, 2)
+  montoNoGravado Decimal      @default(0) @db.Decimal(12, 2)
+  notas          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  items        PedidoItem[]
-  pagos        Payment[]
-  eventos      OrderStatusEvent[]
-  comprobantes Comprobante[]
-  propinas     Propina[]
+  items           PedidoItem[]
+  pagos           Payment[]
+  eventos         OrderStatusEvent[]
+  comprobantes    Comprobante[]
+  propinas        Propina[]
   movimientosCaja CashMovement[]
+  cobroTerminal   CobroTerminal?
 
   @@index([status])
   @@index([clienteId])
@@ -716,8 +731,8 @@ model PedidoItem {
   // Tasa y montos congelados al momento de vender: si mañana cambia la tasa
   // del producto, la venta de ayer tiene que seguir mostrando lo que se cobró.
   ivaRate          IvaRate         @default(MINIMA)
-  neto             Decimal         @db.Decimal(12, 2) @default(0)
-  ivaMonto         Decimal         @db.Decimal(12, 2) @default(0)
+  neto             Decimal         @default(0) @db.Decimal(12, 2)
+  ivaMonto         Decimal         @default(0) @db.Decimal(12, 2)
   notas            String?
   status           OrderItemStatus @default(PENDIENTE)
   // Comensal (silla) al que se le imputa el ítem, para cuentas individuales.
@@ -740,7 +755,7 @@ model PedidoItemModifier {
   modifierId   String
   modifier     Modifier   @relation(fields: [modifierId], references: [id])
   nombre       String
-  priceDelta   Decimal    @db.Decimal(12, 2) @default(0)
+  priceDelta   Decimal    @default(0) @db.Decimal(12, 2)
 
   @@index([pedidoItemId])
 }
@@ -807,22 +822,23 @@ model Propina {
 // ─────────────────────── Caja / turnos ───────────────────────
 
 model CashSession {
-  id           String            @id @default(uuid())
-  openedById   String
-  openedBy     Usuario           @relation("CajaAbiertaPor", fields: [openedById], references: [id])
-  closedById   String?
-  closedBy     Usuario?          @relation("CajaCerradaPor", fields: [closedById], references: [id])
-  etiqueta     String? // ej. "Caja 1 - turno mañana"
-  openingFloat Decimal           @db.Decimal(12, 2) @default(0)
-  closingCount Decimal?          @db.Decimal(12, 2)
-  expected     Decimal?          @db.Decimal(12, 2)
-  difference   Decimal?          @db.Decimal(12, 2)
+  id            String            @id @default(uuid())
+  openedById    String
+  openedBy      Usuario           @relation("CajaAbiertaPor", fields: [openedById], references: [id])
+  closedById    String?
+  closedBy      Usuario?          @relation("CajaCerradaPor", fields: [closedById], references: [id])
+  etiqueta      String? // ej. "Caja 1 - turno mañana"
+  openingFloat  Decimal           @default(0) @db.Decimal(12, 2)
+  closingCount  Decimal?          @db.Decimal(12, 2)
+  expected      Decimal?          @db.Decimal(12, 2)
+  difference    Decimal?          @db.Decimal(12, 2)
   justificacion String? // motivo del descuadre cuando supera la tolerancia
-  status       CashSessionStatus @default(ABIERTA)
-  openedAt     DateTime          @default(now())
-  closedAt     DateTime?
+  status        CashSessionStatus @default(ABIERTA)
+  openedAt      DateTime          @default(now())
+  closedAt      DateTime?
 
-  movimientos CashMovement[]
+  movimientos    CashMovement[]
+  cobrosTerminal CobroTerminal[]
 
   @@index([status])
   @@index([openedById])
@@ -849,23 +865,23 @@ model CashMovement {
 }
 
 model Shift {
-  id        String    @id @default(uuid())
-  usuarioId String
-  usuario   Usuario   @relation(fields: [usuarioId], references: [id])
-  inicio    DateTime  @default(now())
-  fin       DateTime?
+  id             String    @id @default(uuid())
+  usuarioId      String
+  usuario        Usuario   @relation(fields: [usuarioId], references: [id])
+  inicio         DateTime  @default(now())
+  fin            DateTime?
   /// Comparación con el horario previsto (minutos; null = sin horario cargado).
-  minutosTarde  Int?
-  minutosAntes  Int?
-  horarioInicio String?
-  horarioFin    String?
+  minutosTarde   Int?
+  minutosAntes   Int?
+  horarioInicio  String?
+  horarioFin     String?
   /// Foto tomada por el tablet al marcar (evidencia de quién fichó).
   fotoEntradaUrl String?
   fotoSalidaUrl  String?
   /// Permiso de un solo uso para subir la foto de la marca recién hecha.
   /// Formato "entrada:<uuid>" o "salida:<uuid>": dice a qué campo va.
-  fotoToken     String?   @unique
-  fotoTokenExp  DateTime?
+  fotoToken      String?   @unique
+  fotoTokenExp   DateTime?
 
   @@index([usuarioId])
 }
@@ -880,9 +896,9 @@ model CustomOrder {
   specs       Json? // sabor, relleno, porciones, tema, colores, texto…
   porciones   Int?
   pickupAt    DateTime
-  precioTotal Decimal           @db.Decimal(12, 2) @default(0)
-  senia       Decimal           @db.Decimal(12, 2) @default(0)
-  saldo       Decimal           @db.Decimal(12, 2) @default(0)
+  precioTotal Decimal           @default(0) @db.Decimal(12, 2)
+  senia       Decimal           @default(0) @db.Decimal(12, 2)
+  saldo       Decimal           @default(0) @db.Decimal(12, 2)
   status      CustomOrderStatus @default(RESERVADO)
   notas       String?
   createdAt   DateTime          @default(now())
@@ -922,7 +938,7 @@ model Comprobante {
   status         CfeStatus @default(PENDIENTE)
   rutReceptor    String?
   montoTotal     Decimal   @db.Decimal(12, 2)
-  iva            Decimal   @db.Decimal(12, 2) @default(0)
+  iva            Decimal   @default(0) @db.Decimal(12, 2)
   provider       String? // "mock" | "surtec" | "uruware"
   createdAt      DateTime  @default(now())
 
@@ -980,11 +996,11 @@ model RotuladoProducto {
   sodioMg         Decimal? @db.Decimal(10, 2)
 
   // Sellos frontales. Se sugieren desde los valores, pero pueden fijarse a mano.
-  autoOctogonos       Boolean @default(true)
-  excesoAzucares      Boolean @default(false)
-  excesoSodio         Boolean @default(false)
-  excesoGrasas        Boolean @default(false)
-  excesoGrasasSat     Boolean @default(false)
+  autoOctogonos        Boolean @default(true)
+  excesoAzucares       Boolean @default(false)
+  excesoSodio          Boolean @default(false)
+  excesoGrasas         Boolean @default(false)
+  excesoGrasasSat      Boolean @default(false)
   // Leyendas precautorias
   contieneEdulcorantes Boolean @default(false)
   contieneCafeina      Boolean @default(false)
@@ -1014,18 +1030,18 @@ model Reserva {
 /// Tablet de fichaje del local (singleton): token del enlace, dispositivo
 /// autorizado y tolerancia de horario.
 model KioscoFichaje {
-  id    String @id @default("default")
-  token String @unique @default(uuid())
+  id               String    @id @default("default")
+  token            String    @unique @default(uuid())
   /// Identificador del único tablet autorizado a fichar (null = ninguno).
-  deviceId       String?
-  deviceNombre   String?
-  deviceUltimoUso DateTime?
+  deviceId         String?
+  deviceNombre     String?
+  deviceUltimoUso  DateTime?
   /// Ventana para vincular un tablet nuevo; vencida, no se acepta ninguno.
   vinculacionHasta DateTime?
   /// Minutos de gracia para llegadas tarde / salidas tempranas.
-  toleranciaMin  Int     @default(10)
+  toleranciaMin    Int       @default(10)
   /// Pedir foto al marcar. Se apaga si el tablet no tiene cámara.
-  pedirFoto      Boolean @default(true)
+  pedirFoto        Boolean   @default(true)
 }
 
 /// Horario semanal previsto de un trabajador (para detectar tarde/temprano).
@@ -1033,9 +1049,9 @@ model HorarioTrabajo {
   id         String  @id @default(uuid())
   usuarioId  String
   usuario    Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  diaSemana  Int     // 0 = domingo … 6 = sábado
-  horaInicio String  // "08:00"
-  horaFin    String  // "16:00"
+  diaSemana  Int // 0 = domingo … 6 = sábado
+  horaInicio String // "08:00"
+  horaFin    String // "16:00"
 
   @@unique([usuarioId, diaSemana])
   @@index([usuarioId])
@@ -1054,14 +1070,61 @@ model SesionConfig {
 
 /// Cómo se liquida el IVA. Son definiciones del contador, no del código.
 model FiscalConfig {
-  id String @id @default("default")
+  id                    String   @id @default("default")
   /// Los precios de Productos ya incluyen IVA (venta a consumidor final).
   /// En false el sistema se lo sumaría encima al total.
-  preciosConIvaIncluido Boolean @default(true)
+  preciosConIvaIncluido Boolean  @default(true)
   /// Facturar todo el consumo en mesa como servicio gastronómico a tasa
   /// básica, sin importar la tasa de cada producto. Queda apagado: las
   /// fuentes públicas no coinciden en si una confitería debe hacerlo, así
   /// que lo prende el contador si corresponde.
-  salonTasaBasica       Boolean @default(false)
-  updatedAt             DateTime @updatedAt @default(now())
+  salonTasaBasica       Boolean  @default(false)
+  updatedAt             DateTime @default(now()) @updatedAt
+}
+
+/// Un cobro con tarjeta enviado a la terminal (Mercado Pago Point).
+///
+/// Existe porque el cobro con posnet integrado no es instantáneo: el monto
+/// viaja a la terminal y la respuesta llega después, por webhook o
+/// consultando. Guardar el intento es lo que permite que la venta se registre
+/// sola cuando Mercado Pago aprueba, aunque la cajera haya cerrado el
+/// navegador, y que un cobro aprobado nunca quede sin su venta.
+model CobroTerminal {
+  id             String  @id @default(uuid())
+  /// Terminal a la que se mandó (terminal_id de Mercado Pago).
+  terminalId     String
+  /// Id de la order/payment intent del lado de Mercado Pago.
+  externalId     String? @unique
+  /// Clave de idempotencia con la que se creó: reintentar no cobra dos veces.
+  idempotencyKey String  @unique
+
+  monto   Decimal             @db.Decimal(12, 2)
+  metodo  PaymentMethod
+  estado  EstadoCobroTerminal @default(PENDIENTE)
+  /// Motivo del rechazo o del error, tal como lo informa el proveedor.
+  detalle String?
+
+  /// El carrito tal como estaba al mandar el cobro. Con esto la venta se
+  /// arma del lado del servidor cuando llega la aprobación, sin depender de
+  /// que el navegador de la cajera siga vivo.
+  carrito     Json
+  rutReceptor String?
+
+  /// Venta generada al aprobarse. Nulo mientras no se cobró, y también en un
+  /// cobro aprobado que todavía no pudo registrarse: eso es lo que se revisa.
+  pedidoId String? @unique
+  pedido   Pedido? @relation(fields: [pedidoId], references: [id])
+
+  cashSessionId String
+  cashSession   CashSession @relation(fields: [cashSessionId], references: [id])
+  usuarioId     String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resueltoEn DateTime?
+
+  @@index([estado])
+  @@index([cashSessionId])
+  @@index([createdAt])
 }
