@@ -9,12 +9,13 @@ la venta se cierra sola en el sistema. No hay importe que tipear dos veces.
 
 El equipo del local es un **Point Smart** (Newland N950, serie NCD500430546).
 
-> **Estado: listo para enchufar, sin verificar contra la terminal.** Todo el
-> flujo está construido y probado con una terminal simulada. Lo que falta es la
-> confirmación de Mercado Pago de que la integración por API está habilitada
-> para cuentas de Uruguay, y una prueba contra el equipo real. Mientras tanto
-> el sistema funciona exactamente como antes: sin `TERMINAL_PROVIDER`, el
-> mostrador cobra como siempre.
+> **Estado: confirmado por Mercado Pago, falta probarlo contra la terminal.**
+> El soporte de Mercado Pago confirmó que la integración de Point vía Orders
+> API está disponible para cuentas de Uruguay (MLU). Todo el flujo está
+> construido y probado con una terminal simulada; falta configurar la
+> aplicación en la cuenta del local y una prueba contra el equipo real.
+> Mientras tanto el sistema funciona exactamente como antes: sin
+> `TERMINAL_PROVIDER`, el mostrador cobra como siempre.
 
 ---
 
@@ -88,7 +89,12 @@ Variables en Render (ninguna va en el frontend):
 > `MP_ACCESS_TOKEN` es la llave de la plata del local. Va en Render, nunca en
 > una variable `VITE_*` ni en un commit.
 
-Para averiguar el `MP_TERMINAL_ID`, con el token ya puesto:
+El `MP_TERMINAL_ID` tiene formato `{tipo}__{serie}`, con **doble** guión bajo,
+y la serie es la que está impresa en la etiqueta de atrás del equipo. Para el
+Point Smart del local (Newland N950, serie `NCD500430546`) debería ser algo
+como `NEWLAND_N950__NCD500430546`.
+
+Conviene no armarlo a mano sino tomarlo de la lista, con el token ya puesto:
 
 ```
 GET /api/admin/terminal/terminales
@@ -124,28 +130,44 @@ TERMINAL_MOCK_RESULTADO=aprobar aprobar | rechazar
 Sirve para mostrarle el flujo al dueño antes de tener la respuesta de Mercado
 Pago, y para desarrollar sin ocupar el posnet del local.
 
-## Lo que falta confirmar
+## Lo que hace falta en la cuenta del cliente
 
-El esqueleto está armado desde la documentación de Mercado Pago de Argentina,
-México y Chile, porque **la documentación uruguaya no pudo consultarse**. Lo
-que puede necesitar ajuste está marcado con `verificar` y concentrado en
-`apps/api/src/integrations/terminal/mercadopago-point.provider.ts`: el resto
+Según el soporte de Mercado Pago, para operar Point por API se necesitan tres
+cosas, y todas son de la cuenta vendedora (la del dueño del local, que es la
+dueña de la terminal):
+
+1. **Una aplicación configurada para Point vía Orders API** en el panel de
+   desarrolladores, en *Tus integraciones*. Si ahí no aparece Point como
+   producto a configurar, esa cuenta todavía no lo tiene habilitado y hay que
+   destrabarlo antes que nada.
+2. **Las credenciales de producción** de esa aplicación. Los cobros en una
+   terminal física son cobros reales, así que no hay credencial de prueba que
+   valga para esto.
+3. **El circuito de calidad / homologación de Point**, que pide una operación
+   real hecha en la terminal física y medir la calidad de la integración con
+   ese Order ID.
+
+## Lo que todavía no se pudo verificar
+
+El proveedor está escrito desde la documentación de Argentina, México y Chile:
+la uruguaya no pudo consultarse directamente. Lo que puede necesitar ajuste
+está marcado con `verificar` y concentrado en
+`apps/api/src/integrations/terminal/mercadopago-point.provider.ts`; el resto
 del sistema no depende de esos detalles.
 
-Antes de prenderlo hay que confirmar con Mercado Pago:
+Queda por confirmar contra la terminal real:
 
-1. **Que la integración de Point por API esté habilitada para cuentas de
-   Uruguay.** Es la pregunta que decide si todo esto sirve.
-2. Si corresponde la **Orders API** (`POST /v1/orders` con `type: point`), que
-   es contra la que está escrito, o todavía la vieja de payment intents.
-3. **Cómo viaja el importe**: acá va como texto con dos decimales
-   (`"462.00"`). La API vieja lo pedía en centavos y sin punto.
-4. **Los nombres de los estados** de la order, para traducirlos bien.
-5. Si hace falta **alta como integrador** o alcanza con el token de producción.
-6. Si hay **ambiente de pruebas**, o se prueba con tarjeta real y devolución.
+- **Cómo viaja el importe**: acá va como texto con dos decimales (`"462.00"`).
+  La API vieja lo pedía en centavos y sin punto.
+- **Los nombres de los estados** de la order. Están mapeados `created`,
+  `at_terminal`, `processed`, `canceled` y `expired`; un estado que no se
+  reconozca se trata como "sigue en la terminal", nunca como aprobado.
+- **El formato del vencimiento** (`expiration_time: "PT15M"`).
 
-Las preguntas completas, listas para mandar, están en el texto que se le pasó
-al dueño para el soporte de Mercado Pago.
+Para probar sin cobrarle a nadie, la documentación menciona un endpoint que
+simula el resultado de una order en ambiente de prueba
+(`POST /v1/orders/{id}/events`). Vale confirmarlo con Mercado Pago: evitaría
+tener que pasar tarjetas reales y devolver la plata durante la homologación.
 
 ## Dónde está cada cosa
 

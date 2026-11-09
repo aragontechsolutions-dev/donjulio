@@ -24,6 +24,12 @@ import {
  *   MP_WEBHOOK_SECRET=...      clave de firma de las notificaciones
  *   MP_POINT_IMPRIME=true      si la terminal imprime su propio comprobante
  *
+ * El identificador de la terminal es `{tipo}__{serie}`, con doble guión bajo,
+ * y la serie es la que está impresa en la etiqueta de atrás del equipo. Para
+ * el Point Smart del local (Newland N950, serie NCD500430546) sería
+ * `NEWLAND_N950__NCD500430546`, pero conviene tomarlo tal cual lo devuelve
+ * `listarTerminales` en vez de armarlo a mano.
+ *
  * ──────────────────────────────────────────────────────────────────────────
  * OJO: la forma exacta de los mensajes está tomada de la documentación de
  * Mercado Pago para otros países (Argentina, México, Chile); todavía no pudo
@@ -37,8 +43,17 @@ export class MercadoPagoPointProvider implements TerminalProvider {
   readonly name = "mercadopago-point";
   private readonly logger = new Logger(MercadoPagoPointProvider.name);
   private static readonly BASE = "https://api.mercadopago.com";
-  /** Si la terminal no contesta en este plazo, el cobro se da por perdido. */
+  /** Si la API no contesta en este plazo, se da por caída. */
   private static readonly TIMEOUT_MS = 15_000;
+  /**
+   * Cuánto espera la terminal al cliente antes de soltar el cobro.
+   *
+   * Sin vencimiento, un cobro que nadie atiende deja la terminal tomada: la
+   * API rechaza una order nueva mientras hay otra pendiente, así que el
+   * mostrador no podría cobrarle al siguiente. Quince minutos es de sobra
+   * para que alguien busque la tarjeta, y poco para que moleste.
+   */
+  private static readonly VENCE_EN_MIN = 15;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -128,6 +143,8 @@ export class MercadoPagoPointProvider implements TerminalProvider {
           // verificar: el importe viaja como texto con dos decimales. La API
           // vieja (payment intents) lo pedía en centavos y sin punto.
           transactions: { payments: [{ amount: input.monto.toFixed(2) }] },
+          // Vencimiento en el formato de duración de Mercado Pago ("PT15M").
+          expiration_time: `PT${MercadoPagoPointProvider.VENCE_EN_MIN}M`,
           config: {
             point: {
               terminal_id: input.terminalId,
