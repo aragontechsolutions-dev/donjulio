@@ -10,6 +10,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verClave, setVerClave] = useState(false);
 
   if (user) {
     navigate("/admin", { replace: true });
@@ -70,13 +71,40 @@ export default function AdminLogin() {
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.18em] text-dj-humo">
             Contraseña
           </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-sm border border-dj-arena bg-white px-3 py-2 outline-none transition-colors focus:border-dj-terracota"
-            required
-          />
+          {/* El ojo evita el caso más común de quedar bloqueado: escribir
+              bien la contraseña con el teclado en otro idioma o las
+              mayúsculas trabadas, sin poder verlo. */}
+          <div className="relative">
+            <input
+              type={verClave ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-sm border border-dj-arena bg-white py-2 pl-3 pr-11 outline-none transition-colors focus:border-dj-terracota"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setVerClave((v) => !v)}
+              aria-label={verClave ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+              aria-pressed={verClave}
+              title={verClave ? "Ocultar" : "Mostrar"}
+              className="absolute inset-y-0 right-0 grid w-11 place-items-center text-dj-humo transition-colors hover:text-dj-terracota"
+            >
+              {verClave ? (
+                // Ojo tachado: la contraseña está a la vista.
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M3 3l18 18" />
+                  <path d="M10.6 5.2A9.6 9.6 0 0 1 12 5c5 0 9 4.5 9 7a11 11 0 0 1-2.4 3.3M6.3 7.3C4 8.8 3 10.9 3 12c0 2.5 4 7 9 7a9.7 9.7 0 0 0 4.2-.9" />
+                  <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+            </button>
+          </div>
         </label>
 
         <button

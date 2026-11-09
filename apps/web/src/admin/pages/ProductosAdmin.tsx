@@ -12,6 +12,7 @@ import {
   type SemaforoFoodCost,
 } from "@donjulio/shared";
 import { api } from "../../lib/api";
+import Paginador, { usePaginacion } from "../../lib/Paginador";
 import CargaMasiva from "./CargaMasiva";
 import { useAuth } from "../../lib/auth";
 import { showToast } from "../../lib/toast";
@@ -210,6 +211,9 @@ export default function ProductosAdmin() {
       ),
     [productos, busqueda, catFiltro],
   );
+  // Paginación del lado del panel: el mismo endpoint lo usan los selectores
+  // de recetas y mermas, que necesitan la lista entera.
+  const pag = usePaginacion(visibles);
 
   const toggle = async (p: Producto, field: "disponible" | "destacado") => {
     // Optimista: el toggle tiene que sentirse inmediato.
@@ -583,7 +587,7 @@ export default function ProductosAdmin() {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((p) => {
+              {pag.visibles.map((p) => {
                 const c = costeo[p.id];
                 const sem = semaforoFoodCost(c?.foodCostPct);
                 return (
@@ -741,6 +745,7 @@ export default function ProductosAdmin() {
             </tbody>
           </table>
         </div>
+        {visibles.length > 0 && <Paginador {...pag} nombre="productos" />}
       </div>
 
       {productos.length > 0 && (

@@ -19,8 +19,13 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
-  // Fuerza bruta: 5 intentos de login por minuto e IP.
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  // Fuerza bruta por IP. En el local todos entran desde la misma conexión,
+  // así que un tope de 5 por minuto significaba que un empleado que se
+  // equivocaba dejaba al resto sin poder entrar por un minuto —incluido el
+  // admin que iba a desbloquearlo—. Diez deja trabajar y sigue frenando a
+  // quien pruebe contraseñas, que además ahora choca con el bloqueo por
+  // cuenta a los 5 intentos.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post("login")
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);

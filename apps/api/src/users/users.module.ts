@@ -57,6 +57,10 @@ interface UsuarioView {
   numeroEmpleado?: number;
   /** Sólo indica si tiene PIN definido; nunca se expone el hash. */
   pinHash?: boolean;
+  /** Bloqueada por errar la contraseña de más; sólo un admin la destraba. */
+  bloqueada?: boolean;
+  /** Intentos fallidos seguidos, para ver quién está por bloquearse. */
+  intentosFallidos?: number;
 }
 
 @Injectable()
@@ -156,6 +160,8 @@ export class UsersService {
             localId: local?.id,
             numeroEmpleado: local?.numeroEmpleado,
             pinHash: !!local?.pinHash,
+            bloqueada: !!local?.bloqueadaEn,
+            intentosFallidos: local?.intentosFallidos ?? 0,
           };
         })
         .sort((a, b) => (a.numeroEmpleado ?? 0) - (b.numeroEmpleado ?? 0));
@@ -171,6 +177,8 @@ export class UsersService {
       localId: u.id,
       numeroEmpleado: u.numeroEmpleado,
       pinHash: !!u.pinHash,
+      bloqueada: !!u.bloqueadaEn,
+      intentosFallidos: u.intentosFallidos,
     }));
   }
 
@@ -233,6 +241,38 @@ export class UsersService {
       numeroEmpleado: u.numeroEmpleado,
       pinHash: !!u.pinHash,
     };
+  }
+
+  /**
+   * Destraba una cuenta bloqueada por intentos fallidos.
+   *
+   * El bloqueo no se vence solo: alguien tiene que decidir que la persona del
+   * otro lado es quien dice ser. En un local eso lo resuelve el encargado en
+   * diez segundos, y un desbloqueo automático le devolvería los intentos a
+   * quien esté probando contraseñas.
+   */
+  async desbloquear(id: string) {
+    const email = await this.emailDe(id);
+    const { count } = await this.prisma.usuario.updateMany({
+      where: { email },
+      data: { bloqueadaEn: null, intentosFallidos: 0 },
+    });
+    if (count === 0) throw new BadRequestException("Usuario no encontrado.");
+    return { ok: true, email };
+  }
+
+  /** Email del usuario, venga el id de Supabase Auth o de la tabla local. */
+  private async emailDe(id: string): Promise<string> {
+    if (this.provider === "supabase") {
+      const { data } = await this.sb().auth.admin.getUserById(id);
+      if (data?.user?.email) return data.user.email.toLowerCase();
+    }
+    const local = await this.prisma.usuario.findUnique({
+      where: { id },
+      select: { email: true },
+    });
+    if (!local) throw new BadRequestException("Usuario no encontrado.");
+    return local.email.toLowerCase();
   }
 
   async updateRole(id: string, role: UserRole): Promise<UsuarioView> {
@@ -312,6 +352,11 @@ class UsersController {
   @Patch(":id/rol")
   updateRole(@Param("id") id: string, @Body() dto: UpdateRoleDto) {
     return this.users.updateRole(id, dto.role);
+  }
+
+  @Post(":id/desbloquear")
+  desbloquear(@Param("id") id: string) {
+    return this.users.desbloquear(id);
   }
 
   @Post(":id/reset-password")

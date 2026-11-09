@@ -200,17 +200,24 @@ enum EstadoCobroTerminal {
 }
 
 model Usuario {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  passwordHash   String
-  nombre         String
-  role           UserRole @default(CAJERO)
-  activo         Boolean  @default(true)
+  id               String    @id @default(uuid())
+  email            String    @unique
+  passwordHash     String
+  nombre           String
+  role             UserRole  @default(CAJERO)
+  activo           Boolean   @default(true)
+  /// Intentos de login fallidos seguidos. Vuelve a cero al entrar bien.
+  intentosFallidos Int       @default(0)
+  /// Cuándo se bloqueó por errar la contraseña de más. Null = no bloqueada.
+  /// Sólo un admin la desbloquea: no se destraba sola con el tiempo, porque
+  /// en un local la persona tiene a quién pedírselo y un desbloqueo
+  /// automático le devolvería los intentos a quien esté probando claves.
+  bloqueadaEn      DateTime?
   // Fichaje en el tablet del local: número correlativo + PIN de 4 dígitos.
-  numeroEmpleado Int      @unique @default(autoincrement())
-  pinHash        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  numeroEmpleado   Int       @unique @default(autoincrement())
+  pinHash          String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relaciones operativas
   movimientosStock  MovimientoStock[]
@@ -443,7 +450,7 @@ model Proveedor {
   createdAt DateTime @default(now())
   // Con default a nivel de base: la tabla ya tenía filas cuando se agregó
   // la columna, y sin default la migración no podía aplicarse.
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   /// Rubros que se le compran. Se declaran aparte de los productos porque un
   /// proveedor nuevo se carga antes de saber qué artículos se le van a pedir.
