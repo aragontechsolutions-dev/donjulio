@@ -7,7 +7,6 @@ import {
 import { Prisma, Silla } from "@prisma/client";
 import {
   CashMovementType,
-  CashSessionStatus,
   OrderChannel,
   OrderStatus,
   OrderType,
@@ -15,6 +14,7 @@ import {
   TableStatus,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { CashService } from "../cash/cash.module";
 import { OrdersService } from "../orders/orders.service";
 import { BillingService } from "../integrations/billing/billing.service";
 import {
@@ -40,6 +40,7 @@ const OPEN_STATES = [OrderStatus.EN_PREPARACION, OrderStatus.LISTO];
 export class SalonService {
   constructor(
     private prisma: PrismaService,
+    private cash: CashService,
     private orders: OrdersService,
     private billing: BillingService,
   ) {}
@@ -610,19 +611,7 @@ export class SalonService {
       Math.round(items.reduce((a, it) => a + num(it.ivaMonto), 0) * 100) / 100;
 
     // El cobro requiere una caja abierta en el turno (propia o del turno).
-    const sesion =
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-      })) ??
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA },
-        orderBy: { openedAt: "desc" },
-      }));
-    if (!sesion) {
-      throw new BadRequestException(
-        "La caja no está abierta. Pedile al responsable que abra la caja para cobrar.",
-      );
-    }
+    const sesion = await this.cash.sesionParaCobrar(usuarioId);
 
     const pago = await this.prisma.payment.create({
       data: {

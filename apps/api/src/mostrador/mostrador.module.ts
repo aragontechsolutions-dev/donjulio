@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Request } from "express";
+import { CashModule } from "../cash/cash.module";
 import { AuthUser, UserRole } from "@donjulio/shared";
 import { CurrentUser, Public, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
@@ -124,7 +125,7 @@ class TerminalWebhookController {
 }
 
 @Module({
-  imports: [OrdersModule, InventoryModule, BillingModule, TerminalModule],
+  imports: [CashModule, OrdersModule, InventoryModule, BillingModule, TerminalModule],
   controllers: [MostradorController, TerminalAdminController, TerminalWebhookController],
   providers: [MostradorService, CobroTerminalService],
   exports: [MostradorService],

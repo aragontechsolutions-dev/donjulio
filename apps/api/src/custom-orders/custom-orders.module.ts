@@ -28,12 +28,12 @@ import {
 import {
   AuthUser,
   CashMovementType,
-  CashSessionStatus,
   CustomOrderStatus,
   PaymentMethod,
   UserRole,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { CashModule, CashService } from "../cash/cash.module";
 import { CurrentUser, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
 
@@ -75,7 +75,10 @@ class DepositoDto {
 
 @Injectable()
 export class CustomOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cash: CashService,
+  ) {}
 
   list(status?: CustomOrderStatus) {
     return this.prisma.customOrder.findMany({
@@ -160,19 +163,7 @@ export class CustomOrdersService {
     }
 
     // El cobro requiere una caja abierta (propia o del turno), como en el salón.
-    const sesion =
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-      })) ??
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA },
-        orderBy: { openedAt: "desc" },
-      }));
-    if (!sesion) {
-      throw new BadRequestException(
-        "La caja no está abierta. Pedile al responsable que abra la caja para cobrar.",
-      );
-    }
+    const sesion = await this.cash.sesionParaCobrar(usuarioId);
 
     const nuevoPagado = round2(pagado + dto.monto);
     const ops: Prisma.PrismaPromise<unknown>[] = [
@@ -246,6 +237,7 @@ class CustomOrdersController {
 }
 
 @Module({
+  imports: [CashModule],
   controllers: [CustomOrdersController],
   providers: [CustomOrdersService],
   exports: [CustomOrdersService],

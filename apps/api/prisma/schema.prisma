@@ -469,6 +469,10 @@ model Insumo {
   puntoReorden  Decimal       @default(0) @db.Decimal(12, 3)
   proveedorId   String?
   proveedor     Proveedor?    @relation(fields: [proveedorId], references: [id])
+  /// Archivado: lo que ya no se compra. No se borra porque su historial de
+  /// movimientos y las recetas que lo usan tienen que seguir cuadrando; deja
+  /// de aparecer en la lista y en los selectores, y nada más.
+  activo        Boolean       @default(true)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

@@ -15,6 +15,8 @@ interface Insumo {
   costoUnitario: string;
   stockActual: string;
   puntoReorden: string;
+  /** Archivado: ya no se compra, pero su historial sigue. */
+  activo?: boolean;
 }
 interface Pagina {
   items: Insumo[];
@@ -71,6 +73,12 @@ export default function InsumosAdmin() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(POR_PAGINA[0]);
 
+  // Ver también los archivados, para revisarlos o reactivarlos.
+  const [verArchivados, setVerArchivados] = useState(false);
+  // Insumo que se está editando, con su formulario.
+  const [editando, setEditando] = useState<Insumo | null>(null);
+  const [editForm, setEditForm] = useState({ nombre: "", unidad: "", costoUnitario: "", puntoReorden: "" });
+
   // Insumos (lo que se compra para producir) o productos terminados.
   const [vista, setVista] = useState<"insumos" | "productos">("insumos");
 
@@ -93,6 +101,7 @@ export default function InsumosAdmin() {
     setCargando(true);
     const params = new URLSearchParams({ page: String(page), perPage: String(perPage) });
     if (q.trim()) params.set("q", q.trim());
+    if (verArchivados) params.set("incluirArchivados", "true");
     api
       .get<Pagina>(`/admin/inventario/insumos?${params}`)
       .then((p) => {
@@ -105,7 +114,7 @@ export default function InsumosAdmin() {
       .finally(() => {
         if (mio === pedido.current) setCargando(false);
       });
-  }, [q, page, perPage]);
+  }, [q, page, perPage, verArchivados]);
 
   const cargarAlertas = useCallback(() => {
     api.get<Insumo[]>("/admin/inventario/alertas/reorden").then(setReorden).catch(() => {});
@@ -116,7 +125,59 @@ export default function InsumosAdmin() {
   useEffect(cargarAlertas, [cargarAlertas]);
 
   // Al cambiar la búsqueda o el tamaño de página, volver a la primera.
-  useEffect(() => setPage(1), [q, perPage]);
+  useEffect(() => setPage(1), [q, perPage, verArchivados]);
+
+  const abrirEdicion = (i: Insumo) => {
+    setError(null);
+    setEditForm({
+      nombre: i.nombre,
+      unidad: i.unidad,
+      costoUnitario: String(Number(i.costoUnitario)),
+      puntoReorden: String(Number(i.puntoReorden)),
+    });
+    setEditando(i);
+  };
+
+  const guardarEdicion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editando) return;
+    setError(null);
+    try {
+      await api.patch(`/admin/inventario/insumos/${editando.id}`, {
+        nombre: editForm.nombre.trim(),
+        unidad: editForm.unidad,
+        costoUnitario: Number(editForm.costoUnitario),
+        puntoReorden: Number(editForm.puntoReorden),
+      });
+      setEditando(null);
+      recargar();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  /** Lo saca de la lista sin tocar su historial (o lo vuelve a traer). */
+  const archivar = async (i: Insumo, activo: boolean) => {
+    setError(null);
+    try {
+      await api.patch(`/admin/inventario/insumos/${i.id}/archivar`, { activo });
+      recargar();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  /** Borra de verdad. La API lo impide si el insumo ya dejó rastro. */
+  const eliminar = async (i: Insumo) => {
+    if (!confirm(`¿Borrar “${i.nombre}”? Si ya tiene movimientos no se va a poder.`)) return;
+    setError(null);
+    try {
+      await api.del(`/admin/inventario/insumos/${i.id}`);
+      recargar();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
 
   const recargar = () => {
     cargarLista();
@@ -393,6 +454,15 @@ export default function InsumosAdmin() {
           )}
         </div>
         <label className="flex items-center gap-2 text-sm text-crust-600">
+          <input
+            type="checkbox"
+            checked={verArchivados}
+            onChange={(e) => setVerArchivados(e.target.checked)}
+            className="h-4 w-4 rounded border-crust-300"
+          />
+          Ver archivados
+        </label>
+        <label className="flex items-center gap-2 text-sm text-crust-600">
           Mostrar
           <select
             value={perPage}
@@ -423,14 +493,30 @@ export default function InsumosAdmin() {
                 const low = Number(i.stockActual) <= Number(i.puntoReorden);
                 return (
                   <tr key={i.id} className="border-t border-crust-50">
-                    <td data-principal className="px-4 py-3 font-medium text-crust-800">{i.nombre}</td>
+                    <td data-principal className="px-4 py-3 font-medium text-crust-800">
+                      {i.nombre}
+                      {i.activo === false && (
+                        <span className="ml-2 rounded-full bg-crust-100 px-2 py-0.5 text-[11px] font-medium text-crust-500">
+                          archivado
+                        </span>
+                      )}
+                    </td>
                     <td data-etiqueta="Unidad" className="px-4 py-3 text-crust-500">{i.unidad}</td>
                     <td data-etiqueta="Costo" className="px-4 py-3 text-right tabular-nums">{formatUYU(i.costoUnitario)}</td>
                     <td data-etiqueta="Stock" className={`px-4 py-3 text-right font-semibold tabular-nums ${low ? "text-red-600" : "text-crust-800"}`}>{Number(i.stockActual)}</td>
                     <td data-etiqueta="Reorden" className="px-4 py-3 text-right tabular-nums text-crust-500">{Number(i.puntoReorden)}</td>
                     <td data-acciones className="whitespace-nowrap px-4 py-3 text-center">
                       <button onClick={() => abrirEntrada(i)} className="mr-2 rounded-lg bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200">+ Entrada</button>
-                      <button onClick={() => abrirAjuste(i)} className="rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
+                      <button onClick={() => abrirAjuste(i)} className="mr-2 rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
+                      <button onClick={() => abrirEdicion(i)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100">Editar</button>
+                      {i.activo === false ? (
+                        <button onClick={() => archivar(i, true)} className="rounded-lg border border-green-300 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Reactivar</button>
+                      ) : (
+                        <>
+                          <button onClick={() => archivar(i, false)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1 text-xs font-medium text-crust-500 hover:bg-crust-100" title="Lo saca de la lista sin borrar su historial">Archivar</button>
+                          <button onClick={() => eliminar(i)} className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50" title="Sólo si todavía no tiene movimientos">Borrar</button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );
@@ -496,6 +582,76 @@ export default function InsumosAdmin() {
       </div>
 
        </>
+      )}
+
+      {/* ---------- Editar un insumo ---------- */}
+      {editando && (
+        <Modal
+          title="Editar insumo"
+          subtitle="Corregí lo que esté mal cargado. No cambia el stock."
+          onClose={() => setEditando(null)}
+        >
+          <form onSubmit={guardarEdicion} className="grid gap-4">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Nombre</span>
+              <input
+                value={editForm.nombre}
+                onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                required
+                autoFocus
+              />
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Unidad</span>
+                <select
+                  value={editForm.unidad}
+                  onChange={(e) => setEditForm({ ...editForm, unidad: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                >
+                  {UNIDADES.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs text-crust-400">
+                  El stock cargado no se convierte: si cambiás de kg a g, revisalo con un ajuste.
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-crust-700">Costo por unidad</span>
+                <input
+                  type="number" step="0.0001" min="0"
+                  value={editForm.costoUnitario}
+                  onChange={(e) => setEditForm({ ...editForm, costoUnitario: e.target.value })}
+                  className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                  required
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Punto de reorden</span>
+              <input
+                type="number" step="0.001" min="0"
+                value={editForm.puntoReorden}
+                onChange={(e) => setEditForm({ ...editForm, puntoReorden: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+                required
+              />
+              <span className="mt-1 block text-xs text-crust-400">
+                Cuando el stock baje de acá, aparece en el aviso de reposición.
+              </span>
+            </label>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setEditando(null)} className="rounded-lg border border-crust-200 px-4 py-2 text-sm font-medium text-crust-700 hover:bg-crust-100">
+                Cancelar
+              </button>
+              <button type="submit" className="rounded-lg bg-dj-terracota px-4 py-2 text-sm font-semibold text-white hover:bg-dj-cobre">
+                Guardar
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* ---------- Entrada múltiple ---------- */}
