@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -13,6 +14,7 @@ import { CurrentUser, Roles } from "../auth/decorators";
 import { RolesGuard } from "../auth/guards";
 import { InventoryService } from "./inventory.service";
 import {
+  ArchivarInsumoDto,
   BulkEntryDto,
   CreateInsumoDto,
   EntradaProductoDto,
@@ -71,6 +73,18 @@ export class InventoryController {
   @Post("productos/:id/entrada")
   entradaProducto(@Param("id") id: string, @Body() dto: EntradaProductoDto) {
     return this.inv.registrarEntradaProducto(id, dto);
+  }
+
+  /** Archiva un insumo o lo vuelve a poner en circulación. */
+  @Patch("insumos/:id/archivar")
+  archivar(@Param("id") id: string, @Body() dto: ArchivarInsumoDto) {
+    return this.inv.archivarInsumo(id, dto.activo);
+  }
+
+  /** Borra un insumo recién creado por error. Si ya tiene historial, falla. */
+  @Delete("insumos/:id")
+  eliminar(@Param("id") id: string) {
+    return this.inv.eliminarInsumo(id);
   }
 
   @Post("insumos/:id/entrada")

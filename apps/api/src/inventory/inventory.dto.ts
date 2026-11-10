@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  IsBoolean,
   ArrayMinSize,
   IsArray,
   IsEnum,
@@ -12,7 +13,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { UnitOfMeasure } from "@donjulio/shared";
 
 /** Opciones de "insumos por página" que ofrece el panel. */
@@ -77,6 +78,19 @@ export class ListInsumosQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
 
   @IsOptional() @Type(() => Number) @IsInt() @IsIn([...INSUMOS_POR_PAGINA]) perPage?: number;
+
+  /** Incluye los archivados, para poder revisarlos o reactivarlos. */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === "true" || value === "1")
+  @IsBoolean()
+  incluirArchivados?: boolean;
+}
+
+/** Archivar o volver a poner en circulación un insumo. */
+export class ArchivarInsumoDto {
+  @Transform(({ value }) => value === true || value === "true")
+  @IsBoolean()
+  activo!: boolean;
 }
 
 /** Una línea de la entrada múltiple (un insumo del remito). */

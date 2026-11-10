@@ -42,9 +42,11 @@ export class InventoryService {
   async listInsumos(query: ListInsumosQueryDto = {}) {
     const perPage = query.perPage ?? INSUMOS_POR_PAGINA[0];
     const q = query.q?.trim();
-    const where: Prisma.InsumoWhereInput = q
-      ? { id: { in: await this.buscarIds(q) } }
-      : {};
+    const where: Prisma.InsumoWhereInput = {
+      ...(q ? { id: { in: await this.buscarIds(q) } } : {}),
+      // Los archivados no están en la lista de todos los días; se piden aparte.
+      ...(query.incluirArchivados ? {} : { activo: true }),
+    };
 
     const total = await this.prisma.insumo.count({ where });
     const totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -82,6 +84,9 @@ export class InventoryService {
    */
   listInsumosOpciones() {
     return this.prisma.insumo.findMany({
+      // Un insumo archivado no se ofrece para una receta nueva; las recetas
+      // que ya lo usaban lo siguen mostrando, porque leen la relación.
+      where: { activo: true },
       orderBy: { nombre: "asc" },
       select: {
         id: true,
@@ -100,6 +105,62 @@ export class InventoryService {
   async updateInsumo(id: string, dto: UpdateInsumoDto) {
     await this.ensureInsumo(id);
     return this.prisma.insumo.update({ where: { id }, data: dto });
+  }
+
+  /**
+   * Borra un insumo, pero sólo si no dejó rastro.
+   *
+   * Un insumo que ya participó de algo no se puede hacer desaparecer: su
+   * historial de movimientos es lo que explica por qué el stock dio lo que
+   * dio, y borrarlo dejaría recetas apuntando al vacío. Para esos está
+   * archivar, que lo saca de la vista sin romper nada.
+   *
+   * El caso que esto resuelve es el real: cargaste un insumo con un dato mal
+   * hace dos minutos y querés que no exista más.
+   */
+  async eliminarInsumo(id: string) {
+    const insumo = await this.prisma.insumo.findUnique({
+      where: { id },
+      select: {
+        nombre: true,
+        _count: {
+          select: {
+            movimientos: true,
+            lotes: true,
+            mermas: true,
+            recetaIngredientes: true,
+            modifiers: true,
+          },
+        },
+      },
+    });
+    if (!insumo) throw new NotFoundException("Insumo no encontrado");
+
+    const c = insumo._count;
+    const usos: string[] = [];
+    if (c.recetaIngredientes > 0) {
+      usos.push(`está en ${c.recetaIngredientes} receta${c.recetaIngredientes === 1 ? "" : "s"}`);
+    }
+    if (c.modifiers > 0) usos.push(`lo usan ${c.modifiers} agregado(s)`);
+    if (c.movimientos > 0) usos.push(`tiene ${c.movimientos} movimiento(s) de stock`);
+    if (c.lotes > 0) usos.push(`tiene ${c.lotes} lote(s)`);
+    if (c.mermas > 0) usos.push(`tiene ${c.mermas} merma(s)`);
+
+    if (usos.length > 0) {
+      throw new BadRequestException(
+        `No se puede borrar “${insumo.nombre}” porque ${usos.join(", ")}. ` +
+          "Archivalo: desaparece de la lista y el historial queda intacto.",
+      );
+    }
+    await this.prisma.insumo.delete({ where: { id } });
+    return { ok: true, borrado: insumo.nombre };
+  }
+
+  /** Saca de circulación un insumo (o lo vuelve a traer). */
+  async archivarInsumo(id: string, activo: boolean) {
+    await this.ensureInsumo(id);
+    const i = await this.prisma.insumo.update({ where: { id }, data: { activo } });
+    return { ok: true, nombre: i.nombre, activo: i.activo };
   }
 
   // ---------- Movimientos de stock ----------

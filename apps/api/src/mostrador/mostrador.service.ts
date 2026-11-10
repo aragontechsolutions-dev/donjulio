@@ -13,7 +13,6 @@ import {
 } from "class-validator";
 import {
   CashMovementType,
-  CashSessionStatus,
   OrderChannel,
   OrderItemStatus,
   OrderStatus,
@@ -22,6 +21,7 @@ import {
   PaymentStatus,
 } from "@donjulio/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { CashService } from "../cash/cash.module";
 import { OrdersService } from "../orders/orders.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { BillingService } from "../integrations/billing/billing.service";
@@ -72,6 +72,7 @@ export interface CobroYaRealizado {
 export class MostradorService {
   constructor(
     private prisma: PrismaService,
+    private cash: CashService,
     private orders: OrdersService,
     private inventory: InventoryService,
     private billing: BillingService,
@@ -122,21 +123,7 @@ export class MostradorService {
 
   /** La caja abierta del turno: sin caja no se cobra, por ningún medio. */
   async cajaAbierta(usuarioId: string) {
-    const sesion =
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
-        orderBy: { openedAt: "desc" },
-      })) ??
-      (await this.prisma.cashSession.findFirst({
-        where: { status: CashSessionStatus.ABIERTA },
-        orderBy: { openedAt: "desc" },
-      }));
-    if (!sesion) {
-      throw new BadRequestException(
-        "La caja no está abierta. Abrí la caja antes de vender.",
-      );
-    }
-    return sesion;
+    return this.cash.sesionParaCobrar(usuarioId);
   }
 
   /**

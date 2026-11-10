@@ -55,6 +55,39 @@ export class CashService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * La caja abierta con la que se registra un cobro, o falla.
+   *
+   * **Toda venta pasa por acá**, venga del mostrador, del salón, de un encargo
+   * o de la terminal de tarjetas. Sin caja abierta no hay dónde anotar la
+   * plata: el cobro quedaría fuera del arqueo y el turno cerraría descuadrado
+   * sin que nadie sepa por qué.
+   *
+   * Se acepta la caja de otro si el turno ya la abrió: en el local hay una
+   * sola caja y varias personas cobrando en ella.
+   *
+   * Vive en el servicio de caja y no copiada en cada módulo a propósito: era
+   * la misma consulta escrita tres veces, y una forma de venta nueva se
+   * olvidaba de hacerla sin que nada lo avisara.
+   */
+  async sesionParaCobrar(usuarioId: string) {
+    const sesion =
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA, openedById: usuarioId },
+        orderBy: { openedAt: "desc" },
+      })) ??
+      (await this.prisma.cashSession.findFirst({
+        where: { status: CashSessionStatus.ABIERTA },
+        orderBy: { openedAt: "desc" },
+      }));
+    if (!sesion) {
+      throw new BadRequestException(
+        "La caja no está abierta, así que no se puede cobrar. Abrila en Caja y volvé a intentar.",
+      );
+    }
+    return sesion;
+  }
+
+  /**
    * Sesión de caja abierta más reciente del cajero, con el arqueo en vivo.
    *
    * El resumen viaja calculado desde acá para que el panel muestre el mismo
