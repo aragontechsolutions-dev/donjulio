@@ -17,6 +17,8 @@ interface Insumo {
   puntoReorden: string;
   /** Archivado: ya no se compra, pero su historial sigue. */
   activo?: boolean;
+  proveedorId?: string | null;
+  proveedor?: { id: string; nombre: string } | null;
 }
 interface Pagina {
   items: Insumo[];
@@ -64,7 +66,8 @@ export default function InsumosAdmin() {
   const [cargando, setCargando] = useState(true);
   const [reorden, setReorden] = useState<Insumo[]>([]);
   const [vencimientos, setVencimientos] = useState<Lote[]>([]);
-  const [form, setForm] = useState({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0 });
+  const [form, setForm] = useState({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0, proveedorId: "" });
+  const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Búsqueda y paginación
@@ -77,7 +80,7 @@ export default function InsumosAdmin() {
   const [verArchivados, setVerArchivados] = useState(false);
   // Insumo que se está editando, con su formulario.
   const [editando, setEditando] = useState<Insumo | null>(null);
-  const [editForm, setEditForm] = useState({ nombre: "", unidad: "", costoUnitario: "", puntoReorden: "" });
+  const [editForm, setEditForm] = useState({ nombre: "", unidad: "", costoUnitario: "", puntoReorden: "", proveedorId: "" });
 
   // Insumos (lo que se compra para producir) o productos terminados.
   const [vista, setVista] = useState<"insumos" | "productos">("insumos");
@@ -121,6 +124,15 @@ export default function InsumosAdmin() {
     api.get<Lote[]>("/admin/inventario/alertas/vencimiento?dias=14").then(setVencimientos).catch(() => {});
   }, []);
 
+  // Para el selector de proveedor. Sin permiso no viene y el selector queda
+  // vacío sin romper nada.
+  useEffect(() => {
+    api
+      .get<{ id: string; nombre: string }[]>("/admin/proveedores")
+      .then(setProveedores)
+      .catch(() => {});
+  }, []);
+
   useEffect(cargarLista, [cargarLista]);
   useEffect(cargarAlertas, [cargarAlertas]);
 
@@ -134,6 +146,7 @@ export default function InsumosAdmin() {
       unidad: i.unidad,
       costoUnitario: String(Number(i.costoUnitario)),
       puntoReorden: String(Number(i.puntoReorden)),
+      proveedorId: i.proveedorId ?? "",
     });
     setEditando(i);
   };
@@ -148,6 +161,8 @@ export default function InsumosAdmin() {
         unidad: editForm.unidad,
         costoUnitario: Number(editForm.costoUnitario),
         puntoReorden: Number(editForm.puntoReorden),
+        // Cadena vacía = sin proveedor: hay que mandar null, no "".
+        proveedorId: editForm.proveedorId || null,
       });
       setEditando(null);
       recargar();
@@ -190,11 +205,14 @@ export default function InsumosAdmin() {
     try {
       await api.post("/admin/inventario/insumos", {
         ...form,
+        proveedorId: form.proveedorId || null,
         costoUnitario: Number(form.costoUnitario),
         stockActual: Number(form.stockActual),
         puntoReorden: Number(form.puntoReorden),
       });
-      setForm({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0 });
+      // Se conserva el proveedor: cuando se carga un remito van varios
+      // insumos seguidos del mismo, y volver a elegirlo cada vez molesta.
+      setForm((f) => ({ nombre: "", unidad: "KG", costoUnitario: 0, stockActual: 0, puntoReorden: 0, proveedorId: f.proveedorId }));
       recargar();
     } catch (e) {
       setError((e as Error).message);
@@ -394,7 +412,7 @@ export default function InsumosAdmin() {
 
       <form onSubmit={crear} className="mb-6 rounded-2xl border border-crust-100 bg-white p-5 shadow-sm">
         <h3 className="mb-4 font-display text-lg font-semibold text-crust-800">Nuevo insumo</h3>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <label className="block sm:col-span-2 lg:col-span-1">
             <span className="mb-1 block text-sm font-medium text-crust-700">Nombre</span>
             <input placeholder="Ej: Harina 000" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2" required />
@@ -424,6 +442,15 @@ export default function InsumosAdmin() {
             <span className="mb-1 block text-sm font-medium text-crust-700">Punto de reorden</span>
             <input type="number" step="0.01" min="0" value={form.puntoReorden} onChange={(e) => setForm({ ...form, puntoReorden: Number(e.target.value) })} className="w-full rounded-lg border border-crust-200 px-3 py-2" />
             <span className="mt-1 block text-xs text-crust-400">Te avisa cuando el stock baje de este valor</span>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-crust-700">Proveedor</span>
+            <select value={form.proveedorId} onChange={(e) => setForm({ ...form, proveedorId: e.target.value })} className="w-full rounded-lg border border-crust-200 px-3 py-2">
+              <option value="">— Sin proveedor —</option>
+              {proveedores.map((pv) => <option key={pv.id} value={pv.id}>{pv.nombre}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-crust-400">A quién se lo comprás. Se gestionan en <b>Proveedores</b>.</span>
           </label>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
@@ -482,6 +509,7 @@ export default function InsumosAdmin() {
               <tr>
                 <th className="px-4 py-3">Insumo</th>
                 <th className="px-4 py-3">Unidad</th>
+                <th className="px-4 py-3">Proveedor</th>
                 <th className="px-4 py-3 text-right">Costo</th>
                 <th className="px-4 py-3 text-right">Stock</th>
                 <th className="px-4 py-3 text-right">Reorden</th>
@@ -502,6 +530,9 @@ export default function InsumosAdmin() {
                       )}
                     </td>
                     <td data-etiqueta="Unidad" className="px-4 py-3 text-crust-500">{i.unidad}</td>
+                    <td data-etiqueta="Proveedor" className="px-4 py-3 text-crust-500">
+                      {i.proveedor?.nombre ?? <span className="text-crust-300">—</span>}
+                    </td>
                     <td data-etiqueta="Costo" className="px-4 py-3 text-right tabular-nums">{formatUYU(i.costoUnitario)}</td>
                     <td data-etiqueta="Stock" className={`px-4 py-3 text-right font-semibold tabular-nums ${low ? "text-red-600" : "text-crust-800"}`}>{Number(i.stockActual)}</td>
                     <td data-etiqueta="Reorden" className="px-4 py-3 text-right tabular-nums text-crust-500">{Number(i.puntoReorden)}</td>
@@ -523,7 +554,7 @@ export default function InsumosAdmin() {
               })}
               {pagina.items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-crust-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-crust-400">
                     {cargando
                       ? "Buscando…"
                       : q.trim()
@@ -640,6 +671,22 @@ export default function InsumosAdmin() {
               />
               <span className="mt-1 block text-xs text-crust-400">
                 Cuando el stock baje de acá, aparece en el aviso de reposición.
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-crust-700">Proveedor</span>
+              <select
+                value={editForm.proveedorId}
+                onChange={(e) => setEditForm({ ...editForm, proveedorId: e.target.value })}
+                className="w-full rounded-lg border border-crust-200 px-3 py-2"
+              >
+                <option value="">— Sin proveedor —</option>
+                {proveedores.map((pv) => (
+                  <option key={pv.id} value={pv.id}>{pv.nombre}</option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-crust-400">
+                A quién se lo comprás. Aparece en su ficha, en <b>Proveedores</b>.
               </span>
             </label>
             <div className="flex justify-end gap-2">
