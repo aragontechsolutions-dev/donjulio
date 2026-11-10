@@ -27,6 +27,19 @@ interface Pagina {
   perPage: number;
   totalPages: number;
 }
+/** Una línea del historial de un insumo. */
+interface Movimiento {
+  id: string;
+  tipo: "ENTRADA" | "SALIDA" | "AJUSTE" | "MERMA";
+  cantidad: number;
+  costoUnitario: number;
+  motivo: string | null;
+  lote: string | null;
+  produccion: string | null;
+  usuario: string | null;
+  createdAt: string;
+}
+
 interface Lote {
   id: string;
   lote: string;
@@ -45,6 +58,19 @@ interface LineaEntrada {
 }
 
 const UNIDADES = Object.values(UnitOfMeasure);
+/** Cómo se nombra y se pinta cada tipo de movimiento de stock. */
+const ETIQUETA_MOV: Record<string, string> = {
+  ENTRADA: "Entrada", SALIDA: "Salida", AJUSTE: "Ajuste", MERMA: "Merma",
+};
+/** ¿Este movimiento sumó stock? */
+const sumaStock = (m: Movimiento) =>
+  m.tipo === "AJUSTE" ? m.cantidad >= 0 : m.tipo === "ENTRADA";
+const TONO_MOV: Record<string, string> = {
+  ENTRADA: "bg-green-100 text-green-700",
+  SALIDA: "bg-crust-100 text-crust-600",
+  AJUSTE: "bg-amber-100 text-amber-800",
+  MERMA: "bg-red-100 text-red-700",
+};
 const POR_PAGINA = [10, 20, 50, 100];
 const nuevaLinea = (): LineaEntrada => ({
   key: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
@@ -78,6 +104,9 @@ export default function InsumosAdmin() {
 
   // Ver también los archivados, para revisarlos o reactivarlos.
   const [verArchivados, setVerArchivados] = useState(false);
+  // Historial de movimientos del insumo que se está mirando.
+  const [historial, setHistorial] = useState<{ insumo: Insumo; movs: Movimiento[] | null } | null>(null);
+
   // Insumo que se está editando, con su formulario.
   const [editando, setEditando] = useState<Insumo | null>(null);
   const [editForm, setEditForm] = useState({ nombre: "", unidad: "", costoUnitario: "", puntoReorden: "", proveedorId: "" });
@@ -138,6 +167,16 @@ export default function InsumosAdmin() {
 
   // Al cambiar la búsqueda o el tamaño de página, volver a la primera.
   useEffect(() => setPage(1), [q, perPage, verArchivados]);
+
+  const verHistorial = async (i: Insumo) => {
+    setHistorial({ insumo: i, movs: null });
+    try {
+      const movs = await api.get<Movimiento[]>(`/admin/inventario/insumos/${i.id}/movimientos`);
+      setHistorial({ insumo: i, movs });
+    } catch {
+      setHistorial({ insumo: i, movs: [] });
+    }
+  };
 
   const abrirEdicion = (i: Insumo) => {
     setError(null);
@@ -539,6 +578,7 @@ export default function InsumosAdmin() {
                     <td data-acciones className="whitespace-nowrap px-4 py-3 text-center">
                       <button onClick={() => abrirEntrada(i)} className="mr-2 rounded-lg bg-green-100 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-200">+ Entrada</button>
                       <button onClick={() => abrirAjuste(i)} className="mr-2 rounded-lg bg-crust-100 px-3 py-1 text-xs font-semibold text-crust-700 hover:bg-crust-200">Ajuste</button>
+                      <button onClick={() => verHistorial(i)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100" title="Qué entró y qué salió">Movimientos</button>
                       <button onClick={() => abrirEdicion(i)} className="mr-2 rounded-lg border border-crust-200 px-3 py-1 text-xs font-medium text-crust-700 hover:bg-crust-100">Editar</button>
                       {i.activo === false ? (
                         <button onClick={() => archivar(i, true)} className="rounded-lg border border-green-300 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-50">Reactivar</button>
@@ -613,6 +653,61 @@ export default function InsumosAdmin() {
       </div>
 
        </>
+      )}
+
+      {/* ---------- Historial de un insumo ---------- */}
+      {historial && (
+        <Modal
+          title="Movimientos"
+          subtitle={`${historial.insumo.nombre} · stock actual ${Number(historial.insumo.stockActual)} ${historial.insumo.unidad}`}
+          onClose={() => setHistorial(null)}
+          ancho="max-w-2xl"
+        >
+          {historial.movs === null ? (
+            <p className="py-6 text-center text-sm text-crust-400">Cargando…</p>
+          ) : historial.movs.length === 0 ? (
+            <p className="py-6 text-center text-sm text-crust-500">
+              Todavía no tiene movimientos. Las entradas, los ajustes y lo que consume la
+              producción van a aparecer acá.
+            </p>
+          ) : (
+            <ul className="divide-y divide-crust-50 text-sm">
+              {historial.movs.map((m) => (
+                <li key={m.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2">
+                  <div className="min-w-0">
+                    <span className={`mr-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONO_MOV[m.tipo]}`}>
+                      {ETIQUETA_MOV[m.tipo]}
+                    </span>
+                    <span className="text-crust-700">
+                      {m.produccion
+                        ? `Producción de ${m.produccion}`
+                        : m.motivo || (m.lote ? `Lote ${m.lote}` : "—")}
+                    </span>
+                    {m.lote && m.motivo && (
+                      <span className="text-crust-400"> · lote {m.lote}</span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-3 tabular-nums">
+                    {/* Entrada suma y salida/merma restan, lo diga o no el
+                        signo guardado. En un ajuste el signo es el dato: es
+                        lo único que distingue un conteo que encontró
+                        mercadería de uno que descubrió que faltaba. */}
+                    <span className={`font-semibold ${sumaStock(m) ? "text-green-700" : "text-crust-700"}`}>
+                      {sumaStock(m) ? "+" : "−"}
+                      {Math.abs(m.cantidad)} {historial.insumo.unidad}
+                    </span>
+                    <span className="text-xs text-crust-400">
+                      {new Date(m.createdAt).toLocaleString("es-UY", {
+                        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                      })}
+                      {m.usuario ? ` · ${m.usuario}` : ""}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Modal>
       )}
 
       {/* ---------- Editar un insumo ---------- */}

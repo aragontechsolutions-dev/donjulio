@@ -120,21 +120,6 @@ export class StaffService {
     });
   }
 
-  async ficharEntrada(usuarioId: string) {
-    const abierto = await this.turnoActual(usuarioId);
-    if (abierto) throw new BadRequestException("Ya tenés un turno abierto.");
-    return this.prisma.shift.create({ data: { usuarioId } });
-  }
-
-  async ficharSalida(usuarioId: string) {
-    const abierto = await this.turnoActual(usuarioId);
-    if (!abierto) throw new BadRequestException("No tenés un turno abierto.");
-    return this.prisma.shift.update({
-      where: { id: abierto.id },
-      data: { fin: new Date() },
-    });
-  }
-
   /** Turnos de los últimos `dias` (todos los usuarios), con horas trabajadas. */
   async listTurnos(dias = 14) {
     const desde = new Date();
@@ -568,20 +553,12 @@ class StaffController {
   constructor(private readonly svc: StaffService) {}
 
   // ---- Turnos ----
-  @Get("turnos/actual")
-  turnoActual(@CurrentUser() user: AuthUser) {
-    return this.svc.turnoActual(user.id);
-  }
-
-  @Post("turnos/entrada")
-  entrada(@CurrentUser() user: AuthUser) {
-    return this.svc.ficharEntrada(user.id);
-  }
-
-  @Post("turnos/salida")
-  salida(@CurrentUser() user: AuthUser) {
-    return this.svc.ficharSalida(user.id);
-  }
+  //
+  // No hay endpoint para que alguien se fiche a sí mismo. Hubo uno, y
+  // cualquier empleado logueado podía marcar entrada y salida desde el
+  // navegador de su casa: sin PIN, sin foto y sin el tablet autorizado, que
+  // es justamente todo lo que el kiosco controla. El fichaje entra sólo por
+  // `/kiosco/:token`, desde el dispositivo vinculado.
 
   @Get("turnos/en-turno")
   enTurno() {

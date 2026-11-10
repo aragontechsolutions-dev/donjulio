@@ -21,6 +21,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "check:permisos": "node scripts/check-permisos.mjs",
-    "check:plural": "node scripts/check-plural.mjs"
+    "check:plural": "node scripts/check-plural.mjs",
+    "check:endpoints": "node scripts/check-endpoints.mjs"
   }
 }

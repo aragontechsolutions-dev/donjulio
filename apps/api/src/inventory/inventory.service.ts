@@ -189,7 +189,12 @@ export class InventoryService {
         data: {
           insumoId,
           tipo,
-          cantidad: Math.abs(delta),
+          // En una entrada, una salida o una merma el sentido lo dice el
+          // tipo, así que se guarda la magnitud. En un ajuste no: puede
+          // sumar o restar, y con el valor absoluto esa diferencia se
+          // perdía —el historial mostraba igual un conteo que encontró
+          // mercadería y uno que descubrió que faltaba—.
+          cantidad: tipo === StockMovementType.AJUSTE ? delta : Math.abs(delta),
           costoUnitario: opts.costoUnitario ?? 0,
           motivo: opts.motivo,
           ordenProduccionId: opts.ordenProduccionId,
@@ -490,12 +495,37 @@ export class InventoryService {
     });
   }
 
-  movimientos(insumoId: string) {
-    return this.prisma.movimientoStock.findMany({
+  /**
+   * El historial de un insumo: qué entró, qué salió y por qué.
+   *
+   * Es lo que contesta "¿por qué tengo 3 kg de harina si compré 25?".
+   * Viajan el lote y quién lo hizo, porque un ajuste sin responsable no se
+   * puede preguntar a nadie.
+   */
+  async movimientos(insumoId: string) {
+    const filas = await this.prisma.movimientoStock.findMany({
       where: { insumoId },
       orderBy: { createdAt: "desc" },
       take: 100,
+      include: {
+        usuario: { select: { nombre: true } },
+        insumoLote: { select: { lote: true } },
+        ordenProduccion: { select: { id: true, receta: { select: { nombre: true } } } },
+      },
     });
+    return filas.map((m) => ({
+      id: m.id,
+      tipo: m.tipo,
+      cantidad: num(m.cantidad),
+      costoUnitario: num(m.costoUnitario),
+      motivo: m.motivo,
+      lote: m.insumoLote?.lote ?? null,
+      // Si salió por producción, de qué receta: así se entiende el consumo
+      // sin tener que ir a buscar la orden.
+      produccion: m.ordenProduccion?.receta?.nombre ?? null,
+      usuario: m.usuario?.nombre ?? null,
+      createdAt: m.createdAt,
+    }));
   }
 
   // ---------- Stock de producto terminado ----------
